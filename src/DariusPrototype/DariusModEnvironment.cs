@@ -155,7 +155,8 @@ public static class DariusModEnvironment
             bool hasAboutIdentity = File.Exists(Path.Combine(about, "publishedfileid.txt")) ||
                                     File.Exists(Path.Combine(about, "description.txt"));
             bool hasProjectIdentity = File.Exists(Path.Combine(path, "DariusPrototype.dll")) ||
-                                      File.Exists(Path.Combine(path, "DariusPrototype.csproj"));
+                                      File.Exists(Path.Combine(path, "DariusPrototype.csproj")) ||
+                                      File.Exists(Path.Combine(path, "src", "DariusPrototype", "DariusPrototype.csproj"));
             return hasAboutIdentity && hasProjectIdentity;
         }
         catch { return false; }
