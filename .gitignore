@@ -1,8 +1,8 @@
 # ============================================================
 # Darius Traveler Mod — 源码仓库 .gitignore
 #
-# 原则：只跟踪源码、构建脚本、文本文档与 Mod 元数据。
-#       构建产物、二进制资产、第三方工具二进制、日志一律不入库。
+# 原则：只跟踪源码、构建定义、文本文档与 Mod 元数据。
+#       构建产物、二进制资产、本地机器配置一律不入库。
 #       资产来源与再生成流程见 docs/assets.md。
 # ============================================================
 
@@ -23,10 +23,16 @@ obj/
 *.obj
 *.cache
 
-# BuildAndInstall.ps1 会先把编译结果回写到 Mod 根目录
+# 可发布包（dotnet build -t:PackageMod 生成；发布只发这个目录）
+build/
+
+# 防止误把编译产物放到仓库根
 /DariusPrototype.dll
 /DariusPrototype.pdb
 DariusPrototype.dll.*
+
+# 本地机器的游戏路径覆盖（见 README「从源码构建」）
+Directory.Build.props
 
 # 历史二进制备份
 *.bak
@@ -39,8 +45,6 @@ DariusPrototype.dll.*
 *.save
 
 # ---------------- 构建 / 运行日志 ----------------
-BUILD_LOG.txt
-LAUNCH_LOG.txt
 *.log
 
 # ---------------- 二进制资产 ----------------
@@ -56,8 +60,8 @@ about/*.ico
 about/*.bmp
 
 # ---------------- 第三方工具二进制 ----------------
-# vgmstream 由 Tools/PrepareDariusPass2Media.ps1 在需要时自动下载
-Tools/vgmstream/
+# 本地下载的 vgmstream 等转换器
+tools/vgmstream/
 
 # ---------------- IDE / 编辑器 ----------------
 .vs/

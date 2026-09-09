@@ -11,8 +11,8 @@
 - **形态**：单个 .NET 类库 `DariusPrototype.dll` + 一个 `about\` 元数据目录 + 一组二进制资产（不入库）。
 - **加载方式**：游戏内置 `DewMod` 加载器（`ModBehaviour`）+ Harmony 补丁，全部资源在运行时构建。
 - **语言**：C# 9.0 / `netstandard2.1`。
-- **规模**：`Formal/` 共 45 个 `.cs`（40 个在根目录 + 5 个在 `UniversalAnimation/`）、约 106 万字符；最大的三个文件是 `DariusTravelerSystem.cs`（~192 KB）、`DariusConstellations.cs`（~106 KB）、`DariusLolVfxRuntime.cs`（~84 KB）。
-- **没有测试框架、没有 CI**。验证 = 构建契约 + 游戏内人工清单。
+- **规模**：`src/DariusPrototype/` 共 45 个 `.cs`（40 个在根目录 + 5 个在 `UniversalAnimation/`）、约 106 万字符；最大的三个文件是 `DariusTravelerSystem.cs`（~192 KB）、`DariusConstellations.cs`（~106 KB）、`DariusLolVfxRuntime.cs`（~84 KB）。
+- **没有测试框架、没有 CI**。验证 = `dotnet build` 编译 + 游戏内人工清单。
 
 ## 2. 技术栈与硬约束
 
@@ -21,11 +21,12 @@
 | 目标框架 | `netstandard2.1` | 必须匹配游戏 Unity 运行时 |
 | 语言版本 | C# 9.0 | 不要使用 C# 10+ 语法（file-scoped namespace、record struct、全局 using 等） |
 | 编译方式 | `NoStdLib` + `DisableImplicitFrameworkReferences` | 所有程序集引用都来自游戏 `Managed` 目录 |
-| 依赖 | **零 NuGet 包** | 不允许新增 NuGet/PackageReference；需要新程序集时改 csproj 的 `<Reference>` 并同步构建脚本 |
-| 平台 | Windows | 构建脚本是 PowerShell 5.1 + `.bat` |
+| 依赖 | **零 NuGet 包** | 不允许新增 NuGet/PackageReference；需要新程序集时改 csproj 的 `<Reference>` |
+| 构建 | `dotnet build`（MSBuild） | **没有 shell 构建脚本**；游戏路径通过 `GameDir` 属性注入 |
+| 平台 | Windows | 游戏与 Steam 安装路径为 Windows 形式 |
 | 编码 | UTF-8 | 仓库内 BOM 状态不统一（如 `DariusTravelerSystem.cs` 有 BOM）；新建文件用**无 BOM UTF-8**，行尾 LF |
 
-**不要做的事**：升级 TargetFramework、开启 implicit usings、引入第三方库、把代码拆成新项目、改 `AssemblyName`（`about\metadata.json` 与构建脚本都写死了 `DariusPrototype.dll`）。
+**不要做的事**：升级 TargetFramework、开启 implicit usings、引入第三方库、把代码拆成新项目、改 `AssemblyName`（`about\metadata.json` 与 csproj 都写死了 `DariusPrototype.dll`）。
 
 ## 3. 源码职责地图
 
@@ -35,9 +36,6 @@
 | --- | --- |
 | `DariusPrototype.cs` | `DariusPrototypeMod : ModBehaviour` 入口。`Awake` 早期引导 → `Start` 中 `harmony.PatchAll()`、注册生命周期/兼容层、启动自愈协程。**引导路径的异常必须被捕获且不得中断核心注册**（见文件内注释） |
 | `DariusPrototype.csproj` | SDK 风格工程，默认递归包含 `**/*.cs`。新增 `.cs` 无需登记；但**不要**在 `assets/`、`docs/` 下放 `.cs` |
-| `BuildAndInstall.ps1` | 构建主脚本：定位游戏目录 → 校验元数据（版本/ID/描述）→ **从 csproj 推导**并校验游戏引用 → **从代码/清单推导**并校验资产契约 → `dotnet build` → 回写 DLL |
-| `BUILD_DARIUS.bat` | 双击入口，包装 `BuildAndInstall.ps1`，输出 `LAUNCH_LOG.txt` |
-| `PREPARE_DARIUS_PASS2_MEDIA.bat` | 单独执行 `Tools\PrepareDariusPass2Media.ps1`（WEM → WAV） |
 
 ### 3.2 技能与战斗
 
@@ -89,14 +87,15 @@
 | `DariusModEnvironment.cs` | 以来源无关的方式解析 Mod 物理目录（本地 / Workshop）；`Version` 从 `about\metadata.json` 读取版本 |
 | `DariusResourceIds.cs` | 共享资源 GUID 的唯一定义处（`DariusFormalRegistry` 与 `DariusDejaVuRegistry` 都引用它） |
 | `DariusModLifecycle.cs` | 区分真正的 `DewMod` 热卸载与普通场景销毁 |
-| `Formal/UniversalAnimation/*.cs` | 通用动画重定向运行时：`AnimationLibrary`（加载）、`UniversalRetargeter`（重定向）、`DariusRetargetApi`（技能侧桥）、`ModelUtils`、`RuntimeLog` |
+| `src/DariusPrototype/UniversalAnimation/*.cs` | 通用动画重定向运行时：`AnimationLibrary`（加载）、`UniversalRetargeter`（重定向）、`DariusRetargetApi`（技能侧桥）、`ModelUtils`、`RuntimeLog` |
 
 ### 3.5 离线工具
 
 | 文件 | 职责 |
 | --- | --- |
-| `Tools/PrepareDariusPass2Media.ps1` | 用 vgmstream 把 `assets/raw_lol_audio/*.wem` 解码为 `assets/audio/*.wav`；缺少 vgmstream 时自动下载 |
-| `Tools/BuildDariusPass5AuthenticVfx.py` | 解析 Riot `PROP` BIN，生成 `assets/lol_vfx/darius_lol_vfx.json` 与贴图/网格载荷 |
+| `tools/BuildDariusPass5AuthenticVfx.py` | 解析 Riot `PROP` BIN，生成 `assets/lol_vfx/darius_lol_vfx.json` 与贴图/网格载荷 |
+
+WEM → WAV 解码没有脚本：直接调用 `vgmstream-cli -o out.wav in.wem`（批量示例见 `docs/assets.md`）。
 
 ## 4. 构建与验证
 
@@ -104,53 +103,44 @@
 
 1. 本机安装 **Shape of Dreams**，且存在 `<游戏目录>\Shape of Dreams_Data\Managed\`。
 2. 安装 **.NET SDK 8.0+**。
-3. 仓库位于 `<游戏目录>\Mods\DariusPrototype\`（或设置 `SOD_GAME_DIR`）。
-4. `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs` 存在——**跨 Mod 共享源码，不在本仓库内**（`DariusPrototype.csproj` 用 `..\` 链接引用，缺失会导致 `CS2001`）。
-5. 二进制资产齐备（见第 6 节与 `docs/assets.md`）。
+3. 设置 `GameDir`（`-p:` / `Directory.Build.props` / `SOD_GAME_DIR`）；仓库本身可以放在任何位置。
+4. `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs` 存在——**跨 Mod 共享源码，不在本仓库内**（csproj 通过 `$(ModsDir)\TravelerBasicAttackVfxReplication.cs` 链接；缺失时 `CheckGameInstall` 目标直接报错）。
+5. 二进制资产齐备（打包需要；见第 6 节与 `docs/assets.md`）。
 
-### 4.2 构建
-
-```bat
-BUILD_DARIUS.bat
-```
+### 4.2 构建 / 打包 / 部署
 
 ```powershell
-# 等价的直接调用
-powershell -NoProfile -ExecutionPolicy Bypass -File .\BuildAndInstall.ps1
+dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release      # 只编译
+dotnet build src/DariusPrototype/DariusPrototype.csproj -t:PackageMod   # 组装 build/
+dotnet build src/DariusPrototype/DariusPrototype.csproj -t:DeployMod    # 打包 + 部署到游戏
 ```
 
-产物：根目录 `DariusPrototype.dll`（同时生成 `.pdb`）。日志：根目录 `BUILD_LOG.txt`。
-
-### 4.3 构建契约（由真源推导，不要手写第二份）
-
-`BuildAndInstall.ps1` 的校验值**全部从单一真源推导**，不存在需要手工同步的第二份清单：
-
-| 校验项 | 真源 |
+| 目标 | 产物 |
 | --- | --- |
-| Mod 版本 | `about\metadata.json` 的 `modVer`（脚本与运行时共用） |
-| Workshop ID | `about\publishedfileid.txt`（只校验格式为数字） |
-| 游戏程序集引用 | `DariusPrototype.csproj` 的 `<Reference>` + `HintPath`（自动覆盖 `UnityEngine.UI`） |
-| 图标集合 | `Formal\DariusPrototypeIcons.cs` 的 `FileNames` 映射 |
-| VFX 贴图集合 | `Formal\DariusMedia.cs` 的 `PreloadAll()` 纹理表 |
-| GLB 结构 / 必需动画 | `Formal\DariusTravelerSystem.cs` 的 `DariusSkinSpec` 表 |
-| 动画剪辑 | `assets\animations\manifest.json` |
-| 旧版音频集合 | `assets\audio\LOL_AUDIO_MANIFEST.json` |
-| Pass2 解码完整性 | `assets\raw_lol_audio\**\*.wem` 与同名 WAV 一一对应 |
+| `Build`（默认） | `src/DariusPrototype/bin/Release/netstandard2.1/DariusPrototype.dll` |
+| `PackageMod` | `build/`：DLL + `about/` + 运行时资产（不含 `src/`、`docs/`、`assets/raw_*`） |
+| `DeployMod` | `build/` 内容复制到 `$(ModsDir)\DariusPrototype` |
 
-唯一保留的手写数值集中在脚本顶部的 `$ReleaseGates`：VFX systems `164` / pass5 `117` / 贴图 ≥ `113` / 网格 ≥ `51` / 描述 `8000` 与 `7500` 字节。它们无法从代码或数据推导，属于发布门槛；**不要**把已经可推导的值加回该块。
+游戏路径解析顺序：`-p:GameDir=...` → `Directory.Build.props`（本地，已 gitignore）→ 环境变量 `SOD_GAME_DIR`。解析不到时 `CheckGameInstall` 给出明确报错。`ModsDir` 默认 `$(GameDir)\Mods`。
 
-若任一真源格式变化，脚本会**显式报错**（例如 `Could not locate the FileNames map`），而不是静默跳过校验。改这些格式时必须同步更新脚本里的解析正则。
+**发布只发 `build/`**，不发仓库。
+
+### 4.3 构建只做轻量边界检查
+
+构建**不校验资产数量**：`assets/raw_*` 是提取源、不进包，资产完整性由运行时日志负责（`DariusMedia.PreloadAll()`、`DariusTravelerSystem` 的皮肤规格、`DariusLolVfxRuntime` 的 manifest 校验）。构建期只做存在性检查：
+
+- `CheckGameInstall`：游戏程序集、外部共享源码；
+- `VerifyPackageAssets`：打包前必需资产（`about/metadata.json`、`assets/models/darius.glb`、`assets/lol_vfx/darius_lol_vfx.json`、`assets/audio/flash.ogg`）。
+
+版本号唯一真源仍是 `about\metadata.json` 的 `modVer`；csproj 里**不要**加 `<Version>`。发布体积构成与压缩取舍见 `docs/assets.md` 第 3.5 节。
 
 ### 4.4 验证方式
 
 | 层次 | 手段 |
 | --- | --- |
-| 编译 | `dotnet build`（由 `BuildAndInstall.ps1` 驱动）——**这是唯一的权威编译验证** |
-| 结构/契约 | `BuildAndInstall.ps1` 的资产与元数据检查（全部从真源推导） |
-| 游戏内 | `docs/MECHA_VFX_HOTFIX*_TEST_CHECKLIST.md` 等人工清单 |
-| 静态自检 | 没有仓库内的检查脚本。若无法编译，只能做括号配平、引用/路径存在性、JSON 可解析等自检，并明确声明「未编译验证」 |
-
-> PowerShell 脚本改动可用 `[System.Management.Automation.Language.Parser]::ParseFile()` 做语法自检；脚本里的推导逻辑（正则解析真源）可以单独复制执行，与预期值逐一比对。
+| 编译 | `dotnet build` —— **唯一的权威编译验证** |
+| 运行时 | 游戏内人工清单 `docs/MECHA_VFX_HOTFIX*_TEST_CHECKLIST.md` + 共享 Mods 目录下的 `DariusPrototype_runtime.log` |
+| 静态自检 | 没有仓库内的检查脚本。无法编译时只能做括号配平、引用/路径存在性、JSON 可解析等自检，并明确声明「未编译验证」 |
 
 > 在没有游戏环境 / 没有 .NET SDK 的机器上，你**无法**完成编译验证。此时应明确说明「未编译验证」，并至少做括号配平、引用存在性、JSON 可解析等静态自检。
 
@@ -164,13 +154,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\BuildAndInstall.ps1
 6. **性能**：`ConvertDescriptionNodesToText` 等每帧/多次调用的路径必须缓存（现有实现已缓存，勿破坏）。
 7. **注释**：解释「为什么」而非「是什么」；涉及 Riot 原语/游戏版本差异的地方必须写明来源与限制。
 8. **不要顺手重构**：本仓库文件极大且强耦合，未经要求不要重排、重命名或格式化无关代码。
-9. **版本号单一真源**：只改 `about\metadata.json` 的 `modVer`。构建脚本与运行时（`DariusModEnvironment.Version`）都从它读取；**禁止**在任何 `.cs` / `.ps1` / `.bat` 里再写版本字面量。
-10. **共享 GUID**：资源 GUID 只在 `Formal/DariusResourceIds.cs` 定义一次，其他文件引用常量；这些值持久化在存档与网络身份中，不得更改。
+9. **版本号单一真源**：只改 `about\metadata.json` 的 `modVer`。运行时（`DariusModEnvironment.Version`）从它读取；**禁止**在任何 `.cs` / `.csproj` 里再写版本字面量。
+10. **共享 GUID**：资源 GUID 只在 `src/DariusPrototype/DariusResourceIds.cs` 定义一次，其他文件引用常量；这些值持久化在存档与网络身份中，不得更改。
 11. **日志级别**：`DariusLog.Minimum` 或环境变量 `DARIUS_LOG_LEVEL`（`debug|info|warn|error|off`，默认 `debug`）。`EXCEPTION` 不受过滤。
 
 ## 6. 资产与版权红线
 
-1. **禁止把二进制资产提交到 Git**。`.gitignore` 已忽略整个 `assets/`、`about/*.png` 与 `Tools/vgmstream/`。`git status` 中不应出现任何 `.glb` / `.wav` / `.wem` / `.tex` / `.skn` / `.png` / `.dll`。
+1. **禁止把二进制资产提交到 Git**。`.gitignore` 已忽略整个 `assets/`、`about/*.png` 与 `tools/vgmstream/`。`git status` 中不应出现任何 `.glb` / `.wav` / `.wem` / `.tex` / `.skn` / `.png` / `.dll`。
 2. **禁止公开分发 Riot 原始资产**。League 资产版权归 Riot Games；本项目依据 Riot 的 Legal Jibber Jabber 政策创作，仅限本地互操作使用。
 3. **不要伪造替代 VFX**。Riot 原语不受支持时应显式记录并跳过（fidelity gate），而不是用自制贴图/几何冒充——这是本项目的核心原则。
 4. **不要重绘用户提供的资源**。例如 `assets/icons/star_awoo.png` 必须保持与用户原图字节一致，禁止裁剪/改色/风格化。
@@ -179,17 +169,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\BuildAndInstall.ps1
 
 ## 7. 常见陷阱
 
-- **`TravelerBasicAttackVfxReplication.cs` 不在仓库里**：`DariusPrototype.cs:38` 与 `DariusSkinSystem.cs` 依赖它。构建前确认它位于 `Mods\` 目录。
-- **版本号只有一个真源**：`about\metadata.json` 的 `modVer`。构建脚本与 `DariusModEnvironment.Version` 都读它；`DariusPrototype.cs` / `BuildAndInstall.ps1` / `BUILD_DARIUS.bat` 里原有的版本字面量已删除，不要加回去。
-- **`$ReleaseGates` 是脚本里唯一允许的手写数值块**（VFX 发布门槛与描述字节上限）。新增校验应从真源推导，而不是往这个块里加常量。
-- **共享 GUID 只在 `Formal/DariusResourceIds.cs` 定义**：改值会破坏存档与网络身份；`DariusFormalRegistry` / `DariusDejaVuRegistry` 引用它而不是复制字面量。
-- **日志级别**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`，即原有行为）；`EXCEPTION` 始终写入。
-- **构建脚本会先删后建**：`BuildAndInstall.ps1` 会删除根目录 `DariusPrototype.dll` / `.pdb` 以及整个 `bin/`、`obj/`，再重新编译。不要手动往这些位置放文件。
+- **没有 shell 构建脚本**：构建就是 `dotnet build`；游戏路径用 `GameDir`（`-p:` / `Directory.Build.props` / `SOD_GAME_DIR`）注入。不要再引入 `.bat` / `.ps1` 构建或校验脚本。
+- **`TravelerBasicAttackVfxReplication.cs` 不在仓库里**：csproj 从 `$(ModsDir)` 链接它，缺失时 `CheckGameInstall` 直接报错。
+- **版本号只有一个真源**：`about\metadata.json` 的 `modVer`。运行时 `DariusModEnvironment.Version` 读它；任何 `.cs` / `.csproj` 里都不要再写版本字面量。
+- **共享 GUID 只在 `src/DariusPrototype/DariusResourceIds.cs` 定义**：改值会破坏存档与网络身份。
+- **日志级别**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`）；`EXCEPTION` 始终写入。
+- **`PackageMod` 产出 `build/`**（DLL + `about/` + 运行时资产），发布只发它；`DeployMod` 才写入 `<GameDir>\Mods\DariusPrototype`。`assets/raw_*` 不进包。
+- **构建只做存在性边界检查**：数量/结构校验在运行时日志里，不在构建期；不要为此新增脚本。
 - **日志写在共享 Mods 目录**，不在 Mod 目录内。找日志时往上一层看。
-- **`assets/` 缺失即构建失败**：校验值从代码与清单推导，删减/改名资产会直接失败；正常情况下**不需要**改脚本。
-- **真源格式变化会让脚本显式报错**：图标映射、`PreloadAll()` 纹理表、`DariusSkinSpec` 表、各 manifest 的结构被改动时，必须同步脚本里的解析正则。
-- **`Tools/vgmstream/` 是自动下载的第三方二进制**（已忽略）。离线环境需预置 `vgmstream-cli.exe`。
-- **SDK 风格 csproj 递归收集 `.cs`**：往 `Formal/` 新增文件即可自动编译；但把 `.cs` 放到被忽略的目录会被静默跳过（不会报错，但也不会编译）。
+- **SDK 风格 csproj 递归收集 `.cs`**：往 `src/DariusPrototype/` 新增文件即可自动编译；但把 `.cs` 放到被忽略的目录会被静默跳过。
 - **现有编译警告是已知的**：CS0114（`Ai_Darius_NoxianGuillotine.OnDestroy`）、CS0168、CS0618（`FindObjectsOfType` 已废弃）、CS0414。修复它们不是当前目标，但**不要新增**警告。
 - **PowerShell 控制台中文可能显示为乱码**：这是控制台代码页问题，文件本身是 UTF-8；用 `read` 工具或 `Get-Content -Encoding UTF8` 查看。
 - **`README.md` 不再保存版本历史**：历史进 `CHANGELOG.md`，专项笔记进 `docs/`。
@@ -203,23 +191,25 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\BuildAndInstall.ps1
   git status --short          # 确认没有 dll / wav / glb / 日志混入
   git check-ignore -v <path>  # 确认资产被正确忽略
   ```
-- 涉及真源格式（图标映射、`PreloadAll()` 纹理表、`DariusSkinSpec` 表、manifest 结构）的改动，必须在提交信息或 `CHANGELOG.md` 中说明脚本解析正则是否同步。
+- 不要新增 `.bat` / `.ps1` 构建或校验脚本；构建逻辑一律放 `*.csproj` / `*.targets`。
+- 发版时同步两处：`about\metadata.json` 的 `modVer` 与仓库根 `CHANGELOG.md`（Keep a Changelog 格式）。`docs/archive/CHANGELOG-legacy.md` 是 0.30.x 及更早的历史，**不再维护**。
 - 新增文档放 `docs/`，并在 `README.md` 的文档索引中登记。
 
 ## 9. 代理工作流检查清单
 
 **开工前**
 - [ ] 读 `README.md`（项目全貌）与本节之前的全部内容。
-- [ ] 确认改动落在哪一层：C# 逻辑（`Formal/`、`DariusPrototype.cs`）、构建脚本（`*.ps1` / `*.bat`）、离线工具（`Tools/`）、文档（`docs/`）。
+- [ ] 确认改动落在哪一层：C# 逻辑（`src/DariusPrototype/`）、构建定义（`*.csproj`）、离线工具（`tools/`）、文档（`docs/`）。
 - [ ] 若任务涉及资产，先确认资产存在（`assets/` 不入库，可能本机缺失）。
 
 **改动中**
 - [ ] 只改与任务相关的文件；不引入新依赖；不使用 C# 10+ 语法。
-- [ ] 改动资产/引用时只改真源（csproj / `Formal/` 代码 / manifest）；只有 VFX 发布门槛变化才改 `$ReleaseGates`。
+- [ ] 改动资产/引用时改真源（csproj / `src/DariusPrototype/` 代码 / manifest）；不要新增 shell 脚本。
 - [ ] 触碰版本号时只改 `about/metadata.json` 的 `modVer`。
 
 **收尾**
 - [ ] 能编译就编译；不能编译就明确声明「未编译验证」，并给出静态自检结果（括号配平、引用/路径存在性、JSON 可解析）。
+- [ ] 发布前跑一次 `-t:PackageMod`，确认 `build/` 内容正确且不含 `raw_*`。
 - [ ] 更新受影响的文档（`README.md` 索引、`CHANGELOG.md`、`docs/assets.md`）。
 - [ ] `git status` 确认无二进制、无日志、无 `bin/` `obj/` 进入版本控制。
 - [ ] 报告改动清单时给出具体文件路径，不要笼统地说「已优化」。
@@ -228,4 +218,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\BuildAndInstall.ps1
 - 提交任何二进制资产或构建产物。
 - 声称完成了未实际执行的构建或游戏内验证。
 - 为了让编译通过而伪造资产、删除资产契约检查、或注释掉校验逻辑。
-- 未经要求大规模重构 `Formal/` 下的超大文件。
+- 未经要求大规模重构 `src/DariusPrototype/` 下的超大文件。

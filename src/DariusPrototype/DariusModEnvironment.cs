@@ -22,8 +22,8 @@ public static class DariusModEnvironment
         get { return _sourceLabel; }
     }
 
-    // The mod version comes from about\metadata.json, the same single source of truth that
-    // BuildAndInstall.ps1 reads. It must never be duplicated as a literal in code.
+    // The mod version comes from about\metadata.json, the single source of truth shared with
+    // CHANGELOG.md. It must never be duplicated as a literal in code or the project file.
     public static string Version
     {
         get

@@ -2,7 +2,7 @@
 
 > 为 **Shape of Dreams** 制作的非官方角色 Mod：把《英雄联盟》的**诺克萨斯之手 · 德莱厄斯**作为一个独立的 Traveler 接入游戏，包含独立的技能、被动、星座（星效）、皮肤、动画、VFX、音效与中/英/日本地化。
 
-[Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3790488345) · Workshop ID `3790488345` · 目标版本 `0.30.8-balance` · 详细版本历史见 [CHANGELOG.md](CHANGELOG.md)
+[Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3790488345) · Workshop ID `3790488345` · 当前版本 `0.31.0` · 版本历史见 [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
@@ -30,9 +30,8 @@
 | 项 | 要求 |
 | --- | --- |
 | 游戏 | Steam 版 Shape of Dreams，Mod 目录位于 `<游戏目录>\Mods\` |
-| 构建工具 | .NET SDK **8.0+**（`BuildAndInstall.ps1` 会检查 `dotnet --list-sdks`） |
-| 脚本环境 | Windows + Windows PowerShell 5.1（`BUILD_DARIUS.bat` 调用 `powershell.exe`） |
-| 可选 | Python 3（仅在重新生成 Riot VFX 载荷时需要） |
+| 构建工具 | .NET SDK **8.0+**（`dotnet build`，MSBuild） |
+| 可选 | 任意 C# IDE；Python 3（仅在重新生成 Riot VFX 载荷时需要） |
 | 资产 | **本仓库不含任何二进制资产**，见 [docs/assets.md](docs/assets.md) |
 
 ## 3. 构建与安装
@@ -41,74 +40,75 @@
 
 ```
 <Steam>\steamapps\common\Shape of Dreams\
-├── Shape of Dreams_Data\Managed\      # 编译引用（mscorlib / Assembly-CSharp / Dew.* / UnityEngine.*）
+├── Shape of Dreams_Data\Managed\              # 编译引用（mscorlib / Assembly-CSharp / Dew.* / UnityEngine.*）
 └── Mods\
     ├── TravelerBasicAttackVfxReplication.cs   # 跨 Mod 共享源码（见 3.4）
-    └── DariusPrototype\                        # 本仓库
-        ├── DariusPrototype.csproj
-        └── BUILD_DARIUS.bat
+    └── DariusPrototype\                        # 安装位置（由 DeployMod 写入，不是仓库）
 ```
 
-### 3.2 一键构建
+仓库可以放在任何地方（本机为 `D:\Project\mod-sod-lol\darius`），与游戏目录解耦。
 
-```bat
-:: 在 Mod 根目录执行
-BUILD_DARIUS.bat
-```
-
-等价于直接调用主脚本：
+### 3.2 构建与打包
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\BuildAndInstall.ps1
+# 只编译（需要游戏程序集）
+dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release
+
+# 组装可发布包 -> build/（校验必需资产存在）
+dotnet build src/DariusPrototype/DariusPrototype.csproj -t:PackageMod
+
+# 打包并部署到 <游戏目录>\Mods\DariusPrototype
+dotnet build src/DariusPrototype/DariusPrototype.csproj -t:DeployMod
 ```
 
-构建流程：
+| 目标 | 产物 |
+| --- | --- |
+| `Build`（默认） | `src/DariusPrototype/bin/Release/netstandard2.1/DariusPrototype.dll` |
+| `PackageMod` | `build/`：DLL + `about/` + 运行时资产（不含 `src/`、`docs/`、`assets/raw_*`） |
+| `DeployMod` | 上面的包复制到 `<GameDir>\Mods\DariusPrototype` |
 
-1. 定位游戏目录（沿路径向上查找 / 读注册表 / 解析 `libraryfolders.vdf` / 读环境变量 `SOD_GAME_DIR`）。
-2. 校验 `about\metadata.json`、`about\publishedfileid.txt`、Workshop 描述字节数（≤ 8000）。
-3. 校验全部游戏 `Managed` 引用 DLL 存在。
-4. 校验资产契约（图标、音频、VFX 清单、GLB 骨骼/动画数、动画 clip 数），必要时自动触发 Pass2 WEM→WAV 解码。
-5. `dotnet build -c Release -p:GameDir=... -p:GameManagedDir=...`。
-6. 把 `bin\Release\netstandard2.1\DariusPrototype.dll` 回写到 Mod 根目录，并打印 SHA256。
+**发布只发 `build/` 目录**，不要发仓库。包内容与体积构成见 [docs/assets.md](docs/assets.md) 第 1.1 与 3.5 节。
 
-成功标志：控制台出现 `=== BUILD COMPLETE ===`，且根目录生成了 `DariusPrototype.dll`。
-失败时查看根目录 `BUILD_LOG.txt`（脚本每次运行会重写它）。
+### 3.3 指定游戏路径
 
-### 3.3 自定义游戏路径
-
-脚本按以下顺序自动探测，通常无需配置；非标准布局时设置环境变量：
+按以下顺序解析，任一命中即可：
 
 ```powershell
-$env:SOD_GAME_DIR = 'D:\Games\Shape of Dreams'
+# 1) 命令行参数
+dotnet build -p:GameDir="D:\Steam\steamapps\common\Shape of Dreams"
+
+# 2) 仓库根的 Directory.Build.props（已 gitignore）
+#    <Project><PropertyGroup><GameDir>D:\Steam\steamapps\common\Shape of Dreams</GameDir></PropertyGroup></Project>
+
+# 3) 环境变量
+$env:SOD_GAME_DIR = 'D:\Steam\steamapps\common\Shape of Dreams'
 ```
+
+解析不到时 `CheckGameInstall` 直接报错。`ModsDir` 默认取 `<GameDir>\Mods`，可用 `-p:ModsDir=` 覆盖。
 
 ### 3.4 构建前置：外部共享源码
 
-`DariusPrototype.csproj` 通过链接引用仓库**之外**的一个文件：
+csproj 从 `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs` 链接引用一个仓库**之外**的文件：
 
 ```xml
-<Compile Include="..\TravelerBasicAttackVfxReplication.cs" Link="TravelerBasicAttackVfxReplication.cs" />
+<Compile Include="$(SharedSource)" Link="TravelerBasicAttackVfxReplication.cs" Condition="Exists('$(SharedSource)')" />
 ```
 
-在标准布局中它位于 `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs`，由共享/基础角色 Mod 包提供。代码依赖其 `TravelerBasicAttackVfxReplication.Initialize()` 与 `.Broadcast(...)` API。
+代码依赖其 `TravelerBasicAttackVfxReplication.Initialize()` 与 `.Broadcast(...)` API。
 
-> ⚠️ 该文件**不在本仓库内**，当前快照中也未找到。缺少它时编译会直接失败（`CS2001`）。把它放回 `Mods\` 目录后再构建。
+> ⚠️ 该文件**不在本仓库内**，当前快照中也未找到。缺失时 `CheckGameInstall` 会直接报错。把它放回 `Mods\` 目录后再构建。
 
 ## 4. 仓库结构
 
 ```
 .
-├── DariusPrototype.cs              # ModBehaviour 入口（Awake/Start 引导、Harmony PatchAll、诊断）
-├── DariusPrototype.csproj          # SDK 风格工程：netstandard2.1 / C# 9 / 无 NuGet 依赖
-├── BuildAndInstall.ps1             # 构建主脚本（资产契约校验 → dotnet build → 回写 DLL）
-├── BUILD_DARIUS.bat                # 双击入口，包装 BuildAndInstall.ps1
-├── PREPARE_DARIUS_PASS2_MEDIA.bat  # 单独执行 WEM → WAV 媒体准备
-├── Formal/                         # 全部游戏逻辑（40 个 .cs）
-│   └── UniversalAnimation/         # 通用动画重定向运行时（5 个 .cs）
-├── Tools/                          # 离线资产转换脚本（Python / PowerShell）
+├── src/DariusPrototype/            # 全部 C# 源码 + DariusPrototype.csproj
+│   └── UniversalAnimation/         # 通用动画重定向运行时
+├── tools/                          # 离线资产转换（Python）
 ├── about/                          # Mod 加载器元数据与 Workshop 清单
 ├── assets/                         # 二进制资产（不纳入版本控制，见 docs/assets.md）
 ├── docs/                           # 设计、验证与测试文档
+├── build/                          # 可发布包（gitignore，由 PackageMod 生成）
 ├── CHANGELOG.md                    # 版本历史
 └── AGENTS.md                       # AI 编码代理工作手册
 ```
@@ -119,9 +119,10 @@ $env:SOD_GAME_DIR = 'D:\Games\Shape of Dreams'
 
 | 文档 | 内容 |
 | --- | --- |
-| [CHANGELOG.md](CHANGELOG.md) | 全部版本历史 |
-| [AGENTS.md](AGENTS.md) | 源码结构地图、编码约定、构建契约、常见陷阱 |
-| [docs/assets.md](docs/assets.md) | 资产来源、离线生成流程与版权说明 |
+| [CHANGELOG.md](CHANGELOG.md) | 0.1.0 起的版本历史（Keep a Changelog 格式） |
+| [docs/archive/CHANGELOG-legacy.md](docs/archive/CHANGELOG-legacy.md) | 0.30.x 及更早的 Mod 历史（归档，不再维护） |
+| [AGENTS.md](AGENTS.md) | 源码结构地图、编码约定、构建定义、常见陷阱 |
+| [docs/assets.md](docs/assets.md) | 资产来源、打包内容、生成流程、体积优化与版权 |
 | [docs/BALANCE_PASS_2026-08-30.md](docs/BALANCE_PASS_2026-08-30.md) | 平衡性调整记录（历史快照） |
 | [docs/PROGRESSION_PASS_2026-08-30.md](docs/PROGRESSION_PASS_2026-08-30.md) | 成长曲线与星座解锁重排（含 38 星效注册表，历史快照） |
 | [docs/MECHA_VFX_HOTFIX2_CHANGELOG.md](docs/MECHA_VFX_HOTFIX2_CHANGELOG.md) | v0.30.5 机神视觉修复明细 |
@@ -131,17 +132,19 @@ $env:SOD_GAME_DIR = 'D:\Games\Shape of Dreams'
 
 ## 6. 版本与已知问题
 
-- **版本号单一真源**：只维护 `about/metadata.json` 的 `modVer`。构建脚本与运行时（`DariusModEnvironment.Version`）都从它读取，代码与脚本中不再有版本字面量。
-- **构建契约由真源推导**：`BuildAndInstall.ps1` 的校验值来自 `DariusPrototype.csproj`、`Formal/*.cs` 与 `assets/**/*.json`，不再手工维护第二份清单。唯一保留的手写数值是脚本顶部的 `$ReleaseGates`（VFX 发布门槛与描述字节上限），见 [AGENTS.md](AGENTS.md) 第 4.3 节。
+- **版本号单一真源**：只维护 `about/metadata.json` 的 `modVer`。运行时（`DariusModEnvironment.Version`）从它读取；代码与 csproj 中都没有版本字面量。
+- **构建就是 `dotnet build`**：没有 `.bat` / `.ps1` 构建或校验脚本，游戏路径通过 `GameDir` 属性注入（见 3.3）。
+- **发布只发 `build/`**：`dotnet build -t:PackageMod` 生成，内容为 DLL + `about/` + 运行时资产；`src/`、`docs/`、`assets/raw_*` 不进包。
+- **构建只做轻量边界检查**：`CheckGameInstall`（游戏程序集 / 外部共享源码）与 `VerifyPackageAssets`（打包前必需资产存在）。数量与结构校验交给运行时日志。
+- **发布体积约 225 MB，其中音频占 71%**：压缩方案（降采样 / OGG / 裁动画）与取舍见 [docs/assets.md](docs/assets.md) 第 3.5 节。
 - **调试日志**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`）。日志写在共享 Mods 目录（Mod 目录上一层）。
-- **无自动化测试**：仓库没有单元测试或 CI。唯一的自动校验是 `BuildAndInstall.ps1` 的元数据/资产契约；玩法正确性依赖游戏内人工验证（见 `docs/*_TEST_CHECKLIST.md`）。
-- **外部静态校验报告已移除**：早期提交里的 `docs/*_STATIC_VALIDATION.txt` 由仓库外的工具产出、无法复现，且其断言会随代码漂移（曾声称 metadata 为 0.30.6-final，实际已是 0.30.8-balance），因此不再入库。
+- **无自动化测试**：仓库没有单元测试或 CI，唯一的自动校验是编译本身；玩法正确性依赖游戏内人工验证（见 `docs/*_TEST_CHECKLIST.md`）。
 - **无法在无游戏环境构建**：编译需要游戏自带的 `Shape of Dreams_Data\Managed\*.dll`，以及 3.4 节的外部共享源码。
-- **资产未入库**：克隆后必须自行准备资产包才能构建，见 [docs/assets.md](docs/assets.md)。
+- **资产未入库**：克隆后必须自行准备资产包才能打包或运行，见 [docs/assets.md](docs/assets.md)。
 
 ## 7. 资产与版权
 
-- 本仓库**只包含源码、构建脚本与文本文档**；模型、贴图、音频等二进制资产一律不入库（见 `.gitignore`）。
+- 本仓库**只包含源码、构建定义与文本文档**；模型、贴图、音频等二进制资产一律不入库（见 `.gitignore`）。
 - League of Legends 的角色/皮肤/模型/动画/VFX/音频资产版权归 **Riot Games** 所有。本项目依据 Riot 的 [Legal Jibber Jabber](https://www.riotgames.com/en/legal) 政策创作，Riot Games 不认可、不赞助本项目。
 - Shape of Dreams 及其资产版权归其开发者/发行商所有。
 - 这是一个非官方、粉丝制作的互操作/Mod 项目；使用者需自行拥有合法的游戏与 League 客户端资源。
