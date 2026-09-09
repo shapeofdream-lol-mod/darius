@@ -21,10 +21,10 @@
 ### 1.1 打包（发布什么）
 
 ```powershell
-dotnet build src/DariusPrototype/DariusPrototype.csproj -t:PackageMod
+dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:PackageMod
 ```
 
-生成 `build/`：
+`PackageMod` 会先删除旧 `build/`，再生成一个完整、干净的 Release snapshot：
 
 ```
 build/
@@ -35,7 +35,9 @@ build/
 
 **发布只发 `build/`**。`src/`、`docs/`、`tools/`、`assets/raw_*` 都不进包——仅排除两个 `raw_*` 目录就省下约 63 MB。
 
-`VerifyPackageAssets` 只检查必需文件**存在**（`about/metadata.json`、`assets/models/darius.glb`、`assets/lol_vfx/darius_lol_vfx.json`、`assets/audio/flash.ogg`）；数量与结构校验交给运行时日志，不在构建期做。
+`DeployMod` 同样把安装目录视为 snapshot：先清理 `<GameDir>\Mods\DariusPrototype`，再复制 `build/`。因此从旧版 WAV 迁移到 OGG、删除旧贴图或替换 manifest 时，不会被安装目录中残留文件覆盖新行为。部署目标不得与仓库根目录相同。
+
+`VerifyPackageAssets` 只检查必需文件**存在**（`about/metadata.json`、`assets/models/darius.glb`、`assets/lol_vfx/darius_lol_vfx.json`、`assets/audio/flash.ogg`、`assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`）；数量与结构校验交给运行时日志，不在构建期做。
 
 ## 2. 来源
 
@@ -88,7 +90,10 @@ Get-ChildItem assets/audio -Filter vo_*.wav | ForEach-Object {
 **运行时加载方式**：
 
 - 技能 SFX（`lol_*` 等）：`DariusMedia.LoadPcmWave` 同步解析 RIFF，低延迟；
-- 语音（`vo_*`）：`DariusMedia.PreloadVoiceOgg()` 启动时用 `UnityWebRequestMultimedia` 异步解码（与 `flash.ogg` 同一条路径），缓存后由 `Clip()` 同步取出，播放调用点不变。代价是 411 条语音在启动时全部解码进内存（约 70 MB）；若要更低内存，可改用 `streamAudio` 重载或首次使用时惰性加载。
+- League Flash：启动时通过 `UnityWebRequestMultimedia` 异步解码 `flash.ogg`；
+- 语音（`vo_*`）：不做全量启动预加载。某条语音第一次被事件选中时，`DariusMedia` 才异步解码对应 OGG，缓存得到的 `AudioClip`，并在解码完成后继续本次播放。后续同一条语音直接命中缓存。
+
+这样静态发布包仍只有约 8 MB 语音 OGG，同时运行时 PCM 分配与实际触发过的语音集合相关，不再在启动阶段一次性分配全部 411 条语音（旧方案约 70 MB PCM）。同一 key 正在解码时会去重请求，避免重复分配。
 
 ### 3.2 VFX：Riot BIN/TEX/SCN → JSON + PNG
 
@@ -126,11 +131,11 @@ assets/lol_vfx/meshes/*.json
 | `assets/lol_vfx` | 10.5 MB | 11% |
 | animations + icons + vfx + about | 5.1 MB | 5% |
 
-**已做：语音压缩**。411 条语音从 44.1 kHz PCM16 WAV（138.3 MB）转为 22.05 kHz 单声道 Ogg Vorbis（8.1 MB），运行时由 `PreloadVoiceOgg()` 启动时异步解码。技能 SFX 保留 WAV（约 21 MB）是为低延迟与零改动。
+**已做：语音压缩 + 惰性分配**。411 条语音从 44.1 kHz PCM16 WAV（138.3 MB）转为 22.05 kHz 单声道 Ogg Vorbis（8.1 MB）；运行时仅在实际触发时异步解码所需语音，不再启动时预分配全部 PCM。技能 SFX 保留 WAV（约 21 MB）是为低延迟。
 
 **技能 SFX（可选，约 21 MB）**
 
-若还要压，可对 `lol_*.wav` 同样转 OGG 并复用 `PreloadVoiceOgg()` 的路径；代价是技能音效从同步加载改为启动异步预加载，需要游戏内确认无延迟/丢音。
+若还要压，可对 `lol_*.wav` 同样转 OGG，并复用当前的按需 OGG 解码路径；代价是技能音效也从同步内存读取改为首次使用时异步解码，需要游戏内确认首次触发延迟是否可接受。
 
 **模型（49.8 MB，当前最大项）**
 
