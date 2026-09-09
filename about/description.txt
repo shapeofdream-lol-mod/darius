@@ -1,0 +1,62 @@
+简体中文
+
+诺克萨斯之手 · 德莱厄斯
+
+将德莱厄斯作为独立旅行者加入《梦之形》。被动【出血 / 诺克萨斯之力】为角色内置机制；Q【大杀四方】与 R【诺克萨斯断头台】开局自带，W【致残打击】与 E【无情铁手】通过灵活星座获得，并提供【经典 / 神王 / 灌篮高手 / 机神】四套皮肤。每套皮肤均绑定独立 GLB 模型档案、骨骼与动画映射，不假设模型分块或动画数量相同；皮肤不改变任何玩法和数值。专属星座已扩展到 38 个，围绕【出血】、追猎、【诺克萨斯之力】、处决与角色背景提供多方向强化。
+
+🔊 音效设置
+Mod 设置中提供 Q / W / E / R / 普攻 / 闪避 / 语音 7 条独立音量滑条（0%～200%，默认100%），修改后立即作用于该旅行者 Mod 自己播放的对应音效并保存设置。
+
+⚠ 兼容性说明
+部分精粹、多人模式或后续游戏更新可能出现兼容问题，建议重要存档提前备份。遇到问题欢迎在创意工坊留言，并尽量附上复现方式与日志。
+
+English
+Darius joins Shape of Dreams as an independent Traveler. Q and R are available from the start, while W and E are granted by separate flexible constellations. Bleed, Noxian Might, execution, four matched skins, constellation upgrades, and per-skill audio controls are included.
+
+日本語
+ダリウスを独立したトラベラーとして「Shape of Dreams」に追加します。QとRは開始時から使用でき、WとEは独立したフレキシブル・コンステレーションで獲得します。出血、ノクサスの力、処刑、4種類の対応スキン、コンステレーション強化、スキル別音量設定を収録しています。
+
+Warning / 警告
+Multiplayer, Essence, and future game updates may cause compatibility issues. Please back up important saves and include reproduction steps and logs when reporting a problem.
+マルチプレイ、エッセンス、今後のゲーム更新によって互換性問題が発生する可能性があります。重要なセーブデータをバックアップし、問題を報告する際は再現手順とログを添えてください。
+
+⚠ 多人模式与中途退出警告
+多人模式尚未经过完整验证，因此目前无法确定会出现哪些问题，但这并不代表本 Mod 无法在多人模式中使用。如果在多人游戏中遇到异常，欢迎反馈并尽量提供复现方式。
+请尽量不要在对局进行途中直接关闭游戏，否则下次启动时可能会卡在主界面的经验结算界面。这是因为主界面结算经验时 Mod 尚未开始加载，暂时无法正确读取 Mod 角色数据。遇到这种情况只需关闭游戏并重新进入一次即可恢复。
+
+🤖 AI 辅助开发说明
+本 Mod 在代码实现、日志分析和调试过程中大量使用 OpenAI GPT / Codex 辅助；角色设计、机制取舍、数值方向与实机测试由作者完成。AI 是开发工具，而不是“一键生成”整个 Mod。
+
+❤️ 致谢
+感谢《梦之形》开发团队、Riot Games，以及所有测试和反馈的玩家。
+德莱厄斯模型与部分动画资源通过 布锅锅 × 卡达（Khada）英雄联盟 3D 模型站[3d.buguoguo.cn] 获取；相关《英雄联盟》资产版权归 Riot Games 所有。
+
+真心希望《梦之形》可以越来越好，也希望 Mod 社区能越来越有活力。更希望这个 Mod 能给后来者提供一点参考，让更多人愿意尝试制作角色 Mod，并最终出现比它更完整、更有趣、更优秀的作品。
+
+本 Mod 为非官方玩家作品，与《梦之形》官方及 Riot Games 无隶属关系。
+
+
+English
+
+Darius · The Hand of Noxus
+
+Adds Darius to Shape of Dreams as an independent Traveler. Hemorrhage / Noxian Might is built into the Traveler; Q - Decimate and R - Noxian Guillotine are starting Memories, while W - Crippling Strike and E - Apprehend are obtained through Flexible Constellation stars. Classic, God-King, Dunkmaster, and Mecha skins are included. Each outfit has its own GLB structure, rig, and animation profile rather than sharing fixed model assumptions, without changing gameplay or balance. The dedicated Constellation contains 38 stars built around Hemorrhage, pursuit, Noxian Might, executions, and Darius-themed progression.
+
+🔊 SFX Settings
+Mod settings provide seven independent Q / W / E / R / Basic Attack / Dodge / Voice volume sliders (0-200%, default 100%). Changes apply to this Traveler mod's corresponding SFX immediately and are persisted.
+
+⚠ Compatibility
+Some Essences, multiplayer interactions, or future game updates may cause compatibility issues. Back up important saves, and please include reproduction steps and logs when reporting bugs.
+
+⚠ Multiplayer and Mid-run Exit Warning
+Multiplayer has not been fully validated, so I cannot predict every issue that may occur. This does not mean the mod cannot be used in multiplayer. If you encounter a multiplayer problem, feedback is welcome; please include reproduction steps whenever possible.
+Please avoid closing the game in the middle of a run. Doing so may cause the next launch to become stuck on the experience settlement screen in the main menu. This happens because main-menu experience settlement runs before mods have begun loading, so modded character data cannot be resolved at that moment. If this occurs, simply close and launch the game again.
+
+🤖 AI-assisted Development
+OpenAI GPT / Codex was used extensively for coding, log analysis, and debugging. Character design, gameplay decisions, balance direction, and in-game testing were handled by the author. AI was used as a development tool, not as a one-click generator for the entire mod.
+
+❤️ Credits
+Thanks to the Shape of Dreams developers, Riot Games, and everyone who tested the mod or reported issues.
+Darius model and some animation resources were obtained through the Buguoguo × Khada League of Legends 3D Model Viewer[3d.buguoguo.cn]. The underlying League of Legends assets belong to Riot Games.
+
+I sincerely hope Shape of Dreams keeps getting better and that its modding community becomes more active. I also hope this mod can serve as a small reference for future creators, encouraging more people to make character mods—and eventually create works far better, deeper, and more interesting than this one.
