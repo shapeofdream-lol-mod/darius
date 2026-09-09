@@ -40,11 +40,11 @@ public static class DariusDejaVuRegistry
         "St_Darius_Apprehend",
         "St_Darius_NoxianGuillotine",
         "St_D_Darius_Hemorrhage",
-        "b67dbf56-5817-424d-8c46-16129def0bf2",
-        "0a1641d1-1cbe-4a99-9d95-7b315b51420c",
-        "a016b459-fe0f-4571-a28c-d3c49a29d14f",
-        "fbb73980-8b6f-4623-88b0-946aaa201e73",
-        "acdd533c-6e5d-4974-9895-e90a103b5307"
+        DariusResourceIds.Q,
+        DariusResourceIds.W,
+        DariusResourceIds.E,
+        DariusResourceIds.R,
+        DariusResourceIds.Identity
     };
 
     private static bool _localizationPatched;

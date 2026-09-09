@@ -55,7 +55,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusModEnvironment.Configure(this);
         DariusAudioSettingsRuntime.Bind(skillAudioVolume);
         DariusLog.Initialize();
-        DariusLog.Info("BOOT", "DariusPrototype BUILD=v0.30.6-final mecha-vfx-visual-hotfix3; Start() entered. bootstrapped=" + _bootstrapped +
+        DariusLog.Info("BOOT", "DariusPrototype version=" + DariusModEnvironment.Version + "; Start() entered. bootstrapped=" + _bootstrapped +
             " modRoot=" + (DariusModEnvironment.Root ?? "<null>") + " source=" + DariusModEnvironment.SourceLabel);
         _diagnostics = gameObject.GetComponent<DariusDiagnostics>();
         if (_diagnostics == null) _diagnostics = gameObject.AddComponent<DariusDiagnostics>();

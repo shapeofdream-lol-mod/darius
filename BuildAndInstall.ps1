@@ -8,6 +8,24 @@ $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LogFile = Join-Path $ProjectDir 'BUILD_LOG.txt'
 $IconDir = Join-Path $ProjectDir 'assets\icons'
 $AudioDir = Join-Path $ProjectDir 'assets\audio'
+$ProjectFile = Join-Path $ProjectDir 'DariusPrototype.csproj'
+$MetadataFile = Join-Path $ProjectDir 'about\metadata.json'
+
+# ---------------------------------------------------------------------------
+# Release gates.
+# These are the ONLY hand-maintained numbers in this script: they cannot be
+# derived from code or data. Everything else is derived from its single source
+# of truth (DariusPrototype.csproj, Formal\*.cs, about\metadata.json,
+# assets\**\*.json). Do not add derived values back into this block.
+# ---------------------------------------------------------------------------
+$ReleaseGates = @{
+    VfxSystems           = 164
+    VfxPass5             = 117
+    VfxTexturesMin       = 113
+    VfxMeshesMin         = 51
+    DescriptionMaxBytes  = 8000
+    DescriptionWarnBytes = 7500
+}
 
 function Log([string]$Text) {
     Add-Content -Path $LogFile -Value $Text -Encoding UTF8
@@ -231,7 +249,7 @@ function Resolve-ShapeOfDreamsGameDir([string]$ModDir) {
 }
 
 try {
-    Set-Content -Path $LogFile -Value ('Darius v0.30.6-final Mecha VFX visual hotfix 3 build started: ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')) -Encoding UTF8
+    Set-Content -Path $LogFile -Value ('Darius build started: ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')) -Encoding UTF8
 
     Stage 'Locating Shape of Dreams installation'
     $GameDir = Resolve-ShapeOfDreamsGameDir $ProjectDir
@@ -243,24 +261,30 @@ try {
     Log ('MANAGED DIR: ' + $ManagedDir)
 
     Stage 'Checking mod metadata and Steam Workshop identity'
-    $MetadataFile = Join-Path $ProjectDir 'about\metadata.json'
     if (-not (Test-Path $MetadataFile)) { throw ('Required mod loader manifest is missing: ' + $MetadataFile) }
     try { $Meta = Get-Content -Path $MetadataFile -Raw | ConvertFrom-Json }
     catch { throw ('Invalid about\metadata.json: ' + $_.Exception.Message) }
     if ([string]::IsNullOrWhiteSpace([string]$Meta.id)) { throw 'metadata.id is missing.' }
     if ([string]::IsNullOrWhiteSpace([string]$Meta.name)) { throw 'metadata.name is missing.' }
+    if ([string]::IsNullOrWhiteSpace([string]$Meta.modVer)) { throw 'metadata.modVer is missing.' }
     if ($null -eq $Meta.assemblies -or -not (@($Meta.assemblies) -contains 'DariusPrototype.dll')) { throw 'metadata.assemblies must include DariusPrototype.dll.' }
+    # about\metadata.json is the single source of truth for the mod version. Neither this
+    # script nor the C# sources may hard-code it; the runtime reads the same field.
+    $ModVersion = [string]$Meta.modVer
     Write-Host ('Metadata ID: ' + $Meta.id)
-    Log ('METADATA OK: id=' + $Meta.id + ' version=' + $Meta.modVer + ' assembly=DariusPrototype.dll')
+    Write-Host ('Mod version: ' + $ModVersion)
+    Log ('METADATA OK: id=' + $Meta.id + ' version=' + $ModVersion + ' assembly=DariusPrototype.dll')
     $WorkshopIdFile = Join-Path $ProjectDir 'about\publishedfileid.txt'
     if (-not (Test-Path $WorkshopIdFile))
     {
         throw ('Steam Workshop identity file is missing: ' + $WorkshopIdFile)
     }
+    # about\publishedfileid.txt is the single source of truth for the Workshop id; only its
+    # shape is validated here so the id never has to be duplicated in this script.
     $WorkshopId = (Get-Content -Path $WorkshopIdFile -Raw).Trim()
-    if ($WorkshopId -ne '3790488345')
+    if ($WorkshopId -notmatch '^\d+$')
     {
-        throw ('Unexpected Steam Workshop ID in about\publishedfileid.txt: ' + $WorkshopId)
+        throw ('about\publishedfileid.txt must contain a numeric Steam Workshop id, got: ' + $WorkshopId)
     }
     Write-Host ('Workshop ID: ' + $WorkshopId)
     Log ('WORKSHOP ID OK: ' + $WorkshopId)
@@ -268,37 +292,49 @@ try {
     $DescriptionFile = Join-Path $ProjectDir 'about\description.txt'
     if (Test-Path $DescriptionFile -PathType Leaf) {
         $DescriptionBytes = (Get-Item $DescriptionFile).Length
-        if ($DescriptionBytes -gt 8000) { throw ('Steam Workshop description exceeds the 8000-byte limit: ' + $DescriptionBytes + ' bytes') }
-        if ($DescriptionBytes -gt 7500) { Write-Warning ('Workshop description is close to the Steam limit: ' + $DescriptionBytes + ' bytes') }
-        Log ('WORKSHOP DESCRIPTION BYTES OK: ' + $DescriptionBytes + '/8000')
+        if ($DescriptionBytes -gt $ReleaseGates.DescriptionMaxBytes) { throw ('Steam Workshop description exceeds the ' + $ReleaseGates.DescriptionMaxBytes + '-byte limit: ' + $DescriptionBytes + ' bytes') }
+        if ($DescriptionBytes -gt $ReleaseGates.DescriptionWarnBytes) { Write-Warning ('Workshop description is close to the Steam limit: ' + $DescriptionBytes + ' bytes') }
+        Log ('WORKSHOP DESCRIPTION BYTES OK: ' + $DescriptionBytes + '/' + $ReleaseGates.DescriptionMaxBytes)
     }
 
     Stage 'Checking game references'
-    $Required = @(
-        'mscorlib.dll','netstandard.dll','System.dll','System.Core.dll','0Harmony.dll',
-        'Assembly-CSharp.dll','Dew.Core.dll','Dew.Contents.dll','Dew.External.dll','Dew.UI.dll',
-        'Mirror.dll','Newtonsoft.Json.dll','Sirenix.Serialization.dll','UnityEngine.CoreModule.dll',
-        'UnityEngine.IMGUIModule.dll','UnityEngine.ParticleSystemModule.dll','UnityEngine.PhysicsModule.dll','UnityEngine.InputLegacyModule.dll',
-        'UnityEngine.ImageConversionModule.dll','UnityEngine.AudioModule.dll','UnityEngine.UnityWebRequestModule.dll','UnityEngine.UnityWebRequestAudioModule.dll','UnityEngine.AnimationModule.dll'
-    )
-    foreach ($Name in $Required) {
+    # Derived from DariusPrototype.csproj so the required-assembly list can never drift from
+    # the compile-time references again (this is how UnityEngine.UI was previously missed).
+    if (-not (Test-Path -LiteralPath $ProjectFile -PathType Leaf)) { throw ('Project file not found: ' + $ProjectFile) }
+    try { [xml]$ProjectXml = Get-Content -LiteralPath $ProjectFile -Raw }
+    catch { throw ('Failed to parse ' + $ProjectFile + ': ' + $_.Exception.Message) }
+    $ReferenceFiles = New-Object System.Collections.Generic.List[string]
+    foreach ($Reference in @($ProjectXml.Project.ItemGroup.Reference)) {
+        if ($null -eq $Reference) { continue }
+        $Hint = [string]$Reference.HintPath
+        if ([string]::IsNullOrWhiteSpace($Hint)) { continue }
+        $Leaf = Split-Path -Leaf $Hint
+        if ([string]::IsNullOrWhiteSpace($Leaf)) { continue }
+        if (-not $ReferenceFiles.Contains($Leaf)) { [void]$ReferenceFiles.Add($Leaf) }
+    }
+    if ($ReferenceFiles.Count -lt 1) { throw ('No HintPath references were parsed from ' + $ProjectFile + '; the project reference format changed.') }
+    foreach ($Name in $ReferenceFiles) {
         $Path = Join-Path $ManagedDir $Name
         if (-not (Test-Path $Path)) { throw ('Required DLL missing: ' + $Path) }
         Log ('REF OK: ' + $Name)
     }
+    Log ('REFERENCE CONTRACT: ' + $ReferenceFiles.Count + ' assemblies derived from DariusPrototype.csproj')
 
     Stage 'Preparing Pass2 authentic Riot audio'
-    $Pass2RawManifest = Join-Path $ProjectDir 'assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json'
+    $RawAudioDir = Join-Path $ProjectDir 'assets\raw_lol_audio'
+    $Pass2RawManifest = Join-Path $RawAudioDir 'PASS2_MEDIA_MANIFEST.json'
     $Pass2Ready = Join-Path $ProjectDir 'assets\audio\PASS2_MEDIA_READY.txt'
+    $Pass2RawFiles = @()
     if (Test-Path -LiteralPath $Pass2RawManifest -PathType Leaf) {
-        $ExpectedRawWem = @(Get-ChildItem -LiteralPath (Split-Path -Parent $Pass2RawManifest) -Recurse -File -Filter '*.wem').Count
-        $CurrentPass2Wav = @(Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'assets\audio') -File -Filter 'vo_*full_*.wav' -ErrorAction SilentlyContinue).Count +
-            @(Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'assets\audio') -File -Filter 'vo_dunkmaster_*.wav' -ErrorAction SilentlyContinue).Count +
-            @(Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'assets\audio') -File -Filter 'vo_mecha_*.wav' -ErrorAction SilentlyContinue).Count +
-            @(Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'assets\audio') -File -Filter 'lol_dunkmaster_*.wav' -ErrorAction SilentlyContinue).Count +
-            @(Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'assets\audio') -File -Filter 'lol_mecha_*.wav' -ErrorAction SilentlyContinue).Count
-        if (-not (Test-Path -LiteralPath $Pass2Ready -PathType Leaf) -or $CurrentPass2Wav -lt $ExpectedRawWem) {
-            Log ('PASS2 MEDIA PREP required rawWem=' + $ExpectedRawWem + ' preparedWav=' + $CurrentPass2Wav)
+        $Pass2RawFiles = @(Get-ChildItem -LiteralPath $RawAudioDir -Recurse -File -Filter '*.wem')
+        # Decoded state is derived from the raw set itself: every raw WEM must have a sibling
+        # WAV named after it. No filename-pattern heuristics.
+        $DecodedWav = 0
+        foreach ($Raw in $Pass2RawFiles) {
+            if (Test-Path -LiteralPath (Join-Path $AudioDir ($Raw.BaseName + '.wav')) -PathType Leaf) { $DecodedWav++ }
+        }
+        if (-not (Test-Path -LiteralPath $Pass2Ready -PathType Leaf) -or $DecodedWav -lt $Pass2RawFiles.Count) {
+            Log ('PASS2 MEDIA PREP required rawWem=' + $Pass2RawFiles.Count + ' decodedWav=' + $DecodedWav)
             $Prep = Join-Path $ProjectDir 'Tools\PrepareDariusPass2Media.ps1'
             if (-not (Test-Path -LiteralPath $Prep -PathType Leaf)) { throw ('Pass2 media preparation script missing: ' + $Prep) }
             $PrepOutput = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $Prep 2>&1
@@ -310,16 +346,15 @@ try {
     }
 
     Stage 'Checking packaged League assets'
-    $RequiredIcons = @(
-        'Darius_Champion.png','Darius_Skin_Default.png','Darius_Skin_GodKing.png','Darius_Skin_Dunkmaster.png','Darius_Skin_Mecha.png',
-        'Darius_Q_Decimate.png','Darius_W_CripplingStrike.png','Darius_E_Apprehend.png',
-        'Darius_R_NoxianGuillotine.png','Darius_P_Hemorrhage.png','Darius_M_Flash.png','Darius_M_Ghost.png',
-        'Rune_Conqueror.png','Rune_Triumph.png','Rune_Alacrity.png','Rune_LastStand.png','Rune_AxiomArcanist.png',
-        'Rune_SecondWind.png','Rune_Overgrowth.png','Rune_Revitalize.png','Rune_Conditioning.png','Rune_Unflinching.png',
-        'Rune_FervorOfBattle.png','Rune_NimbusCloak.png','Rune_Celerity.png','Rune_GatheringStorm.png','Rune_CosmicInsight.png',
-        'Item_TrinityForce.png','Item_BlackCleaver.png','Item_SpearOfShojin.png','Item_SteraksGage.png','Item_DeathsDance.png',
-        'Item_OverlordsBloodmail.png','Item_SunderedSky.png','Item_Stridebreaker.png','Item_DeadMansPlate.png','Item_YoumuusGhostblade.png','star_awoo.png'
-    )
+    # Derived from the runtime icon map in Formal\DariusPrototypeIcons.cs, which is the single
+    # source of truth for which icons the mod actually loads.
+    $IconContractSource = Join-Path $ProjectDir 'Formal\DariusPrototypeIcons.cs'
+    if (-not (Test-Path -LiteralPath $IconContractSource -PathType Leaf)) { throw ('Icon contract source missing: ' + $IconContractSource) }
+    $IconContractText = Get-Content -LiteralPath $IconContractSource -Raw
+    $IconMapMatch = [regex]::Match($IconContractText, '(?s)FileNames\s*=\s*new Dictionary<string,\s*string>\s*\{(?<body>.*?)\}\s*;')
+    if (-not $IconMapMatch.Success) { throw ('Could not locate the FileNames map in ' + $IconContractSource + '; the icon map format changed.') }
+    $RequiredIcons = @([regex]::Matches($IconMapMatch.Groups['body'].Value, '"\s*,\s*"([^"]+\.png)"') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+    if ($RequiredIcons.Count -lt 1) { throw ('No icon entries were parsed from ' + $IconContractSource + '.') }
     foreach ($Name in $RequiredIcons) {
         $Path = Join-Path $IconDir $Name
         if (-not (Test-Path $Path)) { throw ('Packaged League icon missing: ' + $Path) }
@@ -327,6 +362,7 @@ try {
         if ($Size -le 512) { throw ('Packaged League icon is unexpectedly small/corrupt: ' + $Path + ' bytes=' + $Size) }
         Log ('ASSET OK ICON: ' + $Name + ' bytes=' + $Size)
     }
+    Log ('ICON CONTRACT: ' + $RequiredIcons.Count + ' icons derived from Formal\DariusPrototypeIcons.cs')
 
     $FlashOgg = Join-Path $AudioDir 'flash.ogg'
     if (-not (Test-Path $FlashOgg)) { throw ('Packaged League Flash SFX missing: ' + $FlashOgg) }
@@ -340,11 +376,8 @@ try {
     $LeagueVo = @(Get-ChildItem -LiteralPath $AudioDir -File -Filter 'vo_*.wav')
     $LeagueAudio = @($LeagueSfx + $LeagueVo)
 
-    # Final hotfix: validate the Pass2 payload against the actual packaged Riot WEM set instead
-    # of a stale hard-coded VO total. The current source contains 368 Pass2 VO WEMs plus the
-    # pre-existing Classic/God-King VO pool (43 WAVs) = 411 VO WAVs. The old 413 check made a
-    # completely decoded package fail after media preparation succeeded.
-    $Pass2RawFiles = @(Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'assets\raw_lol_audio') -Recurse -File -Filter '*.wem' -ErrorAction SilentlyContinue)
+    # Pass2 completeness is derived from the raw WEM set itself: every raw source must have a
+    # decoded sibling WAV. No hard-coded VO/SFX totals.
     $MissingDecoded = @()
     foreach ($Raw in $Pass2RawFiles) {
         $Decoded = Join-Path $AudioDir ($Raw.BaseName + '.wav')
@@ -353,14 +386,34 @@ try {
     if ($MissingDecoded.Count -gt 0) {
         throw ('Pass2 Riot media decode is incomplete. Missing/corrupt WAV count=' + $MissingDecoded.Count + ' first=' + $MissingDecoded[0])
     }
-    $Pass2VoExpected = @($Pass2RawFiles | Where-Object { $_.BaseName -like 'vo_*' }).Count
-    $Pass2SfxExpected = @($Pass2RawFiles | Where-Object { $_.BaseName -like 'lol_*' }).Count
-    $LegacyVoCount = $LeagueVo.Count - $Pass2VoExpected
-    $LegacySfxCount = $LeagueSfx.Count - $Pass2SfxExpected
-    if ($LegacyVoCount -lt 40) { throw ('Pre-Pass2 authentic League VO pool is incomplete. Expected at least 40, found ' + $LegacyVoCount) }
-    if ($LegacySfxCount -lt 55) { throw ('Pre-Pass2 authentic League skill-SFX pool is incomplete. Expected at least 55, found ' + $LegacySfxCount) }
-    Log ('ASSET COUNT CONTRACT: pass2Raw=' + $Pass2RawFiles.Count + ' pass2VO=' + $Pass2VoExpected + ' pass2SFX=' + $Pass2SfxExpected +
-        ' legacyVO=' + $LegacyVoCount + ' legacySFX=' + $LegacySfxCount + ' finalVO=' + $LeagueVo.Count + ' finalSFX=' + $LeagueSfx.Count)
+
+    # The pre-Pass2 (legacy) pools are enumerated by assets\audio\LOL_AUDIO_MANIFEST.json,
+    # which is their single source of truth. Validate that every listed file exists and is a
+    # real RIFF/WAVE stream instead of comparing against hard-coded counts.
+    $LegacyManifestPath = Join-Path $AudioDir 'LOL_AUDIO_MANIFEST.json'
+    if (-not (Test-Path -LiteralPath $LegacyManifestPath -PathType Leaf)) { throw ('Legacy League audio manifest missing: ' + $LegacyManifestPath) }
+    try { $LegacyManifest = Get-Content -LiteralPath $LegacyManifestPath -Raw | ConvertFrom-Json }
+    catch { throw ('Invalid ' + $LegacyManifestPath + ': ' + $_.Exception.Message) }
+    $LegacyExpectedFiles = New-Object System.Collections.Generic.List[string]
+    foreach ($SectionName in @('sfx','voice')) {
+        $Section = $LegacyManifest.PSObject.Properties[$SectionName]
+        if ($null -eq $Section) { continue }
+        foreach ($Skin in $Section.Value.PSObject.Properties) {
+            foreach ($EventPool in $Skin.Value.PSObject.Properties) {
+                foreach ($Item in @($EventPool.Value)) {
+                    if ($null -eq $Item) { continue }
+                    $FileName = [string]$Item.file
+                    if (-not [string]::IsNullOrWhiteSpace($FileName) -and -not $LegacyExpectedFiles.Contains($FileName)) { [void]$LegacyExpectedFiles.Add($FileName) }
+                }
+            }
+        }
+    }
+    if ($LegacyExpectedFiles.Count -lt 1) { throw ('No audio files were parsed from ' + $LegacyManifestPath + '.') }
+    foreach ($FileName in $LegacyExpectedFiles) {
+        $Path = Join-Path $AudioDir $FileName
+        if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw ('Legacy League audio file missing (listed in LOL_AUDIO_MANIFEST.json): ' + $Path) }
+    }
+
     foreach ($AudioFile in $LeagueAudio) {
         if ($AudioFile.Length -lt 48) { throw ('Authentic League audio file is unexpectedly small: ' + $AudioFile.FullName) }
         $Header = New-Object byte[] 12
@@ -371,18 +424,26 @@ try {
             throw ('Authentic League audio is not RIFF/WAVE: ' + $AudioFile.FullName)
         }
     }
-    Log ('ASSET OK LOL AUDIO: SFX=' + $LeagueSfx.Count + ' VO=' + $LeagueVo.Count + ' total=' + $LeagueAudio.Count)
+    Log ('ASSET OK LOL AUDIO: SFX=' + $LeagueSfx.Count + ' VO=' + $LeagueVo.Count + ' total=' + $LeagueAudio.Count +
+        ' legacyManifest=' + $LegacyExpectedFiles.Count + ' pass2Raw=' + $Pass2RawFiles.Count)
 
     $VfxDir = Join-Path $ProjectDir 'assets\vfx'
-    # Q/W/E/R no longer depend on the old hand-authored VFX mask bank. Only the two
-    # God-King persistent Noxian-Might compatibility textures remain in this folder.
-    $RetainedLegacyVfx = @('gk_glow.png','gk_wisps_red.png')
-    foreach ($Name in $RetainedLegacyVfx) {
-        $Path = Join-Path $VfxDir $Name
-        if (-not (Test-Path $Path)) { throw ('Retained compatibility VFX texture missing: ' + $Path) }
-        if ((Get-Item $Path).Length -lt 128) { throw ('Retained compatibility VFX texture is unexpectedly small: ' + $Path) }
-        Log ('ASSET OK RETAINED COMPAT VFX: ' + $Name + ' bytes=' + (Get-Item $Path).Length)
+    # Derived from DariusMedia.PreloadAll(), the single source of truth for which assets/vfx
+    # textures the runtime actually preloads.
+    $MediaSource = Join-Path $ProjectDir 'Formal\DariusMedia.cs'
+    if (-not (Test-Path -LiteralPath $MediaSource -PathType Leaf)) { throw ('Media contract source missing: ' + $MediaSource) }
+    $MediaText = Get-Content -LiteralPath $MediaSource -Raw
+    $TextureListMatch = [regex]::Match($MediaText, '(?s)string\[\]\s+textures\s*=\s*\{(?<body>.*?)\}\s*;')
+    if (-not $TextureListMatch.Success) { throw ('Could not locate the PreloadAll texture list in ' + $MediaSource + '; the format changed.') }
+    $RequiredVfxTextures = @([regex]::Matches($TextureListMatch.Groups['body'].Value, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+    if ($RequiredVfxTextures.Count -lt 1) { throw ('No VFX textures were parsed from ' + $MediaSource + '.') }
+    foreach ($Key in $RequiredVfxTextures) {
+        $Path = Join-Path $VfxDir ($Key + '.png')
+        if (-not (Test-Path $Path)) { throw ('Preloaded VFX texture missing: ' + $Path) }
+        if ((Get-Item $Path).Length -lt 128) { throw ('Preloaded VFX texture is unexpectedly small: ' + $Path) }
+        Log ('ASSET OK VFX TEXTURE: ' + $Key + '.png bytes=' + (Get-Item $Path).Length)
     }
+    Log ('VFX TEXTURE CONTRACT: ' + $RequiredVfxTextures.Count + ' textures derived from Formal\DariusMedia.cs')
 
 
     # v0.24: direct Riot BIN/TEX/SCB conversion payload. These are not hand-authored replacement
@@ -398,10 +459,10 @@ try {
     $LolMeshes = @(Get-ChildItem -LiteralPath (Join-Path $LolVfxDir 'meshes') -File -Filter '*.json').Count
     $Pass5Systems = @($LolVfx.pass5ConvertedSystems).Count
     $AssetErrors = @($LolVfx.assetErrors).Count
-    if ($LolSystems -ne 164) { throw ('Expected 164 final Riot Darius VFX systems, found ' + $LolSystems) }
-    if ($Pass5Systems -ne 117) { throw ('Expected 117 Dunkmaster/Mecha Pass5 systems, found ' + $Pass5Systems) }
-    if ($LolTextures -lt 113) { throw ('Expected at least 113 converted Riot PNG textures, found ' + $LolTextures) }
-    if ($LolMeshes -lt 51) { throw ('Expected at least 51 converted Riot VFX meshes, found ' + $LolMeshes) }
+    if ($LolSystems -ne $ReleaseGates.VfxSystems) { throw ('Expected ' + $ReleaseGates.VfxSystems + ' final Riot Darius VFX systems, found ' + $LolSystems) }
+    if ($Pass5Systems -ne $ReleaseGates.VfxPass5) { throw ('Expected ' + $ReleaseGates.VfxPass5 + ' Dunkmaster/Mecha Pass5 systems, found ' + $Pass5Systems) }
+    if ($LolTextures -lt $ReleaseGates.VfxTexturesMin) { throw ('Expected at least ' + $ReleaseGates.VfxTexturesMin + ' converted Riot PNG textures, found ' + $LolTextures) }
+    if ($LolMeshes -lt $ReleaseGates.VfxMeshesMin) { throw ('Expected at least ' + $ReleaseGates.VfxMeshesMin + ' converted Riot VFX meshes, found ' + $LolMeshes) }
     if ($AssetErrors -ne 0) { throw ('Final Riot VFX manifest still contains asset errors: ' + $AssetErrors) }
     foreach ($AssetProp in @($LolVfx.assets.PSObject.Properties)) {
         $Rel = [string]$AssetProp.Value.file
@@ -425,13 +486,12 @@ try {
     Log ('SDK LIST: ' + (($SdkList | ForEach-Object { [string]$_ }) -join '; '))
 
     Stage 'Building CSharp mod'
-    $ProjectFile = Join-Path $ProjectDir 'DariusPrototype.csproj'
     if (-not (Test-Path $ProjectFile)) { throw ('Project file not found: ' + $ProjectFile) }
     $RootDll = Join-Path $ProjectDir 'DariusPrototype.dll'
     $RootPdb = Join-Path $ProjectDir 'DariusPrototype.pdb'
     Remove-Item $RootDll,$RootPdb -Force -ErrorAction SilentlyContinue
     Remove-Item (Join-Path $ProjectDir 'bin'),(Join-Path $ProjectDir 'obj') -Recurse -Force -ErrorAction SilentlyContinue
-    Log 'SOURCE BUILD STAMP: v0.30.6-final mecha-vfx-visual-hotfix3'
+    Log ('SOURCE BUILD STAMP: ' + $ModVersion)
 
     $BuildArgs = @('build',$ProjectFile,'-c','Release',('-p:GameDir=' + $GameDir),('-p:GameManagedDir=' + $ManagedDir),'--nologo')
     Log ('BUILD COMMAND: ' + $Dotnet + ' ' + ($BuildArgs -join ' '))
@@ -445,28 +505,69 @@ try {
     Copy-Item $BuiltDll $RootDll -Force
     $DllHash = (Get-FileHash -Algorithm SHA256 -Path $RootDll).Hash
     Log ('OUTPUT DLL SHA256: ' + $DllHash)
-    Write-Host ('Build stamp: v0.30.6-final mecha-vfx-visual-hotfix3') -ForegroundColor Green
+    Write-Host ('Build stamp: ' + $ModVersion) -ForegroundColor Green
     Write-Host ('DLL SHA256: ' + $DllHash) -ForegroundColor DarkGreen
     $BuiltPdb = Join-Path $ProjectDir 'bin\Release\netstandard2.1\DariusPrototype.pdb'
     if (Test-Path $BuiltPdb) { Copy-Item $BuiltPdb $RootPdb -Force }
 
-    $ModelPaths = @(
-        (Join-Path $ProjectDir 'assets\models\darius.glb'),
-        (Join-Path $ProjectDir 'assets\models\darius_godking.glb'),
-        (Join-Path $ProjectDir 'assets\models\darius_dunkmaster.glb'),
-        (Join-Path $ProjectDir 'assets\models\darius_mecha.glb')
-    )
-    Assert-GlbIntegrity $ModelPaths[0] 'Skin_Darius_Default -> darius.glb (经典德莱厄斯)' 1 89 22 @('Idle1','Run','Death','Attack1','Attack2','Crit','Darius_Spell1_IN.anm','Spell1','Spell2','Spell3','Spell4')
-    Assert-GlbIntegrity $ModelPaths[1] 'Skin_Darius_GodKing -> darius_godking.glb (神王德莱厄斯)' 5 179 48 @('Idle1_Base','Run_Normal','Death','Attack1','Attack2','Crit','Darius_Skin15_Spell1_IN.anm','Spell1','Spell2','Spell3','Spell4')
-    Assert-GlbIntegrity $ModelPaths[2] 'Skin_Darius_Dunkmaster -> darius_dunkmaster.glb (灌篮高手 德莱厄斯)' 1 99 36 @('Idle1_Base','Darius_Skin04_Run.anm','Death','Attack1','Attack2','Crit','Darius_Skin04_Spell1_IN.anm','Spell1','Spell2','Spell3','Darius_Skin04_Spell4_A.anm')
-    Assert-GlbIntegrity $ModelPaths[3] 'Skin_Darius_Mecha -> darius_mecha.glb (机神 德莱厄斯)' 13 246 59 @('Idle1_Base','Run_Normal','Death','Attack1','Attack2','Crit','Spell1_IN_Stand.SKINS_Darius_Skin67.anm','Spell1','Spell2','Spell3','Spell4')
+    # Derived from the DariusSkinSpec table in Formal\DariusTravelerSystem.cs, the single source
+    # of truth for each skin's model file, expected structure and required animation clips.
+    $TravelerSource = Join-Path $ProjectDir 'Formal\DariusTravelerSystem.cs'
+    if (-not (Test-Path -LiteralPath $TravelerSource -PathType Leaf)) { throw ('Skin contract source missing: ' + $TravelerSource) }
+    $TravelerText = Get-Content -LiteralPath $TravelerSource -Raw
+    $SpecMarker = 'new DariusSkinSpec {'
+    $SpecStarts = New-Object System.Collections.Generic.List[int]
+    $SearchFrom = 0
+    while ($true) {
+        $Found = $TravelerText.IndexOf($SpecMarker, $SearchFrom, [System.StringComparison]::Ordinal)
+        if ($Found -lt 0) { break }
+        [void]$SpecStarts.Add($Found)
+        $SearchFrom = $Found + $SpecMarker.Length
+    }
+    if ($SpecStarts.Count -lt 1) { throw ('No DariusSkinSpec entries were found in ' + $TravelerSource + '; the skin table format changed.') }
+    $ClipKeys = @('idle','run','death','attack1','attack2','crit','qIntro','q','w','e','r')
+    for ($SpecIndex = 0; $SpecIndex -lt $SpecStarts.Count; $SpecIndex++) {
+        $Start = $SpecStarts[$SpecIndex]
+        $End = if ($SpecIndex + 1 -lt $SpecStarts.Count) { $SpecStarts[$SpecIndex + 1] } else { $TravelerText.Length }
+        $Block = $TravelerText.Substring($Start, $End - $Start)
+        $ModelMatch = [regex]::Match($Block, 'modelFile="([^"]+)"')
+        $DisplayMatch = [regex]::Match($Block, 'displayName="([^"]+)"')
+        $PrimMatch = [regex]::Match($Block, 'expectedPrimitives=(\d+)')
+        $BoneMatch = [regex]::Match($Block, 'expectedBones=(\d+)')
+        $AnimMatch = [regex]::Match($Block, 'expectedAnimations=(\d+)')
+        if (-not $ModelMatch.Success -or -not $PrimMatch.Success -or -not $BoneMatch.Success -or -not $AnimMatch.Success) {
+            throw ('Could not parse modelFile/expectedPrimitives/expectedBones/expectedAnimations from DariusSkinSpec #' + $SpecIndex + ' in ' + $TravelerSource + '.')
+        }
+        $ModelFile = $ModelMatch.Groups[1].Value
+        $DisplayName = if ($DisplayMatch.Success) { $DisplayMatch.Groups[1].Value } else { $ModelFile }
+        $RequiredClips = New-Object System.Collections.Generic.List[string]
+        foreach ($Key in $ClipKeys) {
+            $KeyMatch = [regex]::Match($Block, ('(?:^|[\s\{,])' + [regex]::Escape($Key) + '="([^"]+)"'))
+            if (-not $KeyMatch.Success) { throw ('DariusSkinSpec #' + $SpecIndex + ' (' + $ModelFile + ') is missing the required animation field "' + $Key + '".') }
+            [void]$RequiredClips.Add($KeyMatch.Groups[1].Value)
+        }
+        Assert-GlbIntegrity (Join-Path $ProjectDir ('assets\models\' + $ModelFile)) ('Skin -> ' + $ModelFile + ' (' + $DisplayName + ')') ([int]$PrimMatch.Groups[1].Value) ([int]$BoneMatch.Groups[1].Value) ([int]$AnimMatch.Groups[1].Value) $RequiredClips.ToArray()
+    }
+    Log ('SKIN CONTRACT: ' + $SpecStarts.Count + ' skins derived from Formal\DariusTravelerSystem.cs')
 
     $AnimManifest = Join-Path $ProjectDir 'assets\animations\manifest.json'
     $RetargetProfile = Join-Path $ProjectDir 'assets\retarget\darius_humanoid_profile.json'
     if (-not (Test-Path $AnimManifest)) { throw ('Animation manifest missing: ' + $AnimManifest) }
     if (-not (Test-Path $RetargetProfile)) { throw ('Retarget profile missing: ' + $RetargetProfile) }
+    # Derived from the animation manifest itself: every declared clip must exist, and the folder
+    # must not contain undeclared clips. No hard-coded clip count.
+    try { $AnimManifestJson = Get-Content -LiteralPath $AnimManifest -Raw | ConvertFrom-Json }
+    catch { throw ('Invalid ' + $AnimManifest + ': ' + $_.Exception.Message) }
+    $AnimClipList = @($AnimManifestJson.clips)
+    if ($AnimClipList.Count -lt 1) { throw ('Animation manifest declares no clips: ' + $AnimManifest) }
+    foreach ($Clip in $AnimClipList) {
+        $ClipFile = [string]$Clip.file
+        if ([string]::IsNullOrWhiteSpace($ClipFile)) { throw ('Animation manifest entry without a file: ' + $AnimManifest) }
+        $ClipPath = Join-Path (Split-Path -Parent $AnimManifest) $ClipFile
+        if (-not (Test-Path -LiteralPath $ClipPath -PathType Leaf)) { throw ('Animation clip file missing: ' + $ClipPath) }
+    }
     $AnimCount = (Get-ChildItem (Join-Path $ProjectDir 'assets\animations') -Filter '*.sodanim.json' -File).Count
-    if ($AnimCount -lt 22) { throw ('Expected 22 Darius animation clips, found: ' + $AnimCount) }
+    if ($AnimCount -ne $AnimClipList.Count) { throw ('Animation clip count mismatch. manifest=' + $AnimClipList.Count + ' files=' + $AnimCount) }
     Log ('ANIMATION OK: clips=' + $AnimCount + ' manifest=' + $AnimManifest)
     Log ('RETARGET OK: ' + $RetargetProfile)
 

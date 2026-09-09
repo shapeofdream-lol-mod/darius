@@ -36,18 +36,20 @@ public static class DariusFormalRegistry
     public static Ai_Darius_NoxianGuillotine NoxianGuillotineAbility { get; private set; }
 
     // Stable GUIDs: keeping them deterministic is important for resource/network identity.
-    private const string GuidQ = "b67dbf56-5817-424d-8c46-16129def0bf2";
-    private const string GuidW = "0a1641d1-1cbe-4a99-9d95-7b315b51420c";
-    private const string GuidE = "a016b459-fe0f-4571-a28c-d3c49a29d14f";
-    private const string GuidR = "fbb73980-8b6f-4623-88b0-946aaa201e73";
-    private const string GuidFlash = "f6100a54-c4b9-4138-9dc4-44bcf9048a71";
-    private const string GuidGhost = "02b48d18-3f96-48e0-8296-e02e2395888e";
-    private const string GuidIdentity = "acdd533c-6e5d-4974-9895-e90a103b5307";
-    private const string GuidGem = "44e808d0-ad21-458d-8832-de7eabe3c5ac"; // legacy v0.11 Essence only
-    private const string GuidAiQ = "6ba4cdd8-7e47-46d1-8f18-76f25e375aa2";
-    private const string GuidAiW = "8bfb1788-d4e0-4765-801e-af08c028791c";
-    private const string GuidAiE = "c006572b-f1bb-41c3-bdfa-90a51f402485";
-    private const string GuidAiR = "6a3da3e5-c434-4789-ae28-547c45dd7912";
+    // The values live in DariusResourceIds so the formal registry and the Deja Vu injection
+    // path can never drift apart.
+    private const string GuidQ = DariusResourceIds.Q;
+    private const string GuidW = DariusResourceIds.W;
+    private const string GuidE = DariusResourceIds.E;
+    private const string GuidR = DariusResourceIds.R;
+    private const string GuidFlash = DariusResourceIds.Flash;
+    private const string GuidGhost = DariusResourceIds.Ghost;
+    private const string GuidIdentity = DariusResourceIds.Identity;
+    private const string GuidGem = DariusResourceIds.LegacyGem; // legacy v0.11 Essence only
+    private const string GuidAiQ = DariusResourceIds.AbilityQ;
+    private const string GuidAiW = DariusResourceIds.AbilityW;
+    private const string GuidAiE = DariusResourceIds.AbilityE;
+    private const string GuidAiR = DariusResourceIds.AbilityR;
 
     // Only W/E are ordinary run Memories. Q/R are Hero_Darius character skills and
     // Hemorrhage is the Identity slot; those three must not enter the random Memory pool.

@@ -131,7 +131,9 @@ $env:SOD_GAME_DIR = 'D:\Games\Shape of Dreams'
 
 ## 6. 版本与已知问题
 
-- **版本号不同步**：`about/metadata.json` 为 `0.30.8-balance`，而 `DariusPrototype.cs` 的启动日志戳与 `BuildAndInstall.ps1` 的构建戳仍是 `v0.30.6-final mecha-vfx-visual-hotfix3`。修改版本时需同步这三处。
+- **版本号单一真源**：只维护 `about/metadata.json` 的 `modVer`。构建脚本与运行时（`DariusModEnvironment.Version`）都从它读取，代码与脚本中不再有版本字面量。
+- **构建契约由真源推导**：`BuildAndInstall.ps1` 的校验值来自 `DariusPrototype.csproj`、`Formal/*.cs` 与 `assets/**/*.json`，不再手工维护第二份清单。唯一保留的手写数值是脚本顶部的 `$ReleaseGates`（VFX 发布门槛与描述字节上限），见 [AGENTS.md](AGENTS.md) 第 4.3 节。
+- **调试日志**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`）。日志写在共享 Mods 目录（Mod 目录上一层）。
 - **无自动化测试**：仓库没有单元测试或 CI。唯一的自动校验是 `BuildAndInstall.ps1` 的元数据/资产契约；玩法正确性依赖游戏内人工验证（见 `docs/*_TEST_CHECKLIST.md`）。
 - **外部静态校验报告已移除**：早期提交里的 `docs/*_STATIC_VALIDATION.txt` 由仓库外的工具产出、无法复现，且其断言会随代码漂移（曾声称 metadata 为 0.30.6-final，实际已是 0.30.8-balance），因此不再入库。
 - **无法在无游戏环境构建**：编译需要游戏自带的 `Shape of Dreams_Data\Managed\*.dll`，以及 3.4 节的外部共享源码。

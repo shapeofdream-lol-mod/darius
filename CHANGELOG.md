@@ -7,6 +7,16 @@
 
 ---
 
+## 未发布（工程整理，不影响 mod 版本）
+
+- **版本号单一真源**：`about/metadata.json` 的 `modVer`。`BuildAndInstall.ps1` 与运行时 `DariusModEnvironment.Version` 都读它；删除 `DariusPrototype.cs`、`BUILD_DARIUS.bat` 与构建脚本里的版本字面量。
+- **构建契约改为从真源推导**：csproj 引用、`DariusPrototypeIcons` 图标映射、`DariusMedia.PreloadAll()` 纹理表、`DariusTravelerSystem` 的 `DariusSkinSpec` 表、动画清单与 `LOL_AUDIO_MANIFEST.json`。唯一保留的手写数值是脚本顶部的 `$ReleaseGates`（VFX 发布门槛与描述字节上限）；顺带补上了原先漏检的 `UnityEngine.UI`。
+- **共享资源 GUID 提取**到 `Formal/DariusResourceIds.cs`（原先在 `DariusFormalRegistry` 与 `DariusDejaVuRegistry` 中各写一份）。
+- **日志级别开关**：`DariusLog.Minimum` / `DARIUS_LOG_LEVEL=debug|info|warn|error|off`，默认 `debug`（行为不变），`EXCEPTION` 始终写入。
+- ⚠️ 以上改动**未在装有游戏的机器上编译或运行**；等价性需在游戏机上重新构建后确认。
+
+---
+
 ## v0.30.6-final - Mecha visual-fidelity hotfix 3
 
 - 血怒白色气流保留，但将 `P_enraged/smoke` 与 `smoke1` 的尺寸和运动范围收紧到原来的 52%，避免气流扩散到角色数米之外。

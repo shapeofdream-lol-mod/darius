@@ -9,7 +9,7 @@ set "LAUNCH_LOG=%~dp0LAUNCH_LOG.txt"
 >> "%LAUNCH_LOG%" echo ScriptDir=%~dp0
 >> "%LAUNCH_LOG%" echo WorkingDir=%CD%
 
-echo Darius build launcher v0.30.7-balance
+echo Darius build launcher
 echo Working directory: %CD%
 echo.
 

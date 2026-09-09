@@ -10,6 +10,7 @@ public static class DariusModEnvironment
 {
     private static string _configuredRoot;
     private static string _sourceLabel = "unconfigured";
+    private static string _version;
 
     public static string Root
     {
@@ -19,6 +20,18 @@ public static class DariusModEnvironment
     public static string SourceLabel
     {
         get { return _sourceLabel; }
+    }
+
+    // The mod version comes from about\metadata.json, the same single source of truth that
+    // BuildAndInstall.ps1 reads. It must never be duplicated as a literal in code.
+    public static string Version
+    {
+        get
+        {
+            if (_version != null) return _version;
+            _version = ReadMetadataVersion();
+            return _version;
+        }
     }
 
     public static void Configure(ModBehaviour behaviour)
@@ -96,6 +109,24 @@ public static class DariusModEnvironment
         catch { }
 
         return null;
+    }
+
+    private static string ReadMetadataVersion()
+    {
+        try
+        {
+            string root = ResolveRoot();
+            if (string.IsNullOrEmpty(root)) return "unknown";
+            string path = Path.Combine(root, "about", "metadata.json");
+            if (!File.Exists(path)) return "unknown";
+            Newtonsoft.Json.Linq.JObject metadata = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(path));
+            Newtonsoft.Json.Linq.JToken version = metadata["modVer"];
+            return version != null ? version.ToString() : "unknown";
+        }
+        catch (Exception e)
+        {
+            return "unresolved(" + e.GetType().Name + ")";
+        }
     }
 
     private static object ReadMember(object owner, string name)

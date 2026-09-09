@@ -18,9 +18,23 @@ public static class DariusLog
 
     public static string LogPath => _logPath;
 
+    // Diagnostic verbosity. Debug is the default so existing behaviour is unchanged; testers can
+    // raise the threshold without recompiling by setting the DARIUS_LOG_LEVEL environment
+    // variable to debug | info | warn | error | off.
+    public enum Level { Debug = 0, Info = 1, Warn = 2, Error = 3, Off = 4 }
+    private static Level _minimum = Level.Debug;
+    public static Level Minimum { get { return _minimum; } set { _minimum = value; } }
+
     public static void Initialize()
     {
         if (_initialized) return;
+
+        string configuredLevel = Environment.GetEnvironmentVariable("DARIUS_LOG_LEVEL");
+        if (!string.IsNullOrEmpty(configuredLevel))
+        {
+            try { _minimum = (Level)Enum.Parse(typeof(Level), configuredLevel.Trim(), true); }
+            catch { }
+        }
 
         try
         {
@@ -151,10 +165,27 @@ public static class DariusLog
         return "(" + v.x.ToString("0.00") + "," + v.y.ToString("0.00") + "," + v.z.ToString("0.00") + ")";
     }
 
+    private static bool ShouldSuppress(string level)
+    {
+        // C# does not define relational operators for enums, so compare the underlying values.
+        int minimum = (int)_minimum;
+        switch (level)
+        {
+            case "DEBUG": return minimum > (int)Level.Debug;
+            case "INFO": return minimum > (int)Level.Info;
+            case "WARN": return minimum > (int)Level.Warn;
+            case "ERROR": return minimum > (int)Level.Error;
+            default: return false;
+        }
+    }
+
     private static void Write(string level, string category, string message, Exception exception)
     {
         if (!_initialized && category != "BOOT") Initialize();
         if (!_initialized) return;
+
+        // EXCEPTION always passes; every other level is filtered by the configured minimum.
+        if (!string.Equals(level, "EXCEPTION", StringComparison.Ordinal) && ShouldSuppress(level)) return;
 
         string authority;
         try
