@@ -65,7 +65,7 @@
 | --- | --- |
 | `DariusTravelerSystem.cs` | **核心**：独立 Traveler 的 Hero/Skin/EntityModel/资源构建、场景切换后的整代重建 |
 | `DariusSkinSystem.cs` | 皮肤与动画层；技能发起的动画请求桥（含普攻 VFX 网络广播） |
-| `DariusMedia.cs` | 运行时媒体加载：VFX 贴图 + 技能 SFX（同步 WAV）+ 语音（启动时异步解码 OGG，`PreloadVoiceOgg()`） |
+| `DariusMedia.cs` | 运行时媒体加载：VFX 贴图 + 技能 SFX（同步 WAV）+ 语音 OGG（首次选中时异步解码、缓存并播放；`PreloadVoiceOgg()` 只保留兼容启动钩子） |
 | `DariusLolVfxRuntime.cs` | Riot `VfxSystemDefinitionData` 运行时解释器；不支持的原语必须显式记录并跳过（fidelity gate） |
 | `DariusVoiceRuntime.cs` | 施法语音路由；**不得**伪造或跨皮肤替代语音 |
 | `DariusPrototypeIcons.cs` | 图标加载（`assets/icons/*.png`） |
@@ -103,27 +103,27 @@ WEM → WAV 解码没有脚本：直接调用 `vgmstream-cli -o out.wav in.wem`�
 
 1. 本机安装 **Shape of Dreams**，且存在 `<游戏目录>\Shape of Dreams_Data\Managed\`。
 2. 安装 **.NET SDK 8.0+**。
-3. 设置 `GameDir`（`-p:` / `Directory.Build.props` / `SOD_GAME_DIR`）；仓库本身可以放在任何位置。
+3. 设置 `GameDir`（`-p:` / `Directory.Build.props` / `SOD_GAME_DIR`）；仓库本身可以放在任何位置，但不要直接把仓库当作 `<GameDir>\Mods\DariusPrototype` 安装目录。
 4. `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs` 存在——**跨 Mod 共享源码，不在本仓库内**（csproj 通过 `$(ModsDir)\TravelerBasicAttackVfxReplication.cs` 链接；缺失时 `CheckGameInstall` 目标直接报错）。
 5. 二进制资产齐备（打包需要；见第 6 节与 `docs/assets.md`）。
 
 ### 4.2 构建 / 打包 / 部署
 
 ```powershell
-dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release      # 只编译
-dotnet build src/DariusPrototype/DariusPrototype.csproj -t:PackageMod   # 组装 build/
-dotnet build src/DariusPrototype/DariusPrototype.csproj -t:DeployMod    # 打包 + 部署到游戏
+dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release                   # 只编译
+dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:PackageMod     # 清理并组装 build/
+dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod      # 打包 + 完整替换游戏安装目录
 ```
 
 | 目标 | 产物 |
 | --- | --- |
-| `Build`（默认） | `src/DariusPrototype/bin/Release/netstandard2.1/DariusPrototype.dll` |
-| `PackageMod` | `build/`：DLL + `about/` + 运行时资产（不含 `src/`、`docs/`、`assets/raw_*`） |
-| `DeployMod` | `build/` 内容复制到 `$(ModsDir)\DariusPrototype` |
+| `Build` | `src/DariusPrototype/bin/Release/netstandard2.1/DariusPrototype.dll` |
+| `PackageMod` | 干净的 `build/` snapshot：DLL + `about/` + 运行时资产（不含 `src/`、`docs/`、`assets/raw_*`） |
+| `DeployMod` | 先清理 `$(ModsDir)\DariusPrototype`，再用 `build/` 完整替换；部署目标不得是仓库根 |
 
 游戏路径解析顺序：`-p:GameDir=...` → `Directory.Build.props`（本地，已 gitignore）→ 环境变量 `SOD_GAME_DIR`。解析不到时 `CheckGameInstall` 给出明确报错。`ModsDir` 默认 `$(GameDir)\Mods`。
 
-**发布只发 `build/`**，不发仓库。
+**发布只发 `build/`**，不发仓库。`PackageMod` 只接受 Release 配置。
 
 ### 4.3 构建只做轻量边界检查
 
@@ -171,10 +171,12 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -t:DeployMod    # 打包
 
 - **没有 shell 构建脚本**：构建就是 `dotnet build`；游戏路径用 `GameDir`（`-p:` / `Directory.Build.props` / `SOD_GAME_DIR`）注入。不要再引入 `.bat` / `.ps1` 构建或校验脚本。
 - **`TravelerBasicAttackVfxReplication.cs` 不在仓库里**：csproj 从 `$(ModsDir)` 链接它，缺失时 `CheckGameInstall` 直接报错。
-- **版本号只有一个真源**：`about\metadata.json` 的 `modVer`。运行时 `DariusModEnvironment.Version` 读它；任何 `.cs` / `.csproj` 里都不要再写版本字面量。
+- **版本号只有一个真源**：`about\metadata.json` 的 `modVer`。运行时 `DariusModEnvironment.Version` 读它；任何 `.cs` / `.csproj` / README 顶部都不要再复制“当前版本”。
 - **共享 GUID 只在 `src/DariusPrototype/DariusResourceIds.cs` 定义**：改值会破坏存档与网络身份。
 - **日志级别**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`）；`EXCEPTION` 始终写入。
-- **`PackageMod` 产出 `build/`**（DLL + `about/` + 运行时资产），发布只发它；`DeployMod` 才写入 `<GameDir>\Mods\DariusPrototype`。`assets/raw_*` 不进包。
+- **`PackageMod` / `DeployMod` 都是 snapshot 语义**：Package 先清理 `build/`，Deploy 先清理安装目录，因此删除资源就是删除资源，不允许依赖旧安装残留。两个 target 都必须用 `-c Release`。
+- **语音 OGG 是按需分配**：不要重新在启动时批量解码 411 条语音；首次选择某 key 时异步解码并缓存，正在加载的同 key 请求会去重。
+- **Pass2 manifest 允许重试**：只有成功解析后才能把 `_pass2PoolsLoaded` 置为 true，启动早期路径未准备好时不能永久锁死。
 - **构建只做存在性边界检查**：数量/结构校验在运行时日志里，不在构建期；不要为此新增脚本。
 - **日志写在共享 Mods 目录**，不在 Mod 目录内。找日志时往上一层看。
 - **SDK 风格 csproj 递归收集 `.cs`**：往 `src/DariusPrototype/` 新增文件即可自动编译；但把 `.cs` 放到被忽略的目录会被静默跳过。
@@ -209,7 +211,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -t:DeployMod    # 打包
 
 **收尾**
 - [ ] 能编译就编译；不能编译就明确声明「未编译验证」，并给出静态自检结果（括号配平、引用/路径存在性、JSON 可解析）。
-- [ ] 发布前跑一次 `-t:PackageMod`，确认 `build/` 内容正确且不含 `raw_*`。
+- [ ] 发布前跑一次 `-c Release -t:PackageMod`，确认 `build/` 是干净 snapshot 且不含 `raw_*` 提取源。
 - [ ] 更新受影响的文档（`README.md` 索引、`CHANGELOG.md`、`docs/assets.md`）。
 - [ ] `git status` 确认无二进制、无日志、无 `bin/` `obj/` 进入版本控制。
 - [ ] 报告改动清单时给出具体文件路径，不要笼统地说「已优化」。
