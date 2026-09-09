@@ -2,7 +2,7 @@
 
 > 为 **Shape of Dreams** 制作的非官方角色 Mod：把《英雄联盟》的**诺克萨斯之手 · 德莱厄斯**作为一个独立的 Traveler 接入游戏，包含独立的技能、被动、星座（星效）、皮肤、动画、VFX、音效与中/英/日本地化。
 
-[Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3790488345) · Workshop ID `3790488345` · 当前版本 `0.31.0` · 版本历史见 [CHANGELOG.md](CHANGELOG.md)
+[Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3790488345) · Workshop ID `3790488345` · 版本历史见 [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
@@ -19,7 +19,7 @@
 | 星座（星效） | 38 个 `Se_Star_Darius_*` 定义，接入原生星座界面与存档；见 [docs/PROGRESSION_PASS_2026-08-30.md](docs/PROGRESSION_PASS_2026-08-30.md) |
 | 召唤师技能 | 以 League 风格替换原版位移槽：Flash + Ghost |
 | VFX | Riot `VfxSystemDefinitionData` 运行时解释器，164 个系统 / 114 张贴图 / 51 个网格 |
-| 音效与语音 | 由 Riot Wwise 源解码的 129 个技能音效 + 411 条 zh_CN 施法语音，按皮肤/技能随机选取 |
+| 音效与语音 | 由 Riot Wwise 源解码的 129 个技能音效 + 411 条 zh_CN 施法语音；技能 SFX 保持同步 WAV，语音 OGG 按需异步解码并缓存 |
 | 本地化 | zh_CN / en_US / ja_JP |
 | 多人安全 | 远程玩家的 Darius 使用游戏原生网络状态，主机不写入他人存档 |
 
@@ -46,7 +46,7 @@
     └── DariusPrototype\                        # 安装位置（由 DeployMod 写入，不是仓库）
 ```
 
-仓库可以放在任何地方（本机为 `D:\Project\mod-sod-lol\darius`），与游戏目录解耦。
+仓库可以放在任何地方（本机为 `D:\Project\mod-sod-lol\darius`），与游戏目录解耦。`DeployMod` 会拒绝把部署目标设为仓库本身，以免清理安装目录时误删源码。
 
 ### 3.2 构建与打包
 
@@ -54,20 +54,20 @@
 # 只编译（需要游戏程序集）
 dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release
 
-# 组装可发布包 -> build/（校验必需资产存在）
-dotnet build src/DariusPrototype/DariusPrototype.csproj -t:PackageMod
+# 组装可发布包 -> build/（先清理旧 build，再生成完整 Release snapshot）
+dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:PackageMod
 
-# 打包并部署到 <游戏目录>\Mods\DariusPrototype
-dotnet build src/DariusPrototype/DariusPrototype.csproj -t:DeployMod
+# 打包并部署到 <游戏目录>\Mods\DariusPrototype（先清理旧安装目录）
+dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod
 ```
 
 | 目标 | 产物 |
 | --- | --- |
-| `Build`（默认） | `src/DariusPrototype/bin/Release/netstandard2.1/DariusPrototype.dll` |
-| `PackageMod` | `build/`：DLL + `about/` + 运行时资产（不含 `src/`、`docs/`、`assets/raw_*`） |
-| `DeployMod` | 上面的包复制到 `<GameDir>\Mods\DariusPrototype` |
+| `Build` | `src/DariusPrototype/bin/Release/netstandard2.1/DariusPrototype.dll` |
+| `PackageMod` | 干净的 `build/` snapshot：DLL + `about/` + 运行时资产（不含 `src/`、`docs/`、`assets/raw_*`） |
+| `DeployMod` | 用上面的 package snapshot 完整替换 `<GameDir>\Mods\DariusPrototype` |
 
-**发布只发 `build/` 目录**，不要发仓库。包内容与体积构成见 [docs/assets.md](docs/assets.md) 第 1.1 与 3.5 节。
+**发布只发 `build/` 目录**，不要发仓库。`PackageMod` 只接受 `Release` 配置；包内容与体积构成见 [docs/assets.md](docs/assets.md) 第 1.1 与 3.5 节。
 
 ### 3.3 指定游戏路径
 
@@ -132,11 +132,12 @@ csproj 从 `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs` 链接引�
 
 ## 6. 版本与已知问题
 
-- **版本号单一真源**：只维护 `about/metadata.json` 的 `modVer`。运行时（`DariusModEnvironment.Version`）从它读取；代码与 csproj 中都没有版本字面量。
+- **版本号单一真源**：只维护 `about/metadata.json` 的 `modVer`。运行时（`DariusModEnvironment.Version`）从它读取；README 不再复制“当前版本”字面量。
 - **构建就是 `dotnet build`**：没有 `.bat` / `.ps1` 构建或校验脚本，游戏路径通过 `GameDir` 属性注入（见 3.3）。
-- **发布只发 `build/`**：`dotnet build -t:PackageMod` 生成，内容为 DLL + `about/` + 运行时资产；`src/`、`docs/`、`assets/raw_*` 不进包。
+- **发布只发 `build/`**：`dotnet build -c Release -t:PackageMod` 会先清理 `build/` 再生成完整 snapshot；`src/`、`docs/`、`assets/raw_*` 不进包。
+- **部署是完整替换**：`DeployMod` 先清理 `<GameDir>\Mods\DariusPrototype`，再复制 package，因此旧版本已删除的 WAV/贴图/manifest 不会残留并覆盖新资源。
 - **构建只做轻量边界检查**：`CheckGameInstall`（游戏程序集 / 外部共享源码）与 `VerifyPackageAssets`（打包前必需资产存在）。数量与结构校验交给运行时日志。
-- **发布体积约 95 MB**：语音已转 22.05 kHz 单声道 OGG（138 MB → 8 MB），当前最大项是模型 49.8 MB。后续优化选项见 [docs/assets.md](docs/assets.md) 第 3.5 节。
+- **发布体积约 95 MB**：语音已转 22.05 kHz 单声道 OGG（138 MB → 8 MB）；运行时按需异步解码并只缓存实际触发过的语音，不再在启动时一次性分配全部 411 条 PCM。当前最大静态项是模型 49.8 MB。
 - **调试日志**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`）。日志写在共享 Mods 目录（Mod 目录上一层）。
 - **无自动化测试**：仓库没有单元测试或 CI，唯一的自动校验是编译本身；玩法正确性依赖游戏内人工验证（见 `docs/*_TEST_CHECKLIST.md`）。
 - **无法在无游戏环境构建**：编译需要游戏自带的 `Shape of Dreams_Data\Managed\*.dll`，以及 3.4 节的外部共享源码。
