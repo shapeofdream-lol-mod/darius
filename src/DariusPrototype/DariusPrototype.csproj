@@ -26,6 +26,12 @@
     <ModsDir Condition="'$(ModsDir)' == '' and '$(GameDir)' != ''">$(GameDir)\Mods</ModsDir>
     <GameManagedDir Condition="'$(GameManagedDir)' == '' and '$(GameDir)' != ''">$(GameDir)\Shape of Dreams_Data\Managed</GameManagedDir>
     <SharedSource Condition="'$(SharedSource)' == '' and '$(ModsDir)' != ''">$(ModsDir)\TravelerBasicAttackVfxReplication.cs</SharedSource>
+    <DeployDir Condition="'$(DeployDir)' == '' and '$(ModsDir)' != ''">$(ModsDir)\DariusPrototype</DeployDir>
+
+    <!-- Normalize destructive target paths once so PackageMod/DeployMod cannot clean the repository itself. -->
+    <ModRootFull Condition="'$(ModRootDir)' != ''">$([System.IO.Path]::GetFullPath('$(ModRootDir)'))</ModRootFull>
+    <PackageDirFull Condition="'$(PackageDir)' != ''">$([System.IO.Path]::GetFullPath('$(PackageDir)'))</PackageDirFull>
+    <DeployDirFull Condition="'$(DeployDir)' != ''">$([System.IO.Path]::GetFullPath('$(DeployDir)'))</DeployDirFull>
   </PropertyGroup>
 
   <ItemGroup>
@@ -93,22 +99,27 @@
     <Error Condition="!Exists('$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json')" Text="assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json is missing; the runtime needs it to route Pass2 audio." />
   </Target>
 
-  <!-- dotnet build -t:PackageMod  -> assemble $(PackageDir) -->
+  <!-- dotnet build -c Release -t:PackageMod  -> replace $(PackageDir) with a clean snapshot -->
   <Target Name="PackageMod" DependsOnTargets="Build;VerifyPackageAssets">
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PackageDir)" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="$(TargetDir)$(AssemblyName).pdb" DestinationFolder="$(PackageDir)" Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_PackageFile)" DestinationFiles="@(_PackageFile->'$(PackageDir)\%(Dest)')" SkipUnchangedFiles="true" UseHardlinksIfPossible="true" />
-    <Message Text="Mod package ready: $(PackageDir)  — publish this folder, not the repository." Importance="high" />
+    <Error Condition="'$(Configuration)' != 'Release'" Text="PackageMod only creates publishable Release packages. Re-run with -c Release." />
+    <Error Condition="'$(PackageDirFull)' == '' or '$(PackageDirFull)' == '$(ModRootFull)'" Text="Unsafe PackageDir: it must be a dedicated output directory and must not be the repository root." />
+    <RemoveDir Directories="$(PackageDir)" Condition="Exists('$(PackageDir)')" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PackageDir)" />
+    <Copy SourceFiles="$(TargetDir)$(AssemblyName).pdb" DestinationFolder="$(PackageDir)" Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
+    <Copy SourceFiles="@(_PackageFile)" DestinationFiles="@(_PackageFile->'$(PackageDir)\%(Dest)')" UseHardlinksIfPossible="true" />
+    <Message Text="Mod package ready: $(PackageDir)  — clean Release snapshot; publish this folder, not the repository." Importance="high" />
   </Target>
 
-  <!-- dotnet build -t:DeployMod  -> package + copy into &lt;GameDir&gt;\Mods\DariusPrototype -->
+  <!-- dotnet build -c Release -t:DeployMod -> replace the installed mod with the package snapshot -->
   <Target Name="DeployMod" DependsOnTargets="PackageMod">
-    <Error Condition="'$(ModsDir)' == ''" Text="ModsDir is empty. Set GameDir (or ModsDir) before deploying." />
+    <Error Condition="'$(DeployDirFull)' == ''" Text="DeployDir is empty. Set GameDir (or ModsDir) before deploying." />
+    <Error Condition="'$(DeployDirFull)' == '$(ModRootFull)'" Text="Refusing to deploy over the repository. Keep the source tree outside Mods\DariusPrototype and deploy the packaged snapshot instead." />
+    <RemoveDir Directories="$(DeployDir)" Condition="Exists('$(DeployDir)')" />
     <ItemGroup>
       <_PackageOutput Include="$(PackageDir)\**\*" />
     </ItemGroup>
-    <Copy SourceFiles="@(_PackageOutput)" DestinationFiles="@(_PackageOutput->'$(ModsDir)\DariusPrototype\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-    <Message Text="Deployed mod package -&gt; $(ModsDir)\DariusPrototype" Importance="high" />
+    <Copy SourceFiles="@(_PackageOutput)" DestinationFiles="@(_PackageOutput->'$(DeployDir)\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Message Text="Deployed clean mod snapshot -&gt; $(DeployDir)" Importance="high" />
   </Target>
 
 </Project>
