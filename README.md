@@ -136,7 +136,7 @@ csproj 从 `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs` 链接引�
 - **构建就是 `dotnet build`**：没有 `.bat` / `.ps1` 构建或校验脚本，游戏路径通过 `GameDir` 属性注入（见 3.3）。
 - **发布只发 `build/`**：`dotnet build -t:PackageMod` 生成，内容为 DLL + `about/` + 运行时资产；`src/`、`docs/`、`assets/raw_*` 不进包。
 - **构建只做轻量边界检查**：`CheckGameInstall`（游戏程序集 / 外部共享源码）与 `VerifyPackageAssets`（打包前必需资产存在）。数量与结构校验交给运行时日志。
-- **发布体积约 225 MB，其中音频占 71%**：压缩方案（降采样 / OGG / 裁动画）与取舍见 [docs/assets.md](docs/assets.md) 第 3.5 节。
+- **发布体积约 95 MB**：语音已转 22.05 kHz 单声道 OGG（138 MB → 8 MB），当前最大项是模型 49.8 MB。后续优化选项见 [docs/assets.md](docs/assets.md) 第 3.5 节。
 - **调试日志**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`）。日志写在共享 Mods 目录（Mod 目录上一层）。
 - **无自动化测试**：仓库没有单元测试或 CI，唯一的自动校验是编译本身；玩法正确性依赖游戏内人工验证（见 `docs/*_TEST_CHECKLIST.md`）。
 - **无法在无游戏环境构建**：编译需要游戏自带的 `Shape of Dreams_Data\Managed\*.dll`，以及 3.4 节的外部共享源码。

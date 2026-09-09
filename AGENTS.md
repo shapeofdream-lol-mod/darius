@@ -65,7 +65,7 @@
 | --- | --- |
 | `DariusTravelerSystem.cs` | **核心**：独立 Traveler 的 Hero/Skin/EntityModel/资源构建、场景切换后的整代重建 |
 | `DariusSkinSystem.cs` | 皮肤与动画层；技能发起的动画请求桥（含普攻 VFX 网络广播） |
-| `DariusMedia.cs` | 运行时媒体加载：VFX 贴图 + 技能音频（WAV/OGG） |
+| `DariusMedia.cs` | 运行时媒体加载：VFX 贴图 + 技能 SFX（同步 WAV）+ 语音（启动时异步解码 OGG，`PreloadVoiceOgg()`） |
 | `DariusLolVfxRuntime.cs` | Riot `VfxSystemDefinitionData` 运行时解释器；不支持的原语必须显式记录并跳过（fidelity gate） |
 | `DariusVoiceRuntime.cs` | 施法语音路由；**不得**伪造或跨皮肤替代语音 |
 | `DariusPrototypeIcons.cs` | 图标加载（`assets/icons/*.png`） |
@@ -130,7 +130,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -t:DeployMod    # 打包
 构建**不校验资产数量**：`assets/raw_*` 是提取源、不进包，资产完整性由运行时日志负责（`DariusMedia.PreloadAll()`、`DariusTravelerSystem` 的皮肤规格、`DariusLolVfxRuntime` 的 manifest 校验）。构建期只做存在性检查：
 
 - `CheckGameInstall`：游戏程序集、外部共享源码；
-- `VerifyPackageAssets`：打包前必需资产（`about/metadata.json`、`assets/models/darius.glb`、`assets/lol_vfx/darius_lol_vfx.json`、`assets/audio/flash.ogg`）。
+- `VerifyPackageAssets`：打包前必需资产（`about/metadata.json`、`assets/models/darius.glb`、`assets/lol_vfx/darius_lol_vfx.json`、`assets/audio/flash.ogg`、`assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`）。
 
 版本号唯一真源仍是 `about\metadata.json` 的 `modVer`；csproj 里**不要**加 `<Version>`。发布体积构成与压缩取舍见 `docs/assets.md` 第 3.5 节。
 

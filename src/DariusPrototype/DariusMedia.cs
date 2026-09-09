@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -161,6 +161,73 @@ public static class DariusMedia
         }
     }
 
+    // Voice lines are packaged as downsampled Ogg Vorbis (see docs/assets.md). They use the same
+    // asynchronous decode path as the League Flash asset above and are cached into Clips, so the
+    // synchronous Clip() accessor and every playback call site stay unchanged.
+    // ponytail: all 411 lines are decoded into memory at boot (~70 MB as float PCM). If that
+    // ever matters, switch to the streamAudio overload of GetAudioClip or load lazily on first use.
+    public static IEnumerator PreloadVoiceOgg()
+    {
+        EnsurePass2PoolsLoaded();
+
+        HashSet<string> keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectPoolKeys(ClassicVoice, keys);
+        CollectPoolKeys(GodKingVoice, keys);
+        foreach (KeyValuePair<string, Dictionary<string, string[]>> skin in Pass2VoiceBySkin)
+            CollectPoolKeys(skin.Value, keys);
+
+        int loaded = 0, missing = 0, failed = 0;
+        foreach (string key in keys)
+        {
+            string path = AssetPath("audio", key + ".ogg");
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) { missing++; continue; }
+
+            AudioClip cached;
+            if (Clips.TryGetValue(key, out cached) && cached != null) { loaded++; continue; }
+
+            string uri;
+            try { uri = new Uri(path).AbsoluteUri; }
+            catch (Exception e)
+            {
+                DariusLog.Exception("VO-ASSET", e, "Failed to create local URI for voice OGG key=" + key);
+                failed++;
+                continue;
+            }
+
+            using (UnityWebRequest req = UnityWebRequestMultimedia.GetAudioClip(uri, (UnityEngine.AudioType)14))
+            {
+                yield return req.SendWebRequest();
+                if (!string.IsNullOrEmpty(req.error))
+                {
+                    DariusLog.Error("VO-ASSET", "Voice OGG decode failed key=" + key + " error=" + req.error);
+                    failed++;
+                    continue;
+                }
+                AudioClip clip = null;
+                try { clip = DownloadHandlerAudioClip.GetContent(req); }
+                catch (Exception e) { DariusLog.Exception("VO-ASSET", e, "Voice OGG GetContent failed key=" + key); }
+                if (clip == null) { failed++; continue; }
+                clip.name = "DariusVoice_" + key;
+                Clips[key] = clip;
+                loaded++;
+            }
+        }
+        DariusLog.Info("VO-ASSET", "Voice OGG preload complete loaded=" + loaded + " missing=" + missing +
+            " failed=" + failed + " poolKeys=" + keys.Count);
+    }
+
+    private static void CollectPoolKeys(Dictionary<string, string[]> pools, HashSet<string> destination)
+    {
+        if (pools == null || destination == null) return;
+        foreach (KeyValuePair<string, string[]> kv in pools)
+        {
+            string[] arr = kv.Value;
+            if (arr == null) continue;
+            for (int i = 0; i < arr.Length; i++)
+                if (!string.IsNullOrEmpty(arr[i])) destination.Add(arr[i]);
+        }
+    }
+
     public static Texture2D Texture(string key)
     {
         Texture2D cached;
@@ -205,6 +272,14 @@ public static class DariusMedia
         string path = AssetPath("audio", key + ".wav");
         if (string.IsNullOrEmpty(path) || !File.Exists(path))
         {
+            // Voice lines ship as OGG and are decoded asynchronously by PreloadVoiceOgg(); a miss
+            // here only means the decode has not reached this key yet, so stay quiet about it.
+            string oggPath = AssetPath("audio", key + ".ogg");
+            if (!string.IsNullOrEmpty(oggPath) && File.Exists(oggPath))
+            {
+                DariusLog.DebugInfoThrottled("VO-ASSET", "ogg-pending:" + key, "Voice OGG not decoded yet key=" + key, 5f);
+                return null;
+            }
             DariusLog.Warn("SFX-ASSET", "Audio missing key=" + key + " path=" + (path ?? "<null>"));
             Clips[key] = null;
             return null;

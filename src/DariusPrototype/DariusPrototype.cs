@@ -140,8 +140,9 @@ public sealed class DariusPrototypeMod : ModBehaviour
         {
             DariusMedia.PreloadAll();
             StartCoroutine(DariusMedia.PreloadCompressedAudio());
+            StartCoroutine(DariusMedia.PreloadVoiceOgg());
         }
-        catch (Exception e) { DariusLog.Exception("MEDIA", e, "PreloadAll/PreloadCompressedAudio failed"); }
+        catch (Exception e) { DariusLog.Exception("MEDIA", e, "PreloadAll/compressed-audio preload failed"); }
 
         // Always start the critical registration coroutine even when an optional Harmony/UI patch
         // failed. This is the authoritative path that creates Hero_Darius/Skin_Darius_Default.

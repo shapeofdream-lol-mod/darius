@@ -5,35 +5,46 @@
 
 > `0.30.x` 及更早的 Mod 历史（Riot VFX 重建、皮肤、星座、平衡等）见 [docs/archive/CHANGELOG-legacy.md](docs/archive/CHANGELOG-legacy.md)，仅作保留、不再维护。
 
-## [0.31.0] - 2026-09-09
+## [0.31.0-refactor] - 2026-09-09
 
-### Added
+工程重构版本：不改变玩法与数值，目标是让仓库符合常规工程习惯、把构建交还给 .NET 工具链、压缩发布体积。
 
-- 可发布包：`dotnet build -t:PackageMod` 生成 `build/`（DLL + `about/` + 运行时资产）；**发布只发该目录，不发源码**。
-- `dotnet build -t:DeployMod` 把包复制到 `<GameDir>\Mods\DariusPrototype`。
-- 轻量边界检查：`CheckGameInstall`（游戏程序集、外部共享源码）与 `VerifyPackageAssets`（打包前必需资产存在）。只查存在性，不查数量。
-- 日志级别开关：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`，行为不变），`EXCEPTION` 不受过滤。
+### 思路
 
-### Changed
+1. 源码、资产、文档、构建产物各归其位，仓库与游戏安装目录解耦。
+2. 构建、打包、部署全部交给 MSBuild，不再用 `.bat` / `.ps1` 做构建或校验。
+3. 「同一事实出现多处」的东西（版本号、资产清单、共享 GUID）收敛到单一真源。
+4. 发布只发一个自包含的包，并尽量减小它。
 
-- 目录重构：源码移入 `src/DariusPrototype/`（原 `Formal/` 扁平化），离线工具移入 `tools/`；`assets/`、`docs/`、`about/` 位置不变。
-- 构建改为纯 MSBuild：`dotnet build src/DariusPrototype/DariusPrototype.csproj`；游戏路径由 `GameDir` 属性注入（`-p:` / `Directory.Build.props` / `SOD_GAME_DIR`）。
-- 版本号收敛到 `about/metadata.json` 的 `modVer` 单一真源，代码与 csproj 中不再有版本字面量。
-- 共享资源 GUID 提取到 `src/DariusPrototype/DariusResourceIds.cs`（原先在两个注册器中各写一份）。
-- 发布包排除 `assets/raw_lol_audio/`、`assets/raw_lol_vfx_pass2/` 等提取源（约 63 MB）。
+### 行动
 
-### Removed
+**目录与构建**
 
-- 全部 shell 构建/校验脚本：`BuildAndInstall.ps1`、`BUILD_DARIUS.bat`、`PREPARE_DARIUS_PASS2_MEDIA.bat`、`Tools/PrepareDariusPass2Media.ps1`。WEM → WAV 改为直接调用 `vgmstream-cli`（见 `docs/assets.md`）。
-- 外部工具产出的 `docs/*_STATIC_VALIDATION.txt`、打包说明与 `LOL_CHARACTER_MOD.marker`。
-- 根目录陈旧构建产物（DLL/PDB 与历史备份）。
+- 源码归入 `src/DariusPrototype/`（原 `Formal/` 扁平化），离线工具归入 `tools/`；`assets/`、`docs/`、`about/` 位置不变。
+- 删除全部 shell 构建与校验脚本。`dotnet build` 编译，`-t:PackageMod` 生成 `build/`，`-t:DeployMod` 部署到游戏。
+- 游戏路径由 `GameDir` 属性注入（命令行 / `Directory.Build.props` / `SOD_GAME_DIR`），仓库可以放在任何位置。
+- 构建期只保留两处**存在性**边界检查：游戏程序集与外部共享源码、打包前必需资产。数量与结构校验交给运行时日志，不再维护第二份清单。
 
-### Fixed
+**版本与文档**
 
-- `about/description.txt` 的星座数量（26 → 38）与音量滑条数量（6 → 7）。
+- 版本号收敛到 `about/metadata.json` 的 `modVer`（本版 `0.31.0-refactor`），代码与构建脚本中不再有版本字面量。
+- `CHANGELOG.md` 改为 Keep a Changelog 格式；`0.30.x` 及更早移入 `docs/archive/CHANGELOG-legacy.md`，不再维护。
+- `AGENTS.md` 重写为可执行的工程手册：结构地图、构建/打包/部署、边界与陷阱、发版规则。
 
-### Known issues
+**资产与体积**
 
-- **未编译**：本版本未在装有游戏的机器上构建或运行，等价性待游戏机验证。
-- 缺少仓库外的共享源码 `TravelerBasicAttackVfxReplication.cs` 时无法编译（`CheckGameInstall` 会明确报错）。
-- 音频仍为 PCM16 WAV（约 160 MB，占发布体积约 70%）；压缩方案与取舍见 [docs/assets.md](docs/assets.md) 的「体积优化」。
+- **语音全部转 22.05 kHz 单声道 Ogg Vorbis**，并改用与 League Flash 相同的异步解码路径（启动时预加载、播放时同步取缓存），所有播放调用点不变。
+- 发布包排除 `assets/raw_lol_audio`、`assets/raw_lol_vfx_pass2` 等提取源，同时补上运行时需要的 `PASS2_MEDIA_MANIFEST.json`。
+- 发布体积从约 **225 MB** 降到约 **95 MB**（语音 138 MB → 8 MB）。
+- `docs/assets.md` 补充打包内容、体积构成与后续优化选项：模型裁掉未使用动画、贴图无损压缩；Draco/meshopt 因运行时无解码器暂不可行。
+
+**清理**
+
+- 移除外部工具产出的静态校验报告、面向旧交付包的说明与无人读取的 marker。
+- 修正 Workshop 描述里的星座数量（26 → 38）与音量滑条数量（6 → 7）。
+- 删除仓库根目录的陈旧二进制与历史备份。
+
+### 已知问题
+
+- 缺少仓库外的共享源码 `TravelerBasicAttackVfxReplication.cs` 时无法编译（构建会明确报错）。
+- 技能 SFX 仍为 PCM16 WAV（约 21 MB）；语音已压缩，技能音效保留 WAV 是为了零改动与低延迟。

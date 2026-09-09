@@ -13,7 +13,7 @@
 | `assets/icons/` | 技能/符文/装备/皮肤图标（含 `star_awoo.png`） | 40 个 · 约 2 MB | ❌ | ✅ |
 | `assets/vfx/` | 保留的兼容 VFX 贴图（`gk_glow.png`、`gk_wisps_red.png` 等） | 8 个 · 约 0.5 MB | ❌ | ✅ |
 | `assets/lol_vfx/` | 转换后的 Riot VFX 清单 + 贴图 + 网格 | 168 个 · 约 10 MB | ❌ | ✅ |
-| `assets/audio/` | 运行时 PCM16 WAV / OGG + 音频清单 | 555 个 · 约 160 MB | ❌ | ✅ |
+| `assets/audio/` | 技能 SFX：PCM16 WAV；语音：22.05 kHz 单声道 OGG | 554 个 · 约 29 MB | ❌ | ✅ |
 | `assets/raw_lol_audio/` | Riot Wwise `.wem` 原始源 + 映射清单 | 436 个 · 约 12 MB | ❌ | ❌ |
 | `assets/raw_lol_vfx_pass2/` | Riot `.tex` / `.skn` / `.bin` 原始提取物 | 903 个 · 约 51 MB | ❌ | ❌ |
 | `about/icon.png`、`about/preview.png` | Workshop 列表缩略图 | 2 个 · 85 KB | ❌ | ✅ |
@@ -30,7 +30,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -t:PackageMod
 build/
 ├── DariusPrototype.dll (+ .pdb)
 ├── about/        # metadata.json / description.txt / publishedfileid.txt / icon.png / preview.png
-└── assets/       # 仅上表标 ✅ 的运行时子树
+└── assets/       # 上表标 ✅ 的运行时子树 + raw_lol_audio/PASS2_MEDIA_MANIFEST.json
 ```
 
 **发布只发 `build/`**。`src/`、`docs/`、`tools/`、`assets/raw_*` 都不进包——仅排除两个 `raw_*` 目录就省下约 63 MB。
@@ -57,24 +57,38 @@ build/
 
 ## 3. 生成流程
 
-### 3.1 音频：WEM → WAV
+### 3.1 音频：WEM → WAV / OGG
 
 ```
-assets/raw_lol_audio/*.wem
+assets/raw_lol_audio/**/*.wem
         │  vgmstream-cli（外部工具，无仓库内脚本）
         ▼
-assets/audio/*.wav（PCM16）
+assets/audio/*.wav（PCM16，技能 SFX）
+        │  ffmpeg（仅语音 vo_*）
+        ▼
+assets/audio/vo_*.ogg（22.05 kHz 单声道 Vorbis）
 ```
 
-输出文件名 = 源文件基名 + `.wav`（运行时按基名查找）。批量转换示例：
+输出文件名 = 源文件基名 + 扩展名（运行时按基名查找）。批量转换示例：
 
 ```powershell
+# 1) WEM -> PCM16 WAV
 Get-ChildItem assets/raw_lol_audio -Recurse -Filter *.wem | ForEach-Object {
     & vgmstream-cli -o (Join-Path assets/audio ($_.BaseName + '.wav')) $_.FullName
+}
+
+# 2) 语音 -> 降采样 OGG（技能 SFX 保持 WAV）
+Get-ChildItem assets/audio -Filter vo_*.wav | ForEach-Object {
+    & ffmpeg -y -i $_.FullName -ac 1 -ar 22050 -c:a libvorbis -q:a 4 ($_.FullName -replace '\.wav$', '.ogg')
 }
 ```
 
 `vgmstream-cli` 从 [vgmstream releases](https://github.com/vgmstream/vgmstream/releases) 获取，放在 PATH 或 `tools/vgmstream/`（已 gitignore）。事件 → media id → 输出文件名的映射见 `assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`。
+
+**运行时加载方式**：
+
+- 技能 SFX（`lol_*` 等）：`DariusMedia.LoadPcmWave` 同步解析 RIFF，低延迟；
+- 语音（`vo_*`）：`DariusMedia.PreloadVoiceOgg()` 启动时用 `UnityWebRequestMultimedia` 异步解码（与 `flash.ogg` 同一条路径），缓存后由 `Clip()` 同步取出，播放调用点不变。代价是 411 条语音在启动时全部解码进内存（约 70 MB）；若要更低内存，可改用 `streamAudio` 重载或首次使用时惰性加载。
 
 ### 3.2 VFX：Riot BIN/TEX/SCN → JSON + PNG
 
@@ -103,31 +117,22 @@ assets/lol_vfx/meshes/*.json
 
 ### 3.5 体积优化（发布体积）
 
-当前 `build/` 约 **225 MB**，构成（本地实测）：
+当前 `build/` 约 **95 MB**，构成（本地实测）：
 
 | 部分 | 大小 | 占比 |
 | --- | --- | --- |
-| `assets/audio`（552 个 PCM16 WAV） | 159.5 MB | 71% |
-| `assets/models`（4 个 GLB） | 49.8 MB | 22% |
-| `assets/lol_vfx` | 10.5 MB | 5% |
-| animations + icons + vfx + about | 5.1 MB | 2% |
+| `assets/models`（4 个 GLB） | 49.8 MB | 53% |
+| `assets/audio`（技能 SFX WAV + 语音 OGG） | 29.3 MB | 31% |
+| `assets/lol_vfx` | 10.5 MB | 11% |
+| animations + icons + vfx + about | 5.1 MB | 5% |
 
-**音频（最大项）**
+**已做：语音压缩**。411 条语音从 44.1 kHz PCM16 WAV（138.3 MB）转为 22.05 kHz 单声道 Ogg Vorbis（8.1 MB），运行时由 `PreloadVoiceOgg()` 启动时异步解码。技能 SFX 保留 WAV（约 21 MB）是为低延迟与零改动。
 
-现状：16-bit / 44.1 kHz / 单声道 PCM WAV，运行时由 `DariusMedia.LoadPcmWave` 同步解析 RIFF。可选方案：
+**技能 SFX（可选，约 21 MB）**
 
-1. **降采样 / 降位深（无代码改动）**：转 22.05 kHz 单声道 WAV，约省 50%（≈80 MB）。语音与短音效基本听不出差别，代价是高频损失。
-2. **转 OGG Vorbis（≈1/8～1/10，≈16–20 MB）**：Unity 只能通过 `UnityWebRequestMultimedia.GetAudioClip(uri, AudioType.OGGVORBIS)` **异步**加载。`DariusMedia` 已有这条路径（`flash.ogg`），但另外 540 个片段走同步 WAV 路径；要全量转 OGG，必须改成「启动时异步预加载 + 同步取缓存」，属于运行时改动，需游戏内验证。
-3. **混合**：长语音转 OGG（异步预加载），短技能音效保留 WAV（低延迟、零改动）。
+若还要压，可对 `lol_*.wav` 同样转 OGG 并复用 `PreloadVoiceOgg()` 的路径；代价是技能音效从同步加载改为启动异步预加载，需要游戏内确认无延迟/丢音。
 
-工具：
-
-```powershell
-ffmpeg -i in.wav -ac 1 -ar 22050 -c:a libvorbis -q:a 4 out.ogg
-# 或 oggenc2 -q 4 in.wav -o out.ogg
-```
-
-**模型（49.8 MB）**
+**模型（49.8 MB，当前最大项）**
 
 实测 GLB 构成：内嵌 PNG 仅 0.3–2.4 MB，**主体是网格与动画缓冲**（bin 5.6–18.1 MB）。
 

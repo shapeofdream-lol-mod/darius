@@ -2,7 +2,7 @@
   "id": "local.darius.independent",
   "name": "Darius - Hand of Noxus",
   "author": "Darius Mod",
-  "modVer": "0.31.0",
+  "modVer": "0.31.0-refactor",
   "assemblies": [
     "DariusPrototype.dll"
   ],
