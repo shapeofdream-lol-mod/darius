@@ -85,7 +85,9 @@
   -->
   <ItemGroup>
     <_PackageFile Include="$(ModRootDir)\about\**\*" Dest="about\%(RecursiveDir)%(Filename)%(Extension)" />
-    <_PackageFile Include="$(ModRootDir)\assets\audio\**\*" Dest="assets\audio\%(RecursiveDir)%(Filename)%(Extension)" />
+    <_PackageFile Include="$(ModRootDir)\assets\audio\**\*"
+                  Exclude="$(ModRootDir)\assets\audio\vo_*.wav;$(ModRootDir)\assets\audio\**\vo_*.wav"
+                  Dest="assets\audio\%(RecursiveDir)%(Filename)%(Extension)" />
     <_PackageFile Include="$(ModRootDir)\assets\animations\**\*" Dest="assets\animations\%(RecursiveDir)%(Filename)%(Extension)" />
     <_PackageFile Include="$(ModRootDir)\assets\icons\**\*" Dest="assets\icons\%(RecursiveDir)%(Filename)%(Extension)" />
     <_PackageFile Include="$(ModRootDir)\assets\lol_vfx\**\*" Dest="assets\lol_vfx\%(RecursiveDir)%(Filename)%(Extension)" />
