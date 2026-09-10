@@ -111,9 +111,11 @@
 
 ```powershell
 dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release                   # 只编译
-dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:PackageMod     # 清理并组装 build/
+dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:PackageMod     # 预检、编译并组装 build/
 dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod      # 打包 + 完整替换游戏安装目录
 ```
+
+`PackageMod` 的顺序固定为：`CheckPackageConfiguration` → `VerifyVoiceAssets` → `VerifyPackageAssets` → `Build` → 清理并重建 `build/`。其中 `VerifyVoiceAssets` 要求 `vo_*.ogg` 存在，并拒绝任何 `vo_*.wav`。
 
 | 目标 | 产物 |
 | --- | --- |
@@ -127,10 +129,12 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 
 ### 4.3 构建只做轻量边界检查
 
-构建**不校验资产数量**：raw 提取资产不进包，`PASS2_MEDIA_MANIFEST.json` 是运行时所需的唯一例外。资产完整性由运行时日志负责（`DariusMedia.PreloadAll()`、`DariusTravelerSystem` 的皮肤规格、`DariusLolVfxRuntime` 的 manifest 校验）。构建期只做存在性检查：
+构建**不校验资产数量**：raw 提取资产不进包，`PASS2_MEDIA_MANIFEST.json` 是运行时所需的唯一例外。资产完整性由运行时日志负责（`DariusMedia.PreloadAll()`、`DariusTravelerSystem` 的皮肤规格、`DariusLolVfxRuntime` 的 manifest 校验）。构建期只维护必要的配置、格式与存在性边界：
 
+- `CheckPackageConfiguration`：`PackageMod` 必须使用 Release；
 - `CheckGameInstall`：游戏程序集、外部共享源码；
-- `VerifyPackageAssets`：打包前必需资产（`about/metadata.json`、`assets/models/darius.glb`、`assets/lol_vfx/darius_lol_vfx.json`、`assets/audio/flash.ogg`、`assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`）。
+- `VerifyVoiceAssets`：必须存在 `assets/audio/vo_*.ogg`，并拒绝任何 `vo_*.wav`；
+- `VerifyPackageAssets`：其它打包必需资产（`about/metadata.json`、`assets/models/darius.glb`、`assets/lol_vfx/darius_lol_vfx.json`、`assets/audio/flash.ogg`、`assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`）。
 
 版本号唯一真源仍是 `about\metadata.json` 的 `modVer`；csproj 里**不要**加 `<Version>`。发布体积构成与压缩取舍见 `docs/assets.md` 第 3.5 节。
 
@@ -174,10 +178,10 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 - **版本号只有一个真源**：`about\metadata.json` 的 `modVer`。运行时 `DariusModEnvironment.Version` 读它；任何 `.cs` / `.csproj` / README 顶部都不要再复制“当前版本”。
 - **共享 GUID 只在 `src/DariusPrototype/DariusResourceIds.cs` 定义**：改值会破坏存档与网络身份。
 - **日志级别**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`）；`EXCEPTION` 始终写入。
-- **`PackageMod` / `DeployMod` 都是 snapshot 语义**：Package 先清理 `build/`，Deploy 先清理安装目录，因此删除资源就是删除资源，不允许依赖旧安装残留。两个 target 都必须用 `-c Release`。
-- **语音只使用 OGG**：首次选中时异步解码并缓存，不要恢复启动时批量预加载或其他语音格式路径。
+- **`PackageMod` / `DeployMod` 都是 snapshot 语义**：Package 先完成 Release/资产 preflight 和编译，再清理并重建 `build/`；Deploy 再清理安装目录并复制 package。两个 target 都必须用 `-c Release`。
+- **语音只使用 OGG**：首次选中时异步解码并缓存，不要恢复启动时批量预加载或其他语音格式路径；`VerifyVoiceAssets` 会拒绝旧 `vo_*.wav`。
 - **Pass2 manifest 允许重试**：只有成功解析后才能把 `_pass2PoolsLoaded` 置为 true，启动早期路径未准备好时不能永久锁死。
-- **构建只做存在性边界检查**：数量/结构校验在运行时日志里，不在构建期；不要为此新增脚本。
+- **构建只做必要边界检查**：Release 配置、voice OGG-only 格式和必需文件存在性在构建期检查；数量/深层结构仍交给运行时日志，不新增第二套清单或大脚本。
 - **日志写在共享 Mods 目录**，不在 Mod 目录内。找日志时往上一层看。
 - **SDK 风格 csproj 递归收集 `.cs`**：往 `src/DariusPrototype/` 新增文件即可自动编译；但把 `.cs` 放到被忽略的目录会被静默跳过。
 - **现有编译警告是已知的**：CS0114（`Ai_Darius_NoxianGuillotine.OnDestroy`）、CS0168、CS0618（`FindObjectsOfType` 已废弃）、CS0414。修复它们不是当前目标，但**不要新增**警告。
