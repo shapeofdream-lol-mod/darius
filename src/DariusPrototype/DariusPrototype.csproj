@@ -99,7 +99,7 @@
   <Target Name="VerifyVoiceAssets">
     <ItemGroup>
       <_VoiceOgg Include="$(ModRootDir)\assets\audio\vo_*.ogg" />
-      <_LegacyVoiceWav Include="$(ModRootDir)\assets\audio\vo_*.wav" />
+      <_LegacyVoiceWav Include="$(ModRootDir)\assets\audio\vo_*.wav;$(ModRootDir)\assets\audio\**\vo_*.wav" />
     </ItemGroup>
     <Error Condition="'@(_VoiceOgg)' == ''"
            Text="Voice OGG assets are missing. Prepare assets/audio/vo_*.ogg before packaging." />
@@ -116,8 +116,8 @@
     <Error Condition="!Exists('$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json')" Text="assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json is missing; the runtime needs it to route Pass2 audio." />
   </Target>
 
-  <!-- dotnet build -c Release -t:PackageMod -> replace the fixed build/ directory with a clean snapshot -->
-  <Target Name="PackageMod" DependsOnTargets="Build;VerifyPackageAssets">
+  <!-- Package flow: validate assets -> compile -> replace build/ with a clean Release snapshot. -->
+  <Target Name="PackageMod" DependsOnTargets="VerifyPackageAssets;Build">
     <Error Condition="'$(Configuration)' != 'Release'" Text="PackageMod only creates publishable Release packages. Re-run with -c Release." />
     <Error Condition="'$(PackageDirFull)' == '' or '$(PackageDirFull)' == '$(ModRootFull)' or '$(PackageDirFull)' == '$(SourceDirFull)'"
            Text="Unsafe PackageDir resolved from the project. PackageMod may only clean the repository build/ directory." />
