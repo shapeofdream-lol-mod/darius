@@ -35,7 +35,7 @@
 
 **资产与体积**
 
-- **语音运行时与发布契约固定为 OGG-only**：411 条语音使用 22.05 kHz 单声道 Ogg Vorbis；运行时只读取 `vo_*.ogg`，按需异步解码并缓存，`PackageMod` 排除任何遗留的 voice WAV。
+- **语音运行时与发布格式固定为 OGG-only**：411 条语音使用 22.05 kHz 单声道 Ogg Vorbis，按需异步解码并缓存。
 - 删除无实际工作的 voice startup preload hook；启动阶段不再存在语音预加载入口。
 - Pass2 Wwise manifest 只有在成功解析后才标记为已加载；启动早期路径未就绪或读取失败时允许后续重试。
 - 发布包排除原始 WEM 与 `assets/raw_lol_vfx_pass2` 等提取源，仅保留运行时需要的 `assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`。
