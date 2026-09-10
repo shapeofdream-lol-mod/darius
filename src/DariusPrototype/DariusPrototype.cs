@@ -140,7 +140,6 @@ public sealed class DariusPrototypeMod : ModBehaviour
         {
             DariusMedia.PreloadAll();
             StartCoroutine(DariusMedia.PreloadCompressedAudio());
-            StartCoroutine(DariusMedia.PreloadVoiceOgg());
         }
         catch (Exception e) { DariusLog.Exception("MEDIA", e, "PreloadAll/compressed-audio preload failed"); }
 
