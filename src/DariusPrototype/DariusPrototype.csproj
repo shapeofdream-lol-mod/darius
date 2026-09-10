@@ -79,10 +79,7 @@
            Text="Shared mod source not found. Set GameDir/ModsDir or override SharedSource; it ships with the base Traveler mod package." />
   </Target>
 
-  <!--
-    Deployable package contents. Only runtime assets are packaged: assets/raw_lol_audio and
-    assets/raw_lol_vfx_pass2 are extraction sources and stay out of the package.
-  -->
+  <!-- Deployable package contents. Extraction sources stay out; only the Pass2 routing manifest is retained. -->
   <ItemGroup>
     <_PackageFile Include="$(ModRootDir)\about\**\*" Dest="about\%(RecursiveDir)%(Filename)%(Extension)" />
     <_PackageFile Include="$(ModRootDir)\assets\audio\**\*"
