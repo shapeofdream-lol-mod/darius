@@ -65,7 +65,7 @@
 | --- | --- |
 | `DariusTravelerSystem.cs` | **核心**：独立 Traveler 的 Hero/Skin/EntityModel/资源构建、场景切换后的整代重建 |
 | `DariusSkinSystem.cs` | 皮肤与动画层；技能发起的动画请求桥（含普攻 VFX 网络广播） |
-| `DariusMedia.cs` | 运行时媒体加载：VFX 贴图 + 技能 SFX（同步 WAV）+ 语音 OGG（首次选中时异步解码、缓存并播放；`PreloadVoiceOgg()` 只保留兼容启动钩子） |
+| `DariusMedia.cs` | 运行时媒体加载：VFX 贴图 + 技能 SFX（同步 WAV）+ 语音 OGG（首次选中时异步解码、缓存并播放） |
 | `DariusLolVfxRuntime.cs` | Riot `VfxSystemDefinitionData` 运行时解释器；不支持的原语必须显式记录并跳过（fidelity gate） |
 | `DariusVoiceRuntime.cs` | 施法语音路由；**不得**伪造或跨皮肤替代语音 |
 | `DariusPrototypeIcons.cs` | 图标加载（`assets/icons/*.png`） |
@@ -95,7 +95,7 @@
 | --- | --- |
 | `tools/BuildDariusPass5AuthenticVfx.py` | 解析 Riot `PROP` BIN，生成 `assets/lol_vfx/darius_lol_vfx.json` 与贴图/网格载荷 |
 
-WEM → WAV 解码没有脚本：直接调用 `vgmstream-cli -o out.wav in.wem`（批量示例见 `docs/assets.md`）。
+音频资产来自 `assets/raw_lol_audio/**/*.wem`。技能 SFX 最终为 PCM16 WAV；语音最终只保留 `vo_*.ogg`。具体生成与发布契约见 `docs/assets.md`。
 
 ## 4. 构建与验证
 
@@ -118,16 +118,16 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 | 目标 | 产物 |
 | --- | --- |
 | `Build` | `src/DariusPrototype/bin/Release/netstandard2.1/DariusPrototype.dll` |
-| `PackageMod` | 干净的 `build/` snapshot：DLL + `about/` + 运行时资产（不含 `src/`、`docs/`、`assets/raw_*`） |
+| `PackageMod` | 干净的 `build/` snapshot：DLL + `about/` + 运行时资产；raw 提取资产不进包，仅保留运行时需要的 `raw_lol_audio/PASS2_MEDIA_MANIFEST.json` |
 | `DeployMod` | 先清理 `$(ModsDir)\DariusPrototype`，再用 `build/` 完整替换；部署目标不得是仓库根 |
 
 游戏路径解析顺序：`-p:GameDir=...` → `Directory.Build.props`（本地，已 gitignore）→ 环境变量 `SOD_GAME_DIR`。解析不到时 `CheckGameInstall` 给出明确报错。`ModsDir` 默认 `$(GameDir)\Mods`。
 
-**发布只发 `build/`**，不发仓库。`PackageMod` 只接受 Release 配置。
+**发布只发 `build/`**，不发仓库。`PackageMod` 只接受 Release 配置；voice WAV 被明确排除。
 
 ### 4.3 构建只做轻量边界检查
 
-构建**不校验资产数量**：`assets/raw_*` 是提取源、不进包，资产完整性由运行时日志负责（`DariusMedia.PreloadAll()`、`DariusTravelerSystem` 的皮肤规格、`DariusLolVfxRuntime` 的 manifest 校验）。构建期只做存在性检查：
+构建**不校验资产数量**：raw 提取资产不进包，`PASS2_MEDIA_MANIFEST.json` 是运行时所需的唯一例外。资产完整性由运行时日志负责（`DariusMedia.PreloadAll()`、`DariusTravelerSystem` 的皮肤规格、`DariusLolVfxRuntime` 的 manifest 校验）。构建期只做存在性检查：
 
 - `CheckGameInstall`：游戏程序集、外部共享源码；
 - `VerifyPackageAssets`：打包前必需资产（`about/metadata.json`、`assets/models/darius.glb`、`assets/lol_vfx/darius_lol_vfx.json`、`assets/audio/flash.ogg`、`assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`）。
@@ -160,7 +160,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 
 ## 6. 资产与版权红线
 
-1. **禁止把二进制资产提交到 Git**。`.gitignore` 已忽略整个 `assets/`、`about/*.png` 与 `tools/vgmstream/`。`git status` 中不应出现任何 `.glb` / `.wav` / `.wem` / `.tex` / `.skn` / `.png` / `.dll`。
+1. **禁止把二进制资产提交到 Git**。`.gitignore` 已忽略整个 `assets/`、`about/*.png` 与 `tools/vgmstream/`。`git status` 中不应出现任何 `.glb` / `.wav` / `.ogg` / `.wem` / `.tex` / `.skn` / `.png` / `.dll`。
 2. **禁止公开分发 Riot 原始资产**。League 资产版权归 Riot Games；本项目依据 Riot 的 Legal Jibber Jabber 政策创作，仅限本地互操作使用。
 3. **不要伪造替代 VFX**。Riot 原语不受支持时应显式记录并跳过（fidelity gate），而不是用自制贴图/几何冒充——这是本项目的核心原则。
 4. **不要重绘用户提供的资源**。例如 `assets/icons/star_awoo.png` 必须保持与用户原图字节一致，禁止裁剪/改色/风格化。
@@ -175,7 +175,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 - **共享 GUID 只在 `src/DariusPrototype/DariusResourceIds.cs` 定义**：改值会破坏存档与网络身份。
 - **日志级别**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`）；`EXCEPTION` 始终写入。
 - **`PackageMod` / `DeployMod` 都是 snapshot 语义**：Package 先清理 `build/`，Deploy 先清理安装目录，因此删除资源就是删除资源，不允许依赖旧安装残留。两个 target 都必须用 `-c Release`。
-- **语音 OGG 是按需分配**：不要重新在启动时批量解码 411 条语音；首次选择某 key 时异步解码并缓存，正在加载的同 key 请求会去重。
+- **语音只使用 OGG**：运行时只查 `vo_*.ogg`，首次选中时异步解码并缓存；不要把 voice WAV 加回运行时或 package。
 - **Pass2 manifest 允许重试**：只有成功解析后才能把 `_pass2PoolsLoaded` 置为 true，启动早期路径未准备好时不能永久锁死。
 - **构建只做存在性边界检查**：数量/结构校验在运行时日志里，不在构建期；不要为此新增脚本。
 - **日志写在共享 Mods 目录**，不在 Mod 目录内。找日志时往上一层看。
@@ -190,8 +190,8 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 - 一次提交只做一件事；不要把「重命名/格式化」和「逻辑修改」混在一起。
 - 提交前自查：
   ```powershell
-  git status --short          # 确认没有 dll / wav / glb / 日志混入
-  git check-ignore -v <path>  # 确认资产被正确忽略
+  git status --short
+  git check-ignore -v <path>
   ```
 - 不要新增 `.bat` / `.ps1` 构建或校验脚本；构建逻辑一律放 `*.csproj` / `*.targets`。
 - 发版时同步两处：`about\metadata.json` 的 `modVer` 与仓库根 `CHANGELOG.md`（Keep a Changelog 格式）。`docs/archive/CHANGELOG-legacy.md` 是 0.30.x 及更早的历史，**不再维护**。
@@ -211,7 +211,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 
 **收尾**
 - [ ] 能编译就编译；不能编译就明确声明「未编译验证」，并给出静态自检结果（括号配平、引用/路径存在性、JSON 可解析）。
-- [ ] 发布前跑一次 `-c Release -t:PackageMod`，确认 `build/` 是干净 snapshot 且不含 `raw_*` 提取源。
+- [ ] 发布前跑一次 `-c Release -t:PackageMod`，确认 `build/` 不含 raw 提取资产（运行时 manifest 除外）且不含 voice WAV。
 - [ ] 更新受影响的文档（`README.md` 索引、`CHANGELOG.md`、`docs/assets.md`）。
 - [ ] `git status` 确认无二进制、无日志、无 `bin/` `obj/` 进入版本控制。
 - [ ] 报告改动清单时给出具体文件路径，不要笼统地说「已优化」。
