@@ -31,7 +31,7 @@ build/
 ├── DariusPrototype.dll (+ .pdb)
 ├── about/
 └── assets/
-    ├── audio/        # 技能 SFX + voice OGG；不包含 voice WAV
+    ├── audio/        # 技能 SFX + voice OGG
     ├── animations/
     ├── icons/
     ├── lol_vfx/
@@ -43,7 +43,7 @@ build/
 
 **发布只发 `build/`**。原始 WEM、Riot VFX 提取源、`src/`、`docs/`、`tools/` 都不进入发布包；`assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json` 是唯一保留的 raw 目录文件，因为运行时需要它完成事件路由。
 
-语音发布契约是 **OGG-only**：`PackageMod` 明确排除 `assets/audio/vo_*.wav`，因此本地遗留文件也不会进入发布包。
+语音发布契约是 **OGG-only**，`assets/audio` 中的语音资源统一为 `vo_*.ogg`。
 
 `DeployMod` 把安装目录视为 snapshot：先清理 `<GameDir>\Mods\DariusPrototype`，再复制 `build/`，所以已删除的旧音频、贴图或 manifest 不会残留并覆盖新行为。
 
@@ -74,7 +74,7 @@ build/
 最终运行时资产只有两类：
 
 - 技能 SFX（`lol_*` 等）：PCM16 WAV，由 `DariusMedia.LoadPcmWave` 同步读取，保证首次播放低延迟；
-- 语音（`vo_*`）：22.05 kHz 单声道 Ogg Vorbis。`assets/audio` 中只保留 `vo_*.ogg`，运行时和发布包都不支持 voice WAV。
+- 语音（`vo_*`）：22.05 kHz 单声道 Ogg Vorbis，最终文件统一为 `assets/audio/vo_*.ogg`。
 
 原始源位于 `assets/raw_lol_audio/**/*.wem`，事件 → media id → 输出文件名的映射见 `assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`。重新生成资源时，将 `vgmstream-cli` 与所需编码工具加入 PATH；任何转换中间文件都应放在 `assets/audio` 之外并在转换完成后删除。
 
