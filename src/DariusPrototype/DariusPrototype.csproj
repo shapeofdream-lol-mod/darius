@@ -95,6 +95,11 @@
     <_PackageFile Include="$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json" Dest="assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json" />
   </ItemGroup>
 
+  <Target Name="CheckPackageConfiguration">
+    <Error Condition="'$(Configuration)' != 'Release'"
+           Text="PackageMod only creates publishable Release packages. Re-run with -c Release." />
+  </Target>
+
   <!-- Voice is a package/runtime format contract, not a count check: only OGG is supported. -->
   <Target Name="VerifyVoiceAssets">
     <ItemGroup>
@@ -116,9 +121,8 @@
     <Error Condition="!Exists('$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json')" Text="assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json is missing; the runtime needs it to route Pass2 audio." />
   </Target>
 
-  <!-- Package flow: validate assets -> compile -> replace build/ with a clean Release snapshot. -->
-  <Target Name="PackageMod" DependsOnTargets="VerifyPackageAssets;Build">
-    <Error Condition="'$(Configuration)' != 'Release'" Text="PackageMod only creates publishable Release packages. Re-run with -c Release." />
+  <!-- Package flow: validate Release -> validate assets -> compile -> replace build/ with a clean snapshot. -->
+  <Target Name="PackageMod" DependsOnTargets="CheckPackageConfiguration;VerifyPackageAssets;Build">
     <Error Condition="'$(PackageDirFull)' == '' or '$(PackageDirFull)' == '$(ModRootFull)' or '$(PackageDirFull)' == '$(SourceDirFull)'"
            Text="Unsafe PackageDir resolved from the project. PackageMod may only clean the repository build/ directory." />
     <RemoveDir Directories="$(PackageDir)" Condition="Exists('$(PackageDir)')" />
