@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="ModRootDir;PackageDir;DeployDir">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
@@ -12,25 +12,31 @@
   </PropertyGroup>
 
   <!--
-    Paths. Override with -p:Name=value or a git-ignored Directory.Build.props.
+    Configurable machine paths. Override with -p:Name=value or a git-ignored Directory.Build.props.
 
-      GameDir     game install; falls back to the SOD_GAME_DIR environment variable
-      ModsDir     <GameDir>\Mods, holds the shared Traveler source
-      PackageDir  deployable mod package; publish this folder, never the repository
+      GameDir       game install; falls back to the SOD_GAME_DIR environment variable
+      ModsDir       <GameDir>\Mods, holds the shared Traveler source and deployed mods
+      SharedSource  optional override for TravelerBasicAttackVfxReplication.cs
+
+    Destructive output paths are intentionally local properties and are not externally overridable:
+      ModRootDir = repository root
+      PackageDir = <repository>\build
+      DeployDir  = <ModsDir>\DariusPrototype
   -->
   <PropertyGroup>
-    <ModRootDir Condition="'$(ModRootDir)' == ''">$(MSBuildThisFileDirectory)..\..</ModRootDir>
-    <PackageDir Condition="'$(PackageDir)' == ''">$(ModRootDir)\build</PackageDir>
+    <ModRootDir>$(MSBuildThisFileDirectory)..\..</ModRootDir>
+    <PackageDir>$(ModRootDir)\build</PackageDir>
 
     <GameDir Condition="'$(GameDir)' == '' and '$(SOD_GAME_DIR)' != ''">$(SOD_GAME_DIR)</GameDir>
     <ModsDir Condition="'$(ModsDir)' == '' and '$(GameDir)' != ''">$(GameDir)\Mods</ModsDir>
     <GameManagedDir Condition="'$(GameManagedDir)' == '' and '$(GameDir)' != ''">$(GameDir)\Shape of Dreams_Data\Managed</GameManagedDir>
     <SharedSource Condition="'$(SharedSource)' == '' and '$(ModsDir)' != ''">$(ModsDir)\TravelerBasicAttackVfxReplication.cs</SharedSource>
-    <DeployDir Condition="'$(DeployDir)' == '' and '$(ModsDir)' != ''">$(ModsDir)\DariusPrototype</DeployDir>
+    <DeployDir Condition="'$(ModsDir)' != ''">$(ModsDir)\DariusPrototype</DeployDir>
 
-    <!-- Normalize destructive target paths once so PackageMod/DeployMod cannot clean the repository itself. -->
-    <ModRootFull Condition="'$(ModRootDir)' != ''">$([System.IO.Path]::GetFullPath('$(ModRootDir)'))</ModRootFull>
-    <PackageDirFull Condition="'$(PackageDir)' != ''">$([System.IO.Path]::GetFullPath('$(PackageDir)'))</PackageDirFull>
+    <!-- Normalize destructive target paths once so PackageMod/DeployMod can validate before RemoveDir. -->
+    <ModRootFull>$([System.IO.Path]::GetFullPath('$(ModRootDir)'))</ModRootFull>
+    <SourceDirFull>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)'))</SourceDirFull>
+    <PackageDirFull>$([System.IO.Path]::GetFullPath('$(PackageDir)'))</PackageDirFull>
     <DeployDirFull Condition="'$(DeployDir)' != ''">$([System.IO.Path]::GetFullPath('$(DeployDir)'))</DeployDirFull>
   </PropertyGroup>
 
@@ -70,7 +76,7 @@
     <Error Condition="'$(GameManagedDir)' == '' or !Exists('$(GameManagedDir)\Assembly-CSharp.dll')"
            Text="Game assemblies not found. Set GameDir: dotnet build -p:GameDir=&quot;...\Shape of Dreams&quot;, the SOD_GAME_DIR environment variable, or a git-ignored Directory.Build.props." />
     <Error Condition="'$(SharedSource)' == '' or !Exists('$(SharedSource)')"
-           Text="Shared mod source not found. Set ModsDir or SharedSource; it ships with the base Traveler mod package." />
+           Text="Shared mod source not found. Set GameDir/ModsDir or override SharedSource; it ships with the base Traveler mod package." />
   </Target>
 
   <!--
@@ -99,21 +105,23 @@
     <Error Condition="!Exists('$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json')" Text="assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json is missing; the runtime needs it to route Pass2 audio." />
   </Target>
 
-  <!-- dotnet build -c Release -t:PackageMod  -> replace $(PackageDir) with a clean snapshot -->
+  <!-- dotnet build -c Release -t:PackageMod -> replace the fixed build/ directory with a clean snapshot -->
   <Target Name="PackageMod" DependsOnTargets="Build;VerifyPackageAssets">
     <Error Condition="'$(Configuration)' != 'Release'" Text="PackageMod only creates publishable Release packages. Re-run with -c Release." />
-    <Error Condition="'$(PackageDirFull)' == '' or '$(PackageDirFull)' == '$(ModRootFull)'" Text="Unsafe PackageDir: it must be a dedicated output directory and must not be the repository root." />
+    <Error Condition="'$(PackageDirFull)' == '' or '$(PackageDirFull)' == '$(ModRootFull)' or '$(PackageDirFull)' == '$(SourceDirFull)'"
+           Text="Unsafe PackageDir resolved from the project. PackageMod may only clean the repository build/ directory." />
     <RemoveDir Directories="$(PackageDir)" Condition="Exists('$(PackageDir)')" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PackageDir)" />
     <Copy SourceFiles="$(TargetDir)$(AssemblyName).pdb" DestinationFolder="$(PackageDir)" Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
-    <Copy SourceFiles="@(_PackageFile)" DestinationFiles="@(_PackageFile->'$(PackageDir)\%(Dest)')" UseHardlinksIfPossible="true" />
-    <Message Text="Mod package ready: $(PackageDir)  — clean Release snapshot; publish this folder, not the repository." Importance="high" />
+    <Copy SourceFiles="@(_PackageFile)" DestinationFiles="@(_PackageFile->'$(PackageDir)\%(Dest)')" />
+    <Message Text="Mod package ready: $(PackageDir)  — clean independent Release snapshot; publish this folder, not the repository." Importance="high" />
   </Target>
 
   <!-- dotnet build -c Release -t:DeployMod -> replace the installed mod with the package snapshot -->
   <Target Name="DeployMod" DependsOnTargets="PackageMod">
     <Error Condition="'$(DeployDirFull)' == ''" Text="DeployDir is empty. Set GameDir (or ModsDir) before deploying." />
-    <Error Condition="'$(DeployDirFull)' == '$(ModRootFull)'" Text="Refusing to deploy over the repository. Keep the source tree outside Mods\DariusPrototype and deploy the packaged snapshot instead." />
+    <Error Condition="'$(DeployDirFull)' == '$(ModRootFull)' or '$(DeployDirFull)' == '$(SourceDirFull)' or '$(DeployDirFull)' == '$(PackageDirFull)'"
+           Text="Refusing to clean an unsafe deploy path. DeployDir must resolve to Mods\DariusPrototype outside the source/build directories." />
     <RemoveDir Directories="$(DeployDir)" Condition="Exists('$(DeployDir)')" />
     <ItemGroup>
       <_PackageOutput Include="$(PackageDir)\**\*" />
