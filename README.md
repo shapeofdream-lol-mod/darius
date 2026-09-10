@@ -54,12 +54,14 @@
 # 只编译（需要游戏程序集）
 dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release
 
-# 组装可发布包 -> build/（先清理旧 build，再生成完整 Release snapshot）
+# 组装可发布包 -> build/
 dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:PackageMod
 
-# 打包并部署到 <游戏目录>\Mods\DariusPrototype（先清理旧安装目录）
+# 打包并部署到 <游戏目录>\Mods\DariusPrototype
 dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod
 ```
+
+`PackageMod` 的执行顺序固定为：Release 配置检查 → `VerifyVoiceAssets` → `VerifyPackageAssets` → `Build` → 清理旧 `build/` → 复制 DLL 与运行时资产。`VerifyVoiceAssets` 要求至少存在 `assets/audio/vo_*.ogg`，并在发现任何 `vo_*.wav` 时直接失败；package 本身也明确排除 `vo_*.wav`。
 
 | 目标 | 产物 |
 | --- | --- |
@@ -134,10 +136,11 @@ csproj 从 `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs` 链接引�
 
 - **版本号单一真源**：只维护 `about/metadata.json` 的 `modVer`。运行时（`DariusModEnvironment.Version`）从它读取；README 不再复制“当前版本”字面量。
 - **构建就是 `dotnet build`**：没有 `.bat` / `.ps1` 构建或校验脚本，游戏路径通过 `GameDir` 属性注入（见 3.3）。
+- **Package preflight**：`PackageMod` 先确认 Release 配置，再检查 voice OGG-only 契约与必需资产，随后编译并生成 snapshot。
 - **发布只发 `build/`**：`PackageMod` 会先清理 `build/` 再生成完整 snapshot；raw 提取资产不进包，`PASS2_MEDIA_MANIFEST.json` 是运行时所需的唯一例外。
-- **语音 OGG-only**：运行时只从 `vo_*.ogg` 加载语音；启动阶段不做语音预加载。
+- **语音 OGG-only**：运行时只从 `vo_*.ogg` 加载语音；打包发现 `vo_*.wav` 会失败，且 package 规则不会复制它；启动阶段不做语音预加载。
 - **部署是完整替换**：`DeployMod` 先清理 `<GameDir>\Mods\DariusPrototype`，再复制 package，因此旧版本已删除的音频、贴图或 manifest 不会残留并覆盖新资源。
-- **构建只做轻量边界检查**：`CheckGameInstall`（游戏程序集 / 外部共享源码）与 `VerifyPackageAssets`（打包前必需资产存在）。数量与结构校验交给运行时日志。
+- **构建只做轻量边界检查**：`CheckGameInstall` 检查游戏程序集/外部共享源码；`VerifyVoiceAssets` 检查语音格式契约；`VerifyPackageAssets` 检查打包必需资产。数量与深层结构校验仍交给运行时日志。
 - **发布体积约 95 MB**：411 条语音约 8 MB；运行时按需异步解码并只缓存实际触发过的语音，不在启动时批量解码。当前最大静态项是模型 49.8 MB。
 - **调试日志**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`）。日志写在共享 Mods 目录（Mod 目录上一层）。
 - **无自动化测试**：仓库没有单元测试或 CI，唯一的自动校验是编译本身；玩法正确性依赖游戏内人工验证（见 `docs/*_TEST_CHECKLIST.md`）。
