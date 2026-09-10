@@ -123,7 +123,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 
 游戏路径解析顺序：`-p:GameDir=...` → `Directory.Build.props`（本地，已 gitignore）→ 环境变量 `SOD_GAME_DIR`。解析不到时 `CheckGameInstall` 给出明确报错。`ModsDir` 默认 `$(GameDir)\Mods`。
 
-**发布只发 `build/`**，不发仓库。`PackageMod` 只接受 Release 配置；voice WAV 被明确排除。
+**发布只发 `build/`**，不发仓库。`PackageMod` 只接受 Release 配置；语音发布格式固定为 OGG。
 
 ### 4.3 构建只做轻量边界检查
 
@@ -175,7 +175,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 - **共享 GUID 只在 `src/DariusPrototype/DariusResourceIds.cs` 定义**：改值会破坏存档与网络身份。
 - **日志级别**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`（默认 `debug`）；`EXCEPTION` 始终写入。
 - **`PackageMod` / `DeployMod` 都是 snapshot 语义**：Package 先清理 `build/`，Deploy 先清理安装目录，因此删除资源就是删除资源，不允许依赖旧安装残留。两个 target 都必须用 `-c Release`。
-- **语音只使用 OGG**：运行时只查 `vo_*.ogg`，首次选中时异步解码并缓存；不要把 voice WAV 加回运行时或 package。
+- **语音只使用 OGG**：首次选中时异步解码并缓存，不要恢复启动时批量预加载或其他语音格式路径。
 - **Pass2 manifest 允许重试**：只有成功解析后才能把 `_pass2PoolsLoaded` 置为 true，启动早期路径未准备好时不能永久锁死。
 - **构建只做存在性边界检查**：数量/结构校验在运行时日志里，不在构建期；不要为此新增脚本。
 - **日志写在共享 Mods 目录**，不在 Mod 目录内。找日志时往上一层看。
@@ -211,7 +211,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 
 **收尾**
 - [ ] 能编译就编译；不能编译就明确声明「未编译验证」，并给出静态自检结果（括号配平、引用/路径存在性、JSON 可解析）。
-- [ ] 发布前跑一次 `-c Release -t:PackageMod`，确认 `build/` 不含 raw 提取资产（运行时 manifest 除外）且不含 voice WAV。
+- [ ] 发布前跑一次 `-c Release -t:PackageMod`，确认 `build/` 不含 raw 提取资产（运行时 manifest 除外），且语音目录只有 OGG。
 - [ ] 更新受影响的文档（`README.md` 索引、`CHANGELOG.md`、`docs/assets.md`）。
 - [ ] `git status` 确认无二进制、无日志、无 `bin/` `obj/` 进入版本控制。
 - [ ] 报告改动清单时给出具体文件路径，不要笼统地说「已优化」。
