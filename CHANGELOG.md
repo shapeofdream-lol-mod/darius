@@ -23,9 +23,11 @@
 - 源码归入 `src/DariusPrototype/`（原 `Formal/` 扁平化），离线工具归入 `tools/`；`assets/`、`docs/`、`about/` 位置不变。
 - 删除全部 shell 构建与校验脚本。`dotnet build` 编译，`-t:PackageMod` 生成 `build/`，`-t:DeployMod` 部署到游戏。
 - 游戏路径由 `GameDir` 属性注入（命令行 / `Directory.Build.props` / `SOD_GAME_DIR`），仓库可以放在任何位置。
-- `PackageMod` 只接受 Release 配置，并在组包前清理 `build/`；`DeployMod` 用 package snapshot 完整替换安装目录，避免升级后遗留旧音频、贴图或 manifest。
+- `PackageMod` 的顺序收敛为 Release preflight → voice/package asset preflight → Build → 清理并重建 `build/`；Debug 配置会在进入编译前直接失败。
+- `VerifyVoiceAssets` 固化语音 OGG-only 契约：至少存在 `vo_*.ogg`，发现任何 `vo_*.wav` 即停止打包；package 文件集也显式排除旧 voice WAV。
+- `DeployMod` 用 package snapshot 完整替换安装目录，避免升级后遗留旧音频、贴图或 manifest。
 - `DeployMod` 拒绝把部署目录指向仓库根，避免清理安装目录时误删源码。
-- 构建期只保留两处**存在性**边界检查：游戏程序集与外部共享源码、打包前必需资产。数量与结构校验交给运行时日志，不再维护第二份清单。
+- 构建期只保留必要的配置、格式与存在性边界检查。资产数量与深层结构校验交给运行时日志，不再维护第二份清单。
 
 **版本与文档**
 
