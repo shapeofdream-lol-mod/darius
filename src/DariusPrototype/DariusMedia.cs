@@ -161,15 +161,6 @@ public static class DariusMedia
         }
     }
 
-    // Kept as a boot hook for compatibility with DariusPrototypeMod.Start(). Voice OGG is now
-    // decoded only when a line is selected, so startup no longer allocates all 411 decoded clips.
-    public static IEnumerator PreloadVoiceOgg()
-    {
-        EnsurePass2PoolsLoaded();
-        DariusLog.Info("VO-ASSET", "Voice OGG allocation mode=on-demand; startup decode skipped.");
-        yield break;
-    }
-
     public static Texture2D Texture(string key)
     {
         Texture2D cached;
@@ -214,14 +205,6 @@ public static class DariusMedia
         string path = AssetPath("audio", key + ".wav");
         if (string.IsNullOrEmpty(path) || !File.Exists(path))
         {
-            // Voice lines ship as OGG and are decoded on demand by PlayVoice2D(). A miss here means
-            // the selected line has not been decoded yet; the caller may start its async load.
-            string oggPath = AssetPath("audio", key + ".ogg");
-            if (!string.IsNullOrEmpty(oggPath) && File.Exists(oggPath))
-            {
-                DariusLog.DebugInfoThrottled("VO-ASSET", "ogg-pending:" + key, "Voice OGG not decoded yet key=" + key, 5f);
-                return null;
-            }
             DariusLog.Warn("SFX-ASSET", "Audio missing key=" + key + " path=" + (path ?? "<null>"));
             Clips[key] = null;
             return null;
@@ -499,8 +482,8 @@ public static class DariusMedia
     {
         try
         {
-            AudioClip clip = Clip(key);
-            if (clip != null)
+            AudioClip clip;
+            if (Clips.TryGetValue(key, out clip) && clip != null)
             {
                 PlayVoiceClip2D(key, clip, channel, volume);
                 return;
