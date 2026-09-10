@@ -23,7 +23,7 @@
 - 源码归入 `src/DariusPrototype/`（原 `Formal/` 扁平化），离线工具归入 `tools/`；`assets/`、`docs/`、`about/` 位置不变。
 - 删除全部 shell 构建与校验脚本。`dotnet build` 编译，`-t:PackageMod` 生成 `build/`，`-t:DeployMod` 部署到游戏。
 - 游戏路径由 `GameDir` 属性注入（命令行 / `Directory.Build.props` / `SOD_GAME_DIR`），仓库可以放在任何位置。
-- `PackageMod` 只接受 Release 配置，并在组包前清理 `build/`；`DeployMod` 用 package snapshot 完整替换安装目录，避免升级后遗留旧 WAV、贴图或 manifest。
+- `PackageMod` 只接受 Release 配置，并在组包前清理 `build/`；`DeployMod` 用 package snapshot 完整替换安装目录，避免升级后遗留旧音频、贴图或 manifest。
 - `DeployMod` 拒绝把部署目录指向仓库根，避免清理安装目录时误删源码。
 - 构建期只保留两处**存在性**边界检查：游戏程序集与外部共享源码、打包前必需资产。数量与结构校验交给运行时日志，不再维护第二份清单。
 
@@ -35,11 +35,12 @@
 
 **资产与体积**
 
-- **语音全部转 22.05 kHz 单声道 Ogg Vorbis**；运行时不再启动时解码全部 411 条语音，而是在某条语音第一次被选中时异步解码、缓存并完成该次播放。
+- **语音运行时与发布契约固定为 OGG-only**：411 条语音使用 22.05 kHz 单声道 Ogg Vorbis；运行时只读取 `vo_*.ogg`，按需异步解码并缓存，`PackageMod` 排除任何遗留的 voice WAV。
+- 删除无实际工作的 voice startup preload hook；启动阶段不再存在语音预加载入口。
 - Pass2 Wwise manifest 只有在成功解析后才标记为已加载；启动早期路径未就绪或读取失败时允许后续重试。
-- 发布包排除 `assets/raw_lol_audio`、`assets/raw_lol_vfx_pass2` 等提取源，同时补上运行时需要的 `PASS2_MEDIA_MANIFEST.json`。
-- 发布体积从约 **225 MB** 降到约 **95 MB**（语音 138 MB → 8 MB），同时移除启动时约 70 MB 的全量语音 PCM 预分配。
-- `docs/assets.md` 补充打包内容、体积构成与后续优化选项：模型裁掉未使用动画、贴图无损压缩；Draco/meshopt 因运行时无解码器暂不可行。
+- 发布包排除原始 WEM 与 `assets/raw_lol_vfx_pass2` 等提取源，仅保留运行时需要的 `assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`。
+- 发布体积约 **95 MB**，其中语音约 8 MB；同时移除启动时约 70 MB 的全量语音 PCM 预分配。
+- `docs/assets.md` 记录最终资产格式、打包内容、生成约束与体积构成。
 
 **清理**
 
@@ -50,4 +51,4 @@
 ### 已知问题
 
 - 缺少仓库外的共享源码 `TravelerBasicAttackVfxReplication.cs` 时无法编译（构建会明确报错）。
-- 技能 SFX 仍为 PCM16 WAV（约 21 MB）；语音已压缩并按需解码，技能音效保留 WAV 是为了低延迟。
+- 技能 SFX 仍为 PCM16 WAV（约 21 MB）；本轮 OGG-only 约束针对语音资源。
