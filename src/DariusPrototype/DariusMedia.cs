@@ -20,7 +20,6 @@ public static class DariusMedia
     private static readonly Dictionary<string, float> LastVoiceAt = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, Dictionary<string, string[]>> Pass2SfxBySkin = new Dictionary<string, Dictionary<string, string[]>>(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, Dictionary<string, string[]>> Pass2VoiceBySkin = new Dictionary<string, Dictionary<string, string[]>>(StringComparer.OrdinalIgnoreCase);
-    private static readonly HashSet<string> VoiceLoadsInFlight = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private static bool _pass2PoolsLoaded;
 
     private static readonly Dictionary<string, string[]> ClassicSfx = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
@@ -474,7 +473,7 @@ public static class DariusMedia
         // Character voice has its own ModConfig channel. Skill cast VO must never inherit the
         // Q/W/E/R SFX slider merely because the line was triggered by that skill.
         PlayVoice2D(owner, chosen, DariusAudioChannel.Voice, volume);
-        DariusLog.DebugInfo("VO", "Random cast VO skin=" + variant + " skill=" + normalized + " clip=" + chosen + " route=dedicated-2D-local voice-channel");
+        DariusLog.DebugInfo("VO", "Requested cast VO skin=" + variant + " skill=" + normalized + " clip=" + chosen + " route=dedicated-2D-local voice-channel");
     }
 
     // Full character VO event routing for movement/basic attacks/kills/death/respawn/passive-max.
@@ -492,7 +491,7 @@ public static class DariusMedia
         if (string.IsNullOrEmpty(chosen)) return false;
         LastVoiceAt[cooldownKey] = Time.unscaledTime;
         PlayVoice2D(owner, chosen, DariusAudioChannel.Voice, volume);
-        DariusLog.DebugInfo("VO-FULL", "Played skin=" + variant + " event=" + normalized + " clip=" + chosen);
+        DariusLog.DebugInfo("VO-FULL", "Requested skin=" + variant + " event=" + normalized + " clip=" + chosen + " state=decode-or-play");
         return true;
     }
 
@@ -509,13 +508,7 @@ public static class DariusMedia
 
             string path = AssetPath("audio", key + ".ogg");
             if (owner == null || string.IsNullOrEmpty(path) || !File.Exists(path)) return;
-            if (!VoiceLoadsInFlight.Add(key)) return;
-            try { owner.StartCoroutine(LoadVoiceOggAndPlay(owner, key, path, channel, volume)); }
-            catch
-            {
-                VoiceLoadsInFlight.Remove(key);
-                throw;
-            }
+            owner.StartCoroutine(LoadVoiceOggAndPlay(owner, key, path, channel, volume));
         }
         catch (Exception e)
         {
@@ -529,7 +522,6 @@ public static class DariusMedia
         try { uri = new Uri(path).AbsoluteUri; }
         catch (Exception e)
         {
-            VoiceLoadsInFlight.Remove(key);
             DariusLog.Exception("VO-ASSET", e, "Failed to create local URI for voice OGG key=" + key);
             yield break;
         }
@@ -540,7 +532,6 @@ public static class DariusMedia
             yield return req.SendWebRequest();
             if (!string.IsNullOrEmpty(req.error))
             {
-                VoiceLoadsInFlight.Remove(key);
                 DariusLog.Error("VO-ASSET", "Voice OGG decode failed key=" + key + " error=" + req.error);
                 yield break;
             }
@@ -548,12 +539,21 @@ public static class DariusMedia
             catch (Exception e) { DariusLog.Exception("VO-ASSET", e, "Voice OGG GetContent failed key=" + key); }
         }
 
-        VoiceLoadsInFlight.Remove(key);
         if (clip == null) yield break;
-        clip.name = "DariusVoice_" + key;
-        Clips[key] = clip;
-        DariusLog.DebugInfo("VO-ASSET", "Voice OGG decoded on demand key=" + key + " length=" + clip.length.ToString("0.000") +
-            "s channels=" + clip.channels + " hz=" + clip.frequency);
+
+        AudioClip cached;
+        if (Clips.TryGetValue(key, out cached) && cached != null)
+        {
+            UnityEngine.Object.Destroy(clip);
+            clip = cached;
+        }
+        else
+        {
+            clip.name = "DariusVoice_" + key;
+            Clips[key] = clip;
+            DariusLog.DebugInfo("VO-ASSET", "Voice OGG decoded on demand key=" + key + " length=" + clip.length.ToString("0.000") +
+                "s channels=" + clip.channels + " hz=" + clip.frequency);
+        }
 
         // Preserve the original trigger instead of dropping the first line while its file decodes.
         if (IsLocalOwner(owner)) PlayVoiceClip2D(key, clip, channel, volume);
