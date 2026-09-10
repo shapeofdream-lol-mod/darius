@@ -24,7 +24,25 @@
 dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:PackageMod
 ```
 
-`PackageMod` 会先删除旧 `build/`，再生成一个完整、干净的 Release snapshot：
+`PackageMod` 的构建链固定为：
+
+```text
+CheckPackageConfiguration
+        ↓
+VerifyVoiceAssets
+        ↓
+VerifyPackageAssets
+        ↓
+Build
+        ↓
+清理 build/
+        ↓
+复制 DLL + runtime assets
+```
+
+其中 `VerifyVoiceAssets` 是语音格式边界：必须存在 `assets/audio/vo_*.ogg`，如果发现任何 `vo_*.wav` 则打包直接失败。`VerifyPackageAssets` 继续只检查其它运行时必需文件是否存在，不维护资产数量清单。
+
+成功后 `PackageMod` 生成完整、干净的 Release snapshot：
 
 ```
 build/
@@ -43,11 +61,9 @@ build/
 
 **发布只发 `build/`**。原始 WEM、Riot VFX 提取源、`src/`、`docs/`、`tools/` 都不进入发布包；`assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json` 是唯一保留的 raw 目录文件，因为运行时需要它完成事件路由。
 
-语音发布契约是 **OGG-only**，`assets/audio` 中的语音资源统一为 `vo_*.ogg`。
+语音发布契约是 **OGG-only**，`assets/audio` 中的语音资源统一为 `vo_*.ogg`。打包文件集同时显式排除 `vo_*.wav`，因此旧语音 WAV 不会进入 `build/`。
 
-`DeployMod` 把安装目录视为 snapshot：先清理 `<GameDir>\Mods\DariusPrototype`，再复制 `build/`，所以已删除的旧音频、贴图或 manifest 不会残留并覆盖新行为。
-
-`VerifyPackageAssets` 只检查必需文件**存在**（`about/metadata.json`、`assets/models/darius.glb`、`assets/lol_vfx/darius_lol_vfx.json`、`assets/audio/flash.ogg`、`assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`）；数量与结构校验交给运行时日志，不在构建期做。
+`DeployMod` 把安装目录视为 snapshot：先完成 `PackageMod`，再清理 `<GameDir>\Mods\DariusPrototype` 并复制 `build/`，所以已删除的旧音频、贴图或 manifest 不会残留并覆盖新行为。
 
 ## 2. 来源
 
@@ -76,7 +92,7 @@ build/
 - 技能 SFX（`lol_*` 等）：PCM16 WAV，由 `DariusMedia.LoadPcmWave` 同步读取，保证首次播放低延迟；
 - 语音（`vo_*`）：22.05 kHz 单声道 Ogg Vorbis，最终文件统一为 `assets/audio/vo_*.ogg`。
 
-原始源位于 `assets/raw_lol_audio/**/*.wem`，事件 → media id → 输出文件名的映射见 `assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`。重新生成资源时，将 `vgmstream-cli` 与所需编码工具加入 PATH；任何转换中间文件都应放在 `assets/audio` 之外并在转换完成后删除。
+原始源位于 `assets/raw_lol_audio/**/*.wem`，事件 → media id → 输出文件名的映射见 `assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`。重新生成资源时，将 `vgmstream-cli` 与所需编码工具加入 PATH；语音转换的最终输出直接落为 `vo_*.ogg`，不要把语音 WAV 留在 `assets/audio/`。
 
 **运行时加载方式**：
 
