@@ -67,7 +67,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod
 | `PackageMod` | 干净的 `build/` snapshot：DLL + `about/` + 运行时资产；不含 raw 提取资产，仅保留运行时需要的 `raw_lol_audio/PASS2_MEDIA_MANIFEST.json` |
 | `DeployMod` | 用上面的 package snapshot 完整替换 `<GameDir>\Mods\DariusPrototype` |
 
-**发布只发 `build/` 目录**，不要发仓库。语音发布格式固定为 OGG，`vo_*.wav` 不会进入 package。包内容与体积构成见 [docs/assets.md](docs/assets.md) 第 1.1 与 3.5 节。
+**发布只发 `build/` 目录**，不要发仓库。语音发布格式固定为 OGG。包内容与体积构成见 [docs/assets.md](docs/assets.md) 第 1.1 与 3.5 节。
 
 ### 3.3 指定游戏路径
 
@@ -135,7 +135,7 @@ csproj 从 `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs` 链接引�
 - **版本号单一真源**：只维护 `about/metadata.json` 的 `modVer`。运行时（`DariusModEnvironment.Version`）从它读取；README 不再复制“当前版本”字面量。
 - **构建就是 `dotnet build`**：没有 `.bat` / `.ps1` 构建或校验脚本，游戏路径通过 `GameDir` 属性注入（见 3.3）。
 - **发布只发 `build/`**：`PackageMod` 会先清理 `build/` 再生成完整 snapshot；raw 提取资产不进包，`PASS2_MEDIA_MANIFEST.json` 是运行时所需的唯一例外。
-- **语音 OGG-only**：运行时只从 `vo_*.ogg` 加载语音，`PackageMod` 同时排除任何遗留的 voice WAV。
+- **语音 OGG-only**：运行时只从 `vo_*.ogg` 加载语音；启动阶段不做语音预加载。
 - **部署是完整替换**：`DeployMod` 先清理 `<GameDir>\Mods\DariusPrototype`，再复制 package，因此旧版本已删除的音频、贴图或 manifest 不会残留并覆盖新资源。
 - **构建只做轻量边界检查**：`CheckGameInstall`（游戏程序集 / 外部共享源码）与 `VerifyPackageAssets`（打包前必需资产存在）。数量与结构校验交给运行时日志。
 - **发布体积约 95 MB**：411 条语音约 8 MB；运行时按需异步解码并只缓存实际触发过的语音，不在启动时批量解码。当前最大静态项是模型 49.8 MB。
