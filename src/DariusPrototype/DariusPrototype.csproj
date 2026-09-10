@@ -95,8 +95,20 @@
     <_PackageFile Include="$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json" Dest="assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json" />
   </ItemGroup>
 
-  <!-- Existence-only boundary check; no counts. See docs/assets.md for the asset pipeline. -->
-  <Target Name="VerifyPackageAssets">
+  <!-- Voice is a package/runtime format contract, not a count check: only OGG is supported. -->
+  <Target Name="VerifyVoiceAssets">
+    <ItemGroup>
+      <_VoiceOgg Include="$(ModRootDir)\assets\audio\vo_*.ogg" />
+      <_LegacyVoiceWav Include="$(ModRootDir)\assets\audio\vo_*.wav" />
+    </ItemGroup>
+    <Error Condition="'@(_VoiceOgg)' == ''"
+           Text="Voice OGG assets are missing. Prepare assets/audio/vo_*.ogg before packaging." />
+    <Error Condition="'@(_LegacyVoiceWav)' != ''"
+           Text="Legacy voice WAV assets are not supported. Remove assets/audio/vo_*.wav; the voice runtime/package contract is OGG-only." />
+  </Target>
+
+  <!-- Existence/format boundary checks only; no asset counts. See docs/assets.md for the asset pipeline. -->
+  <Target Name="VerifyPackageAssets" DependsOnTargets="VerifyVoiceAssets">
     <Error Condition="!Exists('$(ModRootDir)\about\metadata.json')" Text="about/metadata.json is missing; the loader requires it in the package." />
     <Error Condition="!Exists('$(ModRootDir)\assets\models\darius.glb')" Text="assets/models is missing. Prepare the asset pack first; see docs/assets.md." />
     <Error Condition="!Exists('$(ModRootDir)\assets\lol_vfx\darius_lol_vfx.json')" Text="assets/lol_vfx/darius_lol_vfx.json is missing. See docs/assets.md." />
