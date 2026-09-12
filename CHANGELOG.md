@@ -27,10 +27,11 @@
 - `VerifyVoiceAssets` 固化语音 OGG-only 契约：至少存在 `vo_*.ogg`，发现任何 `vo_*.wav` 即停止打包；package 文件集也显式排除旧 voice WAV。
 - `DeployMod` 用 package snapshot 完整替换安装目录，避免升级后遗留旧音频、贴图或 manifest。
 - `DeployMod` 拒绝把部署目录指向仓库根，避免清理安装目录时误删源码。
-- 构建期只保留必要的配置、格式与存在性边界检查；跨文件静态/release validation 由 .NET 验证工具承担。
-- 新增 `.github/workflows/dotnet-ci.yml`：PR、`main` push 与手动触发时在 GitHub-hosted Windows runner 执行云端验证。
-- 新增零 NuGet 的 `tools/RepoValidation/`（`net8.0`）：验证 metadata/Workshop、主 csproj/package target、tracked-file 红线、voice source 契约；如果 runner 提供 `assets/` 或 `build/`，自动追加 OGG/WAV header、GLB 基本结构与 package snapshot 检查。
-- CI 直接求值主项目 `CheckPackageConfiguration` Release preflight；不伪造 Shape of Dreams/Dew/Unity API 来制造假主 DLL 编译。
+- 构建期只保留必要的配置、格式与存在性边界检查。
+- 新增 `.github/workflows/dotnet-ci.yml`：PR、`main` push 与手动触发时在 GitHub-hosted Windows runner 执行最小云端验证。
+- CI 直接使用 runner 自带 PowerShell / .NET CLI：校验 metadata/Workshop、拒绝 tracked 二进制，并验证 `CheckPackageConfiguration` 的 Release/Debug 行为；不再维护独立 `RepoValidation` 项目。
+- 删除公共 runner 没有真实输入就只能 `SKIP` 的音频头、GLB、package snapshot 预留检查；以后真实私有输入接入 CI 时再直接增加真实 Build/Package 验证。
+- CI 不伪造 Shape of Dreams/Dew/Unity API 来制造假主 DLL 编译。
 
 **版本与文档**
 
