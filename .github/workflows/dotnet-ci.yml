@@ -1,0 +1,41 @@
+name: .NET CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dotnet-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-validation:
+    name: Repository validation
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build validation tool
+        run: dotnet build tools/RepoValidation/RepoValidation.csproj -c Release --nologo
+
+      - name: Validate repository contracts
+        run: dotnet run --project tools/RepoValidation/RepoValidation.csproj -c Release --no-build -- --repo "${{ github.workspace }}"
+
+      - name: Evaluate runtime MSBuild preflight
+        run: dotnet msbuild src/DariusPrototype/DariusPrototype.csproj -t:CheckPackageConfiguration -p:Configuration=Release -nologo -verbosity:minimal
