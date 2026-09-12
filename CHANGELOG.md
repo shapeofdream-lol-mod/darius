@@ -27,13 +27,16 @@
 - `VerifyVoiceAssets` 固化语音 OGG-only 契约：至少存在 `vo_*.ogg`，发现任何 `vo_*.wav` 即停止打包；package 文件集也显式排除旧 voice WAV。
 - `DeployMod` 用 package snapshot 完整替换安装目录，避免升级后遗留旧音频、贴图或 manifest。
 - `DeployMod` 拒绝把部署目录指向仓库根，避免清理安装目录时误删源码。
-- 构建期只保留必要的配置、格式与存在性边界检查。资产数量与深层结构校验交给运行时日志，不再维护第二份清单。
+- 构建期只保留必要的配置、格式与存在性边界检查；跨文件静态/release validation 由 .NET 验证工具承担。
+- 新增 `.github/workflows/dotnet-ci.yml`：PR、`main` push 与手动触发时在 GitHub-hosted Windows runner 执行云端验证。
+- 新增零 NuGet 的 `tools/RepoValidation/`（`net8.0`）：验证 metadata/Workshop、主 csproj/package target、tracked-file 红线、voice source 契约；如果 runner 提供 `assets/` 或 `build/`，自动追加 OGG/WAV header、GLB 基本结构与 package snapshot 检查。
+- CI 直接求值主项目 `CheckPackageConfiguration` Release preflight；不伪造 Shape of Dreams/Dew/Unity API 来制造假主 DLL 编译。
 
 **版本与文档**
 
 - 版本号收敛到 `about/metadata.json` 的 `modVer`（本版 `0.31.0-refactor`），代码与构建脚本中不再有版本字面量；README 也不再复制“当前版本”。
 - `CHANGELOG.md` 改为 Keep a Changelog 格式；`0.30.x` 及更早移入 `docs/archive/CHANGELOG-legacy.md`，不再维护。
-- `AGENTS.md` 重写为可执行的工程手册：结构地图、构建/打包/部署、边界与陷阱、发版规则。
+- `README.md` / `AGENTS.md` 记录云端 CI、本地 Release gate 与游戏依赖边界。
 
 **资产与体积**
 
@@ -52,5 +55,5 @@
 
 ### 已知问题
 
-- 缺少仓库外的共享源码 `TravelerBasicAttackVfxReplication.cs` 时无法编译（构建会明确报错）。
+- 普通 GitHub-hosted runner 不包含 Shape of Dreams 游戏程序集、仓库外共享源码和未入库二进制资产，因此不能真实编译/打包主 Mod；完整 Release build/package/deploy 与游戏 smoke test 仍需要本地合法游戏环境。
 - 技能 SFX 仍为 PCM16 WAV（约 21 MB）；本轮 OGG-only 约束针对语音资源。
