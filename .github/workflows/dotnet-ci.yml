@@ -30,7 +30,7 @@ jobs:
             if ([string]::IsNullOrWhiteSpace($meta.$name)) { throw "metadata.$name is required" }
           }
           if ($meta.assemblies -notcontains 'DariusPrototype.dll') { throw 'metadata assemblies must contain DariusPrototype.dll' }
-          if (-not (Select-String CHANGELOG.md -SimpleMatch "## [$($meta.modVer)]" -Quiet)) { throw "CHANGELOG has no section for $($meta.modVer)" }
+          if (-not (Select-String -Path CHANGELOG.md -SimpleMatch -Pattern "## [$($meta.modVer)]" -Quiet)) { throw "CHANGELOG has no section for $($meta.modVer)" }
 
           $workshopId = (Get-Content about/publishedfileid.txt -Raw).Trim()
           if ($workshopId -notmatch '^\d+$') { throw 'publishedfileid.txt must contain only digits' }
