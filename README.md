@@ -31,7 +31,7 @@
 | --- | --- |
 | 游戏 | Steam 版 Shape of Dreams，Mod 目录位于 `<游戏目录>\Mods\` |
 | 构建工具 | .NET SDK **8.0+**（`dotnet build`，MSBuild） |
-| CI | GitHub Actions `windows-latest` + .NET 8；负责不依赖私有游戏文件的仓库/发布契约验证 |
+| CI | GitHub Actions `windows-latest`；只验证公共 runner 真实拥有的仓库/构建契约 |
 | 可选 | 任意 C# IDE；Python 3（仅在重新生成 Riot VFX 载荷时需要） |
 | 资产 | **本仓库不含任何二进制资产**，见 [docs/assets.md](docs/assets.md) |
 
@@ -39,7 +39,7 @@
 
 ### 3.1 标准布局
 
-```
+```text
 <Steam>\steamapps\common\Shape of Dreams\
 ├── Shape of Dreams_Data\Managed\              # 编译引用（mscorlib / Assembly-CSharp / Dew.* / UnityEngine.*）
 └── Mods\
@@ -101,40 +101,25 @@ csproj 从 `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs` 链接引�
 
 > 该文件**不在本仓库内**。缺失时 `CheckGameInstall` 会直接报错。把它放回 `Mods\` 目录后再构建。
 
-### 3.5 云端 CI 与仓库验证
+### 3.5 云端 CI
 
-PR、`main` push 和手动 `workflow_dispatch` 会运行 `.github/workflows/dotnet-ci.yml`。CI 在 `windows-latest` 上编译并执行零 NuGet 的 `tools/RepoValidation/`，并直接求值主项目的纯 MSBuild Release preflight。
+PR、`main` push 和手动 `workflow_dispatch` 会运行 `.github/workflows/dotnet-ci.yml`。CI 只做公共 runner 当前真实具备输入的检查：
 
-本地可运行同一套仓库验证：
+- 解析 `about/metadata.json`，检查必需字段、`DariusPrototype.dll` assembly entry 与当前 CHANGELOG 版本；
+- 检查 Workshop ID 仅含数字、Workshop 描述不超过 8000 bytes；
+- 拒绝被 Git 跟踪的二进制资产与构建产物；
+- 直接执行主 csproj 的 `CheckPackageConfiguration`，确认 Release 通过、Debug 被拒绝。
 
-```powershell
-dotnet build tools/RepoValidation/RepoValidation.csproj -c Release
-dotnet run --project tools/RepoValidation/RepoValidation.csproj -c Release --no-build -- --repo .
-dotnet msbuild src/DariusPrototype/DariusPrototype.csproj -t:CheckPackageConfiguration -p:Configuration=Release -nologo
-```
-
-默认云端 checkout 可以验证：
-
-- `about/metadata.json` / Workshop ID / Workshop 描述长度与当前 CHANGELOG 版本；
-- 主 csproj 的框架、零 NuGet、Package/Deploy target 与 OGG-only 契约；
-- Git tracked files 中没有二进制资产、构建产物或旧 `.bat/.ps1` 构建脚本；
-- voice runtime 没有重新引入 WAV/preload/static in-flight 路径；
-- 主 csproj 的 Release package preflight 可以在无游戏程序集时独立求值。
-
-验证器还包含 OGG/WAV header、GLB 基本结构和 `build/` package snapshot 检查；由于这些二进制资产/产物有意不提交 Git，普通公共 runner 会把对应检查标记为 `SKIP`。如果以后通过合规的私有资产来源或 self-hosted runner 提供这些目录，无需改验证器即可自动执行。
-
-**CI 不伪造 Shape of Dreams API 来假编译主 DLL。** `DariusPrototype.dll` 的权威编译仍需要真实 `Shape of Dreams_Data\Managed/*.dll`、外部共享源码和本地资产，因此 Release build/package/deploy 与游戏内 smoke test 仍是本地发布门槛。
+**CI 不伪造 Shape of Dreams API，也不保留没有输入就只能 `SKIP` 的资产/GLB/package 检查。** `DariusPrototype.dll` 的权威编译仍需要真实 `Shape of Dreams_Data\Managed/*.dll`、外部共享源码和本地资产。以后如果合规地向 runner 提供这些真实输入，再直接把真实 Build/Package 接进 CI。
 
 ## 4. 仓库结构
 
-```
+```text
 .
 ├── .github/workflows/dotnet-ci.yml # GitHub Actions 云端仓库验证
 ├── src/DariusPrototype/            # 全部 C# 源码 + DariusPrototype.csproj
 │   └── UniversalAnimation/         # 通用动画重定向运行时
-├── tools/
-│   ├── RepoValidation/             # net8.0、零 NuGet 的仓库/发布契约验证器
-│   └── BuildDariusPass5AuthenticVfx.py
+├── tools/                          # 离线资产转换（Python）
 ├── about/                          # Mod 加载器元数据与 Workshop 清单
 ├── assets/                         # 二进制资产（不纳入版本控制，见 docs/assets.md）
 ├── docs/                           # 设计、验证与测试文档
@@ -164,14 +149,13 @@ dotnet msbuild src/DariusPrototype/DariusPrototype.csproj -t:CheckPackageConfigu
 
 - **版本号单一真源**：只维护 `about/metadata.json` 的 `modVer`。运行时（`DariusModEnvironment.Version`）从它读取；README 不再复制“当前版本”字面量。
 - **构建就是 `dotnet build`**：没有 `.bat` / `.ps1` 构建或校验脚本，游戏路径通过 `GameDir` 属性注入（见 3.3）。
-- **云端 CI**：GitHub Actions 在 PR / `main` push 上构建 `tools/RepoValidation`、执行仓库/发布契约验证并求值主项目 Release preflight；不需要游戏程序集的检查默认都在云端完成。
+- **云端 CI 保持最小**：只验证当前公共 runner 可真实执行的 metadata / Workshop / tracked-binary / package-configuration 契约，不维护 dormant validator。
 - **Package preflight**：`PackageMod` 先确认 Release 配置，再检查 voice OGG-only 契约与必需资产，随后编译并生成 snapshot。
 - **发布只发 `build/`**：`PackageMod` 会先清理 `build/` 再生成完整 snapshot；raw 提取资产不进包，`PASS2_MEDIA_MANIFEST.json` 是运行时所需的唯一例外。
 - **语音 OGG-only**：运行时只从 `vo_*.ogg` 加载语音；打包发现 `vo_*.wav` 会失败，且 package 规则不会复制它；启动阶段不做语音预加载。
 - **部署是完整替换**：`DeployMod` 先清理 `<GameDir>\Mods\DariusPrototype`，再复制 package，因此旧版本已删除的音频、贴图或 manifest 不会残留并覆盖新资源。
-- **构建只做轻量边界检查**：`CheckGameInstall` 检查游戏程序集/外部共享源码；`VerifyVoiceAssets` 检查语音格式契约；`VerifyPackageAssets` 检查打包必需资产。深层静态仓库检查由 `tools/RepoValidation` 承担，运行时行为仍由游戏日志/人工 smoke test 验证。
 - **发布体积约 95 MB**：411 条语音约 8 MB；运行时按需异步解码并只缓存实际触发过的语音，不在启动时批量解码。当前最大静态项是模型 49.8 MB。
-- **没有单元测试框架**：CI 是仓库/资源/发布契约验证，不代替真实游戏程序集编译或游戏内玩法测试。
+- **没有单元测试框架**：CI 不代替真实游戏程序集编译或游戏内玩法测试。
 - **无法在普通公共 runner 完整构建主 Mod**：编译需要游戏自带的 `Shape of Dreams_Data\Managed\*.dll`、3.4 节外部共享源码和未入库资产；项目不会提交或伪造这些依赖来制造假绿色构建。
 - **资产未入库**：克隆后必须自行准备资产包才能打包或运行，见 [docs/assets.md](docs/assets.md)。
 
