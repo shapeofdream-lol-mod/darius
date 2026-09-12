@@ -12,7 +12,7 @@
 - **加载方式**：游戏内置 `DewMod` 加载器（`ModBehaviour`）+ Harmony 补丁，全部资源在运行时构建。
 - **语言**：C# 9.0 / `netstandard2.1`。
 - **规模**：`src/DariusPrototype/` 共 45 个 `.cs`（40 个在根目录 + 5 个在 `UniversalAnimation/`）、约 106 万字符；最大的三个文件是 `DariusTravelerSystem.cs`（~192 KB）、`DariusConstellations.cs`（~106 KB）、`DariusLolVfxRuntime.cs`（~84 KB）。
-- **没有测试框架、没有 CI**。验证 = `dotnet build` 编译 + 游戏内人工清单。
+- **没有单元测试框架**。GitHub Actions `.NET CI` 负责可脱离游戏运行的仓库/发布契约验证；主 DLL 编译和玩法验证仍需要真实游戏环境。
 
 ## 2. 技术栈与硬约束
 
@@ -21,12 +21,13 @@
 | 目标框架 | `netstandard2.1` | 必须匹配游戏 Unity 运行时 |
 | 语言版本 | C# 9.0 | 不要使用 C# 10+ 语法（file-scoped namespace、record struct、全局 using 等） |
 | 编译方式 | `NoStdLib` + `DisableImplicitFrameworkReferences` | 所有程序集引用都来自游戏 `Managed` 目录 |
-| 依赖 | **零 NuGet 包** | 不允许新增 NuGet/PackageReference；需要新程序集时改 csproj 的 `<Reference>` |
+| 依赖 | **零 NuGet 包** | 主运行时与 `tools/RepoValidation` 都不新增 NuGet/PackageReference；需要游戏程序集时改 csproj 的 `<Reference>` |
 | 构建 | `dotnet build`（MSBuild） | **没有 shell 构建脚本**；游戏路径通过 `GameDir` 属性注入 |
-| 平台 | Windows | 游戏与 Steam 安装路径为 Windows 形式 |
+| CI | GitHub Actions + .NET 8 | 只运行不需要私有游戏 DLL/未入库资产的可靠检查；不要伪造游戏 API 追求绿色 |
+| 平台 | Windows | 游戏与 Steam 安装路径为 Windows 形式；CI 使用 `windows-latest` |
 | 编码 | UTF-8 | 仓库内 BOM 状态不统一（如 `DariusTravelerSystem.cs` 有 BOM）；新建文件用**无 BOM UTF-8**，行尾 LF |
 
-**不要做的事**：升级 TargetFramework、开启 implicit usings、引入第三方库、把代码拆成新项目、改 `AssemblyName`（`about\metadata.json` 与 csproj 都写死了 `DariusPrototype.dll`）。
+**不要做的事**：升级 TargetFramework、开启主项目 implicit usings、引入第三方库、把运行时代码拆成新项目、改 `AssemblyName`（`about\metadata.json` 与 csproj 都写死了 `DariusPrototype.dll`）。
 
 ## 3. 源码职责地图
 
@@ -36,6 +37,7 @@
 | --- | --- |
 | `DariusPrototype.cs` | `DariusPrototypeMod : ModBehaviour` 入口。`Awake` 早期引导 → `Start` 中 `harmony.PatchAll()`、注册生命周期/兼容层、启动自愈协程。**引导路径的异常必须被捕获且不得中断核心注册**（见文件内注释） |
 | `DariusPrototype.csproj` | SDK 风格工程，默认递归包含 `**/*.cs`。新增 `.cs` 无需登记；但**不要**在 `assets/`、`docs/` 下放 `.cs` |
+| `.github/workflows/dotnet-ci.yml` | PR / `main` push / 手动触发的云端验证入口；编译并运行 `tools/RepoValidation`，再求值主项目 Release preflight |
 
 ### 3.2 技能与战斗
 
@@ -89,17 +91,18 @@
 | `DariusModLifecycle.cs` | 区分真正的 `DewMod` 热卸载与普通场景销毁 |
 | `src/DariusPrototype/UniversalAnimation/*.cs` | 通用动画重定向运行时：`AnimationLibrary`（加载）、`UniversalRetargeter`（重定向）、`DariusRetargetApi`（技能侧桥）、`ModelUtils`、`RuntimeLog` |
 
-### 3.5 离线工具
+### 3.5 离线工具与验证工具
 
 | 文件 | 职责 |
 | --- | --- |
 | `tools/BuildDariusPass5AuthenticVfx.py` | 解析 Riot `PROP` BIN，生成 `assets/lol_vfx/darius_lol_vfx.json` 与贴图/网格载荷 |
+| `tools/RepoValidation/` | `net8.0`、零 NuGet 的仓库/发布契约验证器；CI 与本地共用。默认检查 metadata、Workshop、csproj/package、tracked files、voice source；存在资产或 `build/` 时自动追加媒体头、GLB、package snapshot 检查 |
 
 音频资产来自 `assets/raw_lol_audio/**/*.wem`。技能 SFX 最终为 PCM16 WAV；语音最终只保留 `vo_*.ogg`。具体生成与发布契约见 `docs/assets.md`。
 
 ## 4. 构建与验证
 
-### 4.1 前置条件（缺一不可）
+### 4.1 本地主 Mod 构建前置条件（缺一不可）
 
 1. 本机安装 **Shape of Dreams**，且存在 `<游戏目录>\Shape of Dreams_Data\Managed\`。
 2. 安装 **.NET SDK 8.0+**。
@@ -127,14 +130,16 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 
 **发布只发 `build/`**，不发仓库。`PackageMod` 只接受 Release 配置；语音发布格式固定为 OGG。
 
-### 4.3 构建只做轻量边界检查
+### 4.3 构建边界与云端静态验证
 
-构建**不校验资产数量**：raw 提取资产不进包，`PASS2_MEDIA_MANIFEST.json` 是运行时所需的唯一例外。资产完整性由运行时日志负责（`DariusMedia.PreloadAll()`、`DariusTravelerSystem` 的皮肤规格、`DariusLolVfxRuntime` 的 manifest 校验）。构建期只维护必要的配置、格式与存在性边界：
+主项目构建**不维护资产数量清单**：raw 提取资产不进包，`PASS2_MEDIA_MANIFEST.json` 是运行时所需的唯一例外。构建期维护必要的配置、格式与存在性边界：
 
 - `CheckPackageConfiguration`：`PackageMod` 必须使用 Release；
 - `CheckGameInstall`：游戏程序集、外部共享源码；
 - `VerifyVoiceAssets`：必须存在 `assets/audio/vo_*.ogg`，并拒绝任何 `vo_*.wav`；
 - `VerifyPackageAssets`：其它打包必需资产（`about/metadata.json`、`assets/models/darius.glb`、`assets/lol_vfx/darius_lol_vfx.json`、`assets/audio/flash.ogg`、`assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json`）。
+
+`tools/RepoValidation` 提供更深但仍可复现的仓库验证，并由 `.NET CI` 在 GitHub-hosted Windows runner 执行。默认 checkout 下会验证 metadata/Workshop、主 csproj/package target、tracked-file 红线、voice source 契约和 Release preflight。因为 `assets/` 与 `build/` 不入库，音频头、GLB 与 package snapshot 检查会明确 `SKIP`；一旦合规地向 runner 提供这些目录，同一验证器会自动执行它们。
 
 版本号唯一真源仍是 `about\metadata.json` 的 `modVer`；csproj 里**不要**加 `<Version>`。发布体积构成与压缩取舍见 `docs/assets.md` 第 3.5 节。
 
@@ -142,11 +147,13 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 
 | 层次 | 手段 |
 | --- | --- |
-| 编译 | `dotnet build` —— **唯一的权威编译验证** |
+| 云端仓库验证 | GitHub Actions `.NET CI`：构建 `tools/RepoValidation`、执行 repo/package 契约、求值 `CheckPackageConfiguration` |
+| 本地仓库验证 | `dotnet run --project tools/RepoValidation/RepoValidation.csproj -c Release -- --repo .` |
+| 主 DLL 编译 | `dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release` —— **需要真实游戏程序集，是权威编译验证** |
+| Package / Deploy | `PackageMod` / `DeployMod` —— 需要本地二进制资产与游戏目录 |
 | 运行时 | 游戏内人工清单 `docs/MECHA_VFX_HOTFIX*_TEST_CHECKLIST.md` + 共享 Mods 目录下的 `DariusPrototype_runtime.log` |
-| 静态自检 | 没有仓库内的检查脚本。无法编译时只能做括号配平、引用/路径存在性、JSON 可解析等自检，并明确声明「未编译验证」 |
 
-> 在没有游戏环境 / 没有 .NET SDK 的机器上，你**无法**完成编译验证。此时应明确说明「未编译验证」，并至少做括号配平、引用存在性、JSON 可解析等静态自检。
+> 普通 GitHub-hosted runner 没有 Shape of Dreams 私有游戏程序集、仓库外共享源码和未入库资产，所以不能完成主 DLL 的真实编译。**不要创建假 Unity/Dew stub 来制造绿色 CI**。若以后通过合规的私有 reference bundle 或 self-hosted runner 提供真实依赖，再把完整 Build/Package 接入 CI。
 
 ## 5. 编码约定
 
@@ -164,7 +171,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 
 ## 6. 资产与版权红线
 
-1. **禁止把二进制资产提交到 Git**。`.gitignore` 已忽略整个 `assets/`、`about/*.png` 与 `tools/vgmstream/`。`git status` 中不应出现任何 `.glb` / `.wav` / `.ogg` / `.wem` / `.tex` / `.skn` / `.png` / `.dll`。
+1. **禁止把二进制资产提交到 Git**。`.gitignore` 已忽略整个 `assets/`、`about/*.png` 与 `tools/vgmstream/`。`tools/RepoValidation` / CI 也会拒绝 tracked `.glb` / `.wav` / `.ogg` / `.wem` / `.tex` / `.skn` / `.png` / `.dll` 等文件。
 2. **禁止公开分发 Riot 原始资产**。League 资产版权归 Riot Games；本项目依据 Riot 的 Legal Jibber Jabber 政策创作，仅限本地互操作使用。
 3. **不要伪造替代 VFX**。Riot 原语不受支持时应显式记录并跳过（fidelity gate），而不是用自制贴图/几何冒充——这是本项目的核心原则。
 4. **不要重绘用户提供的资源**。例如 `assets/icons/star_awoo.png` 必须保持与用户原图字节一致，禁止裁剪/改色/风格化。
@@ -174,6 +181,8 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 ## 7. 常见陷阱
 
 - **没有 shell 构建脚本**：构建就是 `dotnet build`；游戏路径用 `GameDir`（`-p:` / `Directory.Build.props` / `SOD_GAME_DIR`）注入。不要再引入 `.bat` / `.ps1` 构建或校验脚本。
+- **云端 CI 不是主 DLL 的假编译**：`.NET CI` 只做可以脱离私有游戏文件的真实验证；不要用 stub 替代 Shape of Dreams/Dew/Unity 程序集。
+- **`tools/RepoValidation` 是静态契约真源**：新增可脱离游戏的 release gate 优先加到这个 .NET 工具，不要重新堆 PowerShell。
 - **`TravelerBasicAttackVfxReplication.cs` 不在仓库里**：csproj 从 `$(ModsDir)` 链接它，缺失时 `CheckGameInstall` 直接报错。
 - **版本号只有一个真源**：`about\metadata.json` 的 `modVer`。运行时 `DariusModEnvironment.Version` 读它；任何 `.cs` / `.csproj` / README 顶部都不要再复制“当前版本”。
 - **共享 GUID 只在 `src/DariusPrototype/DariusResourceIds.cs` 定义**：改值会破坏存档与网络身份。
@@ -181,7 +190,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 - **`PackageMod` / `DeployMod` 都是 snapshot 语义**：Package 先完成 Release/资产 preflight 和编译，再清理并重建 `build/`；Deploy 再清理安装目录并复制 package。两个 target 都必须用 `-c Release`。
 - **语音只使用 OGG**：首次选中时异步解码并缓存，不要恢复启动时批量预加载或其他语音格式路径；`VerifyVoiceAssets` 会拒绝旧 `vo_*.wav`。
 - **Pass2 manifest 允许重试**：只有成功解析后才能把 `_pass2PoolsLoaded` 置为 true，启动早期路径未准备好时不能永久锁死。
-- **构建只做必要边界检查**：Release 配置、voice OGG-only 格式和必需文件存在性在构建期检查；数量/深层结构仍交给运行时日志，不新增第二套清单或大脚本。
+- **构建只做必要边界检查**：Release 配置、voice OGG-only 格式和必需文件存在性在主 csproj 检查；不依赖游戏的 deeper static checks 放 `tools/RepoValidation`，不要复制第二套清单。
 - **日志写在共享 Mods 目录**，不在 Mod 目录内。找日志时往上一层看。
 - **SDK 风格 csproj 递归收集 `.cs`**：往 `src/DariusPrototype/` 新增文件即可自动编译；但把 `.cs` 放到被忽略的目录会被静默跳过。
 - **现有编译警告是已知的**：CS0114（`Ai_Darius_NoxianGuillotine.OnDestroy`）、CS0168、CS0618（`FindObjectsOfType` 已废弃）、CS0414。修复它们不是当前目标，但**不要新增**警告。
@@ -192,12 +201,14 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 
 - 提交信息：`<scope>: <摘要>`，scope 用文件名或模块名，例如 `DariusLolVfxRuntime: 收紧机神血怒气流范围`。
 - 一次提交只做一件事；不要把「重命名/格式化」和「逻辑修改」混在一起。
-- 提交前自查：
+- 提交前优先运行：
   ```powershell
+  dotnet build tools/RepoValidation/RepoValidation.csproj -c Release
+  dotnet run --project tools/RepoValidation/RepoValidation.csproj -c Release --no-build -- --repo .
   git status --short
   git check-ignore -v <path>
   ```
-- 不要新增 `.bat` / `.ps1` 构建或校验脚本；构建逻辑一律放 `*.csproj` / `*.targets`。
+- 不要新增 `.bat` / `.ps1` 构建或校验脚本；构建逻辑放 `*.csproj` / `*.targets`，跨文件静态/release validation 放 `tools/RepoValidation`。
 - 发版时同步两处：`about\metadata.json` 的 `modVer` 与仓库根 `CHANGELOG.md`（Keep a Changelog 格式）。`docs/archive/CHANGELOG-legacy.md` 是 0.30.x 及更早的历史，**不再维护**。
 - 新增文档放 `docs/`，并在 `README.md` 的文档索引中登记。
 
@@ -205,23 +216,25 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod 
 
 **开工前**
 - [ ] 读 `README.md`（项目全貌）与本节之前的全部内容。
-- [ ] 确认改动落在哪一层：C# 逻辑（`src/DariusPrototype/`）、构建定义（`*.csproj`）、离线工具（`tools/`）、文档（`docs/`）。
+- [ ] 确认改动落在哪一层：C# 逻辑（`src/DariusPrototype/`）、构建定义（`*.csproj`）、验证（`tools/RepoValidation` / `.github/workflows`）、离线工具（`tools/`）、文档（`docs/`）。
 - [ ] 若任务涉及资产，先确认资产存在（`assets/` 不入库，可能本机缺失）。
 
 **改动中**
-- [ ] 只改与任务相关的文件；不引入新依赖；不使用 C# 10+ 语法。
+- [ ] 只改与任务相关的文件；不引入新依赖；主运行时代码不使用 C# 10+ 语法。
 - [ ] 改动资产/引用时改真源（csproj / `src/DariusPrototype/` 代码 / manifest）；不要新增 shell 脚本。
+- [ ] 新增可脱离游戏执行的静态/发布检查时，优先扩展 `tools/RepoValidation` 并让 `.NET CI` 执行。
 - [ ] 触碰版本号时只改 `about/metadata.json` 的 `modVer`。
 
 **收尾**
-- [ ] 能编译就编译；不能编译就明确声明「未编译验证」，并给出静态自检结果（括号配平、引用/路径存在性、JSON 可解析）。
+- [ ] 运行 `tools/RepoValidation`；PR 上确认 `.NET CI` 绿色。CI 中因未入库资产产生的明确 `SKIP` 可以接受，但不能把失败伪装成 skip。
+- [ ] 有真实游戏环境时运行主 DLL Release build；没有时明确声明「未完成游戏程序集编译验证」，不要用 stub 替代。
 - [ ] 发布前跑一次 `-c Release -t:PackageMod`，确认 `build/` 不含 raw 提取资产（运行时 manifest 除外），且语音目录只有 OGG。
-- [ ] 更新受影响的文档（`README.md` 索引、`CHANGELOG.md`、`docs/assets.md`）。
+- [ ] 更新受影响的文档（`README.md`、`CHANGELOG.md`、`docs/assets.md` 等）。
 - [ ] `git status` 确认无二进制、无日志、无 `bin/` `obj/` 进入版本控制。
 - [ ] 报告改动清单时给出具体文件路径，不要笼统地说「已优化」。
 
 **绝对不要**
 - 提交任何二进制资产或构建产物。
-- 声称完成了未实际执行的构建或游戏内验证。
-- 为了让编译通过而伪造资产、删除资产契约检查、或注释掉校验逻辑。
+- 声称完成了未实际执行的主 DLL 编译或游戏内验证。
+- 为了让 CI 绿色而伪造游戏程序集/资产、删除资产契约检查、或注释掉校验逻辑。
 - 未经要求大规模重构 `src/DariusPrototype/` 下的超大文件。
