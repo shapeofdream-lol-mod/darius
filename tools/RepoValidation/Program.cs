@@ -124,8 +124,8 @@ void CheckModels()
             var len = r.ReadUInt32(); var type = r.ReadUInt32(); Need(len <= int.MaxValue && fs.Position + len <= fs.Length, Path.GetFileName(file) + " has truncated GLB chunk");
             var bytes = r.ReadBytes((int)len); if (type == 0x4E4F534A && json == null) json = JsonDocument.Parse(Encoding.UTF8.GetString(bytes).TrimEnd('\0', ' ', '\t', '\r', '\n'));
         }
-        Need(json != null, Path.GetFileName(file) + " has no GLB JSON chunk");
-        using (json) { var j = json.RootElement; Need(Arr(j, "meshes").GetArrayLength() > 0 && Arr(j, "skins").GetArrayLength() > 0 && Arr(j, "animations").GetArrayLength() > 0, Path.GetFileName(file) + " must contain meshes, skins and animations"); }
+        using var parsed = json ?? throw new InvalidDataException(Path.GetFileName(file) + " has no GLB JSON chunk");
+        var j = parsed.RootElement; Need(Arr(j, "meshes").GetArrayLength() > 0 && Arr(j, "skins").GetArrayLength() > 0 && Arr(j, "animations").GetArrayLength() > 0, Path.GetFileName(file) + " must contain meshes, skins and animations");
     }
 }
 
@@ -134,7 +134,7 @@ void CheckPackage()
     var dir = P("build"); if (!Directory.Exists(dir)) throw new SkipException("build/ not present");
     Need(File.Exists(Path.Combine(dir, "DariusPrototype.dll")), "package DLL missing");
     Need(File.Exists(Path.Combine(dir, "about", "metadata.json")), "package metadata missing");
-    Need(File.Exists(Path.Combine(dir, "assets", "raw_lol_audio", "PASS2_MEDIA_MANIFEST.json")), "package Pass2 manifest missing");
+    Need(File.Exists(Path.Combine(dir, "assets", "raw_lol_audio", "PASS2_MEDIA_MANIEST.json")), "package Pass2 manifest missing");
     var audio = Path.Combine(dir, "assets", "audio"); Need(Directory.Exists(audio) && Directory.GetFiles(audio, "vo_*.ogg", SearchOption.AllDirectories).Length > 0, "package voice OGG missing");
     Need(Directory.GetFiles(audio, "vo_*.wav", SearchOption.AllDirectories).Length == 0, "package contains voice WAV");
     var raw = Path.Combine(dir, "assets", "raw_lol_audio"); Need(Directory.GetFiles(raw, "*", SearchOption.AllDirectories).All(f => Path.GetFileName(f) == "PASS2_MEDIA_MANIFEST.json"), "package contains raw Wwise files");
