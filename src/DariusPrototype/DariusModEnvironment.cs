@@ -22,8 +22,8 @@ public static class DariusModEnvironment
         get { return _sourceLabel; }
     }
 
-    // The mod version comes from about\metadata.json, the same single source of truth that
-    // BuildAndInstall.ps1 reads. It must never be duplicated as a literal in code.
+    // The mod version comes from about\metadata.json, the single source of truth shared with
+    // CHANGELOG.md. It must never be duplicated as a literal in code or the project file.
     public static string Version
     {
         get
@@ -155,7 +155,8 @@ public static class DariusModEnvironment
             bool hasAboutIdentity = File.Exists(Path.Combine(about, "publishedfileid.txt")) ||
                                     File.Exists(Path.Combine(about, "description.txt"));
             bool hasProjectIdentity = File.Exists(Path.Combine(path, "DariusPrototype.dll")) ||
-                                      File.Exists(Path.Combine(path, "DariusPrototype.csproj"));
+                                      File.Exists(Path.Combine(path, "DariusPrototype.csproj")) ||
+                                      File.Exists(Path.Combine(path, "src", "DariusPrototype", "DariusPrototype.csproj"));
             return hasAboutIdentity && hasProjectIdentity;
         }
         catch { return false; }

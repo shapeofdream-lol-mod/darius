@@ -5,7 +5,8 @@
 
 | 文档 | 内容 | 类型 |
 | --- | --- | --- |
-| [assets.md](assets.md) | 资产来源、离线生成流程、构建契约与版权说明 | 参考 |
+| [assets.md](assets.md) | 资产来源、离线生成流程与版权说明 | 参考 |
+| [archive/CHANGELOG-legacy.md](archive/CHANGELOG-legacy.md) | 0.30.x 及更早的 Mod 版本历史（不再维护） | 归档 |
 | [BALANCE_PASS_2026-08-30.md](BALANCE_PASS_2026-08-30.md) | 技能成长与星座平衡调整（2026-08-30） | 设计 |
 | [PROGRESSION_PASS_2026-08-30.md](PROGRESSION_PASS_2026-08-30.md) | 角色成长曲线与星座解锁重排，含 38 个 `Se_Star_Darius_*` 注册表 | 设计 |
 | [MECHA_VFX_HOTFIX2_CHANGELOG.md](MECHA_VFX_HOTFIX2_CHANGELOG.md) | v0.30.5 机神视觉修复明细 | 版本 |

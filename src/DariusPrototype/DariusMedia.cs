@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -293,10 +293,16 @@ public static class DariusMedia
     private static void EnsurePass2PoolsLoaded()
     {
         if (_pass2PoolsLoaded) return;
-        _pass2PoolsLoaded = true;
         try
         {
-            string path = Path.Combine(Root, "assets", "raw_lol_audio", "PASS2_MEDIA_MANIFEST.json");
+            string rootPath = Root;
+            if (string.IsNullOrEmpty(rootPath))
+            {
+                DariusLog.Warn("MEDIA-PASS2", "Pass2 media manifest deferred because mod root is not resolved yet.");
+                return;
+            }
+
+            string path = Path.Combine(rootPath, "assets", "raw_lol_audio", "PASS2_MEDIA_MANIFEST.json");
             if (!File.Exists(path))
             {
                 DariusLog.Warn("MEDIA-PASS2", "Pass2 media manifest missing path=" + path);
@@ -310,10 +316,11 @@ public static class DariusMedia
                 LoadPoolSection(skinProp.Name, skin["sfx"] as JObject, Pass2SfxBySkin);
                 LoadPoolSection(skinProp.Name, skin["vo"] as JObject, Pass2VoiceBySkin);
             }
+            _pass2PoolsLoaded = true;
             DariusLog.Info("MEDIA-PASS2", "Loaded authentic Pass2 media routing skins=" + Pass2VoiceBySkin.Count +
                 " sfxSkins=" + Pass2SfxBySkin.Count + " source=Riot-Wwise-current-client");
         }
-        catch (Exception e) { DariusLog.Exception("MEDIA-PASS2", e, "Failed loading Pass2 media routing manifest"); }
+        catch (Exception e) { DariusLog.Exception("MEDIA-PASS2", e, "Failed loading Pass2 media routing manifest; a later call may retry"); }
     }
 
     private static void LoadPoolSection(string skinKey, JObject section, Dictionary<string, Dictionary<string, string[]>> destination)
@@ -445,11 +452,11 @@ public static class DariusMedia
             DariusLog.DebugInfo("VO", "No authentic cast VO event for skin=" + variant + " skill=" + normalized);
             return;
         }
-        LastVoiceAt[cooldownKey] = Time.unscaledTime;
         // Character voice has its own ModConfig channel. Skill cast VO must never inherit the
         // Q/W/E/R SFX slider merely because the line was triggered by that skill.
-        PlayVoice2D(chosen, DariusAudioChannel.Voice, volume);
-        DariusLog.DebugInfo("VO", "Random cast VO skin=" + variant + " skill=" + normalized + " clip=" + chosen + " route=dedicated-2D-local voice-channel");
+        if (!TryPlayVoice2D(owner, chosen, DariusAudioChannel.Voice, volume)) return;
+        LastVoiceAt[cooldownKey] = Time.unscaledTime;
+        DariusLog.DebugInfo("VO", "Requested cast VO skin=" + variant + " skill=" + normalized + " clip=" + chosen + " route=dedicated-2D-local voice-channel");
     }
 
     // Full character VO event routing for movement/basic attacks/kills/death/respawn/passive-max.
@@ -465,18 +472,87 @@ public static class DariusMedia
         if (LastVoiceAt.TryGetValue(cooldownKey, out last) && Time.unscaledTime - last < 0.20f) return false;
         string chosen = Pick(pools, normalized, "pass2-full-vo-" + variant);
         if (string.IsNullOrEmpty(chosen)) return false;
+        if (!TryPlayVoice2D(owner, chosen, DariusAudioChannel.Voice, volume)) return false;
         LastVoiceAt[cooldownKey] = Time.unscaledTime;
-        PlayVoice2D(chosen, DariusAudioChannel.Voice, volume);
-        DariusLog.DebugInfo("VO-FULL", "Played skin=" + variant + " event=" + normalized + " clip=" + chosen);
+        DariusLog.DebugInfo("VO-FULL", "Requested skin=" + variant + " event=" + normalized + " clip=" + chosen + " state=decode-or-play");
         return true;
     }
 
-    private static void PlayVoice2D(string key, DariusAudioChannel channel, float volume)
+    private static bool TryPlayVoice2D(Hero owner, string key, DariusAudioChannel channel, float volume)
     {
         try
         {
-            AudioClip clip = Clip(key);
-            if (clip == null) return;
+            AudioClip clip;
+            if (Clips.TryGetValue(key, out clip) && clip != null)
+            {
+                PlayVoiceClip2D(key, clip, channel, volume);
+                return true;
+            }
+
+            string path = AssetPath("audio", key + ".ogg");
+            if (owner == null || string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                DariusLog.Warn("VO-ASSET", "Voice OGG missing key=" + key + " path=" + (path ?? "<null>"));
+                return false;
+            }
+            owner.StartCoroutine(LoadVoiceOggAndPlay(owner, key, path, channel, volume));
+            return true;
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("VO-PLAY", e, "Dedicated 2D VO request failed key=" + key);
+            return false;
+        }
+    }
+
+    private static IEnumerator LoadVoiceOggAndPlay(Hero owner, string key, string path, DariusAudioChannel channel, float volume)
+    {
+        string uri;
+        try { uri = new Uri(path).AbsoluteUri; }
+        catch (Exception e)
+        {
+            DariusLog.Exception("VO-ASSET", e, "Failed to create local URI for voice OGG key=" + key);
+            yield break;
+        }
+
+        AudioClip clip = null;
+        using (UnityWebRequest req = UnityWebRequestMultimedia.GetAudioClip(uri, (UnityEngine.AudioType)14))
+        {
+            yield return req.SendWebRequest();
+            if (!string.IsNullOrEmpty(req.error))
+            {
+                DariusLog.Error("VO-ASSET", "Voice OGG decode failed key=" + key + " error=" + req.error);
+                yield break;
+            }
+            try { clip = DownloadHandlerAudioClip.GetContent(req); }
+            catch (Exception e) { DariusLog.Exception("VO-ASSET", e, "Voice OGG GetContent failed key=" + key); }
+        }
+
+        if (clip == null) yield break;
+
+        AudioClip cached;
+        if (Clips.TryGetValue(key, out cached) && cached != null)
+        {
+            UnityEngine.Object.Destroy(clip);
+            clip = cached;
+        }
+        else
+        {
+            clip.name = "DariusVoice_" + key;
+            Clips[key] = clip;
+            DariusLog.DebugInfo("VO-ASSET", "Voice OGG decoded on demand key=" + key + " length=" + clip.length.ToString("0.000") +
+                "s channels=" + clip.channels + " hz=" + clip.frequency);
+        }
+
+        // Preserve the original trigger instead of dropping the first line while its file decodes.
+        if (IsLocalOwner(owner)) PlayVoiceClip2D(key, clip, channel, volume);
+    }
+
+    private static void PlayVoiceClip2D(string key, AudioClip clip, DariusAudioChannel channel, float volume)
+    {
+        if (clip == null) return;
+        try
+        {
             float multiplier = DariusAudioSettingsRuntime.Multiplier(channel);
             float gain = Mathf.Clamp(volume, 0f, 1.5f) * Mathf.Clamp(multiplier, 0f, 2f);
             if (gain <= 0.0001f) return;
@@ -499,7 +575,7 @@ public static class DariusMedia
         }
         catch (Exception e)
         {
-            DariusLog.Exception("VO-PLAY", e, "Dedicated 2D VO failed key=" + key);
+            DariusLog.Exception("VO-PLAY", e, "Dedicated 2D VO playback failed key=" + key);
         }
     }
 

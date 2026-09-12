@@ -1,0 +1,148 @@
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="ModRootDir;PackageDir;DeployDir">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoStdLib>true</NoStdLib>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AssemblyName>DariusPrototype</AssemblyName>
+    <RootNamespace>DariusPrototype</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    Configurable machine paths. Override with -p:Name=value or a git-ignored Directory.Build.props.
+
+      GameDir       game install; falls back to the SOD_GAME_DIR environment variable
+      ModsDir       <GameDir>\Mods, holds the shared Traveler source and deployed mods
+      SharedSource  optional override for TravelerBasicAttackVfxReplication.cs
+
+    Destructive output paths are intentionally local properties and are not externally overridable:
+      ModRootDir = repository root
+      PackageDir = <repository>\build
+      DeployDir  = <ModsDir>\DariusPrototype
+  -->
+  <PropertyGroup>
+    <ModRootDir>$(MSBuildThisFileDirectory)..\..</ModRootDir>
+    <PackageDir>$(ModRootDir)\build</PackageDir>
+
+    <GameDir Condition="'$(GameDir)' == '' and '$(SOD_GAME_DIR)' != ''">$(SOD_GAME_DIR)</GameDir>
+    <ModsDir Condition="'$(ModsDir)' == '' and '$(GameDir)' != ''">$(GameDir)\Mods</ModsDir>
+    <GameManagedDir Condition="'$(GameManagedDir)' == '' and '$(GameDir)' != ''">$(GameDir)\Shape of Dreams_Data\Managed</GameManagedDir>
+    <SharedSource Condition="'$(SharedSource)' == '' and '$(ModsDir)' != ''">$(ModsDir)\TravelerBasicAttackVfxReplication.cs</SharedSource>
+    <DeployDir Condition="'$(ModsDir)' != ''">$(ModsDir)\DariusPrototype</DeployDir>
+
+    <!-- Normalize destructive target paths once so PackageMod/DeployMod can validate before RemoveDir. -->
+    <ModRootFull>$([System.IO.Path]::GetFullPath('$(ModRootDir)'))</ModRootFull>
+    <SourceDirFull>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)'))</SourceDirFull>
+    <PackageDirFull>$([System.IO.Path]::GetFullPath('$(PackageDir)'))</PackageDirFull>
+    <DeployDirFull Condition="'$(DeployDir)' != ''">$([System.IO.Path]::GetFullPath('$(DeployDir)'))</DeployDirFull>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(SharedSource)" Link="TravelerBasicAttackVfxReplication.cs" Condition="'$(SharedSource)' != '' and Exists('$(SharedSource)')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="mscorlib"><HintPath>$(GameManagedDir)\mscorlib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="netstandard"><HintPath>$(GameManagedDir)\netstandard.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="System"><HintPath>$(GameManagedDir)\System.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="System.Core"><HintPath>$(GameManagedDir)\System.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(GameManagedDir)\0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameManagedDir)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Dew.Core"><HintPath>$(GameManagedDir)\Dew.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Dew.Contents"><HintPath>$(GameManagedDir)\Dew.Contents.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Dew.External"><HintPath>$(GameManagedDir)\Dew.External.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Dew.UI"><HintPath>$(GameManagedDir)\Dew.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Mirror"><HintPath>$(GameManagedDir)\Mirror.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(GameManagedDir)\Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Sirenix.Serialization"><HintPath>$(GameManagedDir)\Sirenix.Serialization.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManagedDir)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(GameManagedDir)\UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(GameManagedDir)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule"><HintPath>$(GameManagedDir)\UnityEngine.ParticleSystemModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameManagedDir)\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(GameManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(GameManagedDir)\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(GameManagedDir)\UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule"><HintPath>$(GameManagedDir)\UnityEngine.UnityWebRequestModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule"><HintPath>$(GameManagedDir)\UnityEngine.UnityWebRequestAudioModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(GameManagedDir)\UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <!-- Boundary checks: the two absences that otherwise produce confusing compile errors. -->
+  <Target Name="CheckGameInstall" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(GameManagedDir)' == '' or !Exists('$(GameManagedDir)\Assembly-CSharp.dll')"
+           Text="Game assemblies not found. Set GameDir: dotnet build -p:GameDir=&quot;...\Shape of Dreams&quot;, the SOD_GAME_DIR environment variable, or a git-ignored Directory.Build.props." />
+    <Error Condition="'$(SharedSource)' == '' or !Exists('$(SharedSource)')"
+           Text="Shared mod source not found. Set GameDir/ModsDir or override SharedSource; it ships with the base Traveler mod package." />
+  </Target>
+
+  <!-- Deployable package contents. Extraction sources stay out; only the Pass2 routing manifest is retained. -->
+  <ItemGroup>
+    <_PackageFile Include="$(ModRootDir)\about\**\*" Dest="about\%(RecursiveDir)%(Filename)%(Extension)" />
+    <_PackageFile Include="$(ModRootDir)\assets\audio\**\*"
+                  Exclude="$(ModRootDir)\assets\audio\vo_*.wav;$(ModRootDir)\assets\audio\**\vo_*.wav"
+                  Dest="assets\audio\%(RecursiveDir)%(Filename)%(Extension)" />
+    <_PackageFile Include="$(ModRootDir)\assets\animations\**\*" Dest="assets\animations\%(RecursiveDir)%(Filename)%(Extension)" />
+    <_PackageFile Include="$(ModRootDir)\assets\icons\**\*" Dest="assets\icons\%(RecursiveDir)%(Filename)%(Extension)" />
+    <_PackageFile Include="$(ModRootDir)\assets\lol_vfx\**\*" Dest="assets\lol_vfx\%(RecursiveDir)%(Filename)%(Extension)" />
+    <_PackageFile Include="$(ModRootDir)\assets\models\**\*" Dest="assets\models\%(RecursiveDir)%(Filename)%(Extension)" />
+    <_PackageFile Include="$(ModRootDir)\assets\retarget\**\*" Dest="assets\retarget\%(RecursiveDir)%(Filename)%(Extension)" />
+    <_PackageFile Include="$(ModRootDir)\assets\vfx\**\*" Dest="assets\vfx\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Runtime reads the Pass2 Wwise key manifest from here; the .wem sources stay out. -->
+    <_PackageFile Include="$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json" Dest="assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json" />
+  </ItemGroup>
+
+  <Target Name="CheckPackageConfiguration">
+    <Error Condition="'$(Configuration)' != 'Release'"
+           Text="PackageMod only creates publishable Release packages. Re-run with -c Release." />
+  </Target>
+
+  <!-- Voice is a package/runtime format contract, not a count check: only OGG is supported. -->
+  <Target Name="VerifyVoiceAssets">
+    <ItemGroup>
+      <_VoiceOgg Include="$(ModRootDir)\assets\audio\vo_*.ogg" />
+      <_LegacyVoiceWav Include="$(ModRootDir)\assets\audio\vo_*.wav;$(ModRootDir)\assets\audio\**\vo_*.wav" />
+    </ItemGroup>
+    <Error Condition="'@(_VoiceOgg)' == ''"
+           Text="Voice OGG assets are missing. Prepare assets/audio/vo_*.ogg before packaging." />
+    <Error Condition="'@(_LegacyVoiceWav)' != ''"
+           Text="Legacy voice WAV assets are not supported. Remove assets/audio/vo_*.wav; the voice runtime/package contract is OGG-only." />
+  </Target>
+
+  <!-- Existence/format boundary checks only; no asset counts. See docs/assets.md for the asset pipeline. -->
+  <Target Name="VerifyPackageAssets" DependsOnTargets="VerifyVoiceAssets">
+    <Error Condition="!Exists('$(ModRootDir)\about\metadata.json')" Text="about/metadata.json is missing; the loader requires it in the package." />
+    <Error Condition="!Exists('$(ModRootDir)\assets\models\darius.glb')" Text="assets/models is missing. Prepare the asset pack first; see docs/assets.md." />
+    <Error Condition="!Exists('$(ModRootDir)\assets\lol_vfx\darius_lol_vfx.json')" Text="assets/lol_vfx/darius_lol_vfx.json is missing. See docs/assets.md." />
+    <Error Condition="!Exists('$(ModRootDir)\assets\audio\flash.ogg')" Text="assets/audio is missing. See docs/assets.md." />
+    <Error Condition="!Exists('$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json')" Text="assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json is missing; the runtime needs it to route Pass2 audio." />
+  </Target>
+
+  <!-- Package flow: validate Release -> validate assets -> compile -> replace build/ with a clean snapshot. -->
+  <Target Name="PackageMod" DependsOnTargets="CheckPackageConfiguration;VerifyPackageAssets;Build">
+    <Error Condition="'$(PackageDirFull)' == '' or '$(PackageDirFull)' == '$(ModRootFull)' or '$(PackageDirFull)' == '$(SourceDirFull)'"
+           Text="Unsafe PackageDir resolved from the project. PackageMod may only clean the repository build/ directory." />
+    <RemoveDir Directories="$(PackageDir)" Condition="Exists('$(PackageDir)')" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PackageDir)" />
+    <Copy SourceFiles="$(TargetDir)$(AssemblyName).pdb" DestinationFolder="$(PackageDir)" Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
+    <Copy SourceFiles="@(_PackageFile)" DestinationFiles="@(_PackageFile->'$(PackageDir)\%(Dest)')" />
+    <Message Text="Mod package ready: $(PackageDir)  — clean independent Release snapshot; publish this folder, not the repository." Importance="high" />
+  </Target>
+
+  <!-- dotnet build -c Release -t:DeployMod -> replace the installed mod with the package snapshot -->
+  <Target Name="DeployMod" DependsOnTargets="PackageMod">
+    <Error Condition="'$(DeployDirFull)' == ''" Text="DeployDir is empty. Set GameDir (or ModsDir) before deploying." />
+    <Error Condition="'$(DeployDirFull)' == '$(ModRootFull)' or '$(DeployDirFull)' == '$(SourceDirFull)' or '$(DeployDirFull)' == '$(PackageDirFull)'"
+           Text="Refusing to clean an unsafe deploy path. DeployDir must resolve to Mods\DariusPrototype outside the source/build directories." />
+    <RemoveDir Directories="$(DeployDir)" Condition="Exists('$(DeployDir)')" />
+    <ItemGroup>
+      <_PackageOutput Include="$(PackageDir)\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PackageOutput)" DestinationFiles="@(_PackageOutput->'$(DeployDir)\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Message Text="Deployed clean mod snapshot -&gt; $(DeployDir)" Importance="high" />
+  </Target>
+
+</Project>

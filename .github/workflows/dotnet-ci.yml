@@ -1,0 +1,50 @@
+name: .NET CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dotnet-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Repository contracts
+    runs-on: windows-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check repository contracts
+        shell: pwsh
+        run: |
+          $meta = Get-Content about/metadata.json -Raw | ConvertFrom-Json
+          foreach ($name in 'id', 'name', 'author', 'modVer') {
+            if ([string]::IsNullOrWhiteSpace($meta.$name)) { throw "metadata.$name is required" }
+          }
+          if ($meta.assemblies -notcontains 'DariusPrototype.dll') { throw 'metadata assemblies must contain DariusPrototype.dll' }
+          if (-not (Select-String -Path CHANGELOG.md -SimpleMatch -Pattern "## [$($meta.modVer)]" -Quiet)) { throw "CHANGELOG has no section for $($meta.modVer)" }
+
+          $workshopId = (Get-Content about/publishedfileid.txt -Raw).Trim()
+          if ($workshopId -notmatch '^\d+$') { throw 'publishedfileid.txt must contain only digits' }
+          if ((Get-Item about/description.txt).Length -gt 8000) { throw 'about/description.txt exceeds 8000 bytes' }
+
+          $bad = @(git ls-files | Where-Object { $_ -match '\.(dll|exe|pdb|glb|ogg|wav|wem|tex|skn|png|jpe?g|bmp|ico|zip|7z|rar|assetbundle)$' })
+          if ($bad.Count) { throw "Tracked binary assets/build products:`n$($bad -join "`n")" }
+
+      - name: Check package configuration
+        shell: pwsh
+        run: |
+          dotnet msbuild src/DariusPrototype/DariusPrototype.csproj -t:CheckPackageConfiguration -p:Configuration=Release -nologo -verbosity:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          dotnet msbuild src/DariusPrototype/DariusPrototype.csproj -t:CheckPackageConfiguration -p:Configuration=Debug -nologo -verbosity:quiet *> $null
+          if ($LASTEXITCODE -eq 0) { throw 'CheckPackageConfiguration must reject non-Release packaging' }
+          exit 0
