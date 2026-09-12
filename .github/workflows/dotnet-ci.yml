@@ -47,3 +47,4 @@ jobs:
 
           dotnet msbuild src/DariusPrototype/DariusPrototype.csproj -t:CheckPackageConfiguration -p:Configuration=Debug -nologo -verbosity:quiet *> $null
           if ($LASTEXITCODE -eq 0) { throw 'CheckPackageConfiguration must reject non-Release packaging' }
+          exit 0
