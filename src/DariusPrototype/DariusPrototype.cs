@@ -17,19 +17,15 @@ public sealed class DariusPrototypeMod : ModBehaviour
     public override void OnConfigChanged()
     {
         DariusAudioSettingsRuntime.Bind(skillAudioVolume);
-        DariusLog.Info("AUDIO-CONFIG", "Applied q=" + skillAudioVolume.qVolume.ToString("0.##") +
-            " w=" + skillAudioVolume.wVolume.ToString("0.##") +
-            " e=" + skillAudioVolume.eVolume.ToString("0.##") +
-            " r=" + skillAudioVolume.rVolume.ToString("0.##") +
-            " basic=" + skillAudioVolume.basicAttackVolume.ToString("0.##") +
-            " dodge=" + skillAudioVolume.dodgeVolume.ToString("0.##") +
-            " voice=" + skillAudioVolume.voiceVolume.ToString("0.##"));
+        Debug.Log("[DariusAudio] config applied q=" + skillAudioVolume.qVolume.ToString("0.##") + " w=" + skillAudioVolume.wVolume.ToString("0.##") + " e=" + skillAudioVolume.eVolume.ToString("0.##") + " r=" + skillAudioVolume.rVolume.ToString("0.##") + " basic=" + skillAudioVolume.basicAttackVolume.ToString("0.##") + " dodge=" + skillAudioVolume.dodgeVolume.ToString("0.##") + " voice=" + skillAudioVolume.voiceVolume.ToString("0.##"));
     }
 
     private static bool _bootstrapped;
     private static bool _applicationQuitting;
     private static bool _shutdownCompleted;
     private DariusDiagnostics _diagnostics;
+
+    private void LateUpdate() { DariusAudioSettingsRuntime.Bind(skillAudioVolume); }
 
     private void Awake()
     {
@@ -138,11 +134,14 @@ public sealed class DariusPrototypeMod : ModBehaviour
             DariusLog.Exception("TRAVELER-EARLY", e, "Synchronous Workshop Hero/Skin bootstrap failed; coroutine fallback remains active");
         }
 
-        // Skill SFX/textures are now entirely lazy-loaded by DariusMedia and cached on first use.
-        // Avoid decoding dozens of skin sounds synchronously while the game is entering a run. Flash
-        // is a compressed OGG-only asset, so keep its existing non-blocking UnityWebRequest preload.
-        try { StartCoroutine(DariusMedia.PreloadCompressedAudio()); }
-        catch (Exception e) { DariusLog.Exception("MEDIA", e, "Compressed-audio preload failed"); }
+        // Media loading comes after ModItem.path has been resolved and after the resource lookup guard
+        // is installed. This prevents numeric Workshop folders from falling back to local Mods paths.
+        try
+        {
+            DariusMedia.PreloadAll();
+            StartCoroutine(DariusMedia.PreloadCompressedAudio());
+        }
+        catch (Exception e) { DariusLog.Exception("MEDIA", e, "PreloadAll/compressed-audio preload failed"); }
 
         // Always start the critical registration coroutine even when an optional Harmony/UI patch
         // failed. This is the authoritative path that creates Hero_Darius/Skin_Darius_Default.
@@ -184,7 +183,6 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusLog.Info("BOOT", "Cleaning Darius runtime resources: " + reason);
         DariusTravelerRegistry.UnregisterRuntimeOnly();
         DariusFormalRegistry.Unregister();
-        try { DariusNativeModelAssets.Unload(); } catch (Exception e) { DariusLog.Exception("NATIVE-MODEL", e, "AssetBundle unload failed during " + reason); }
         try { harmony.UnpatchAll(harmony.Id); } catch { }
         _bootstrapped = false;
         DariusLog.Flush();
