@@ -25,6 +25,30 @@ public sealed class At_DariusAxe : AttackTrigger
         return AttackRange;
     }
 
+    public static void EnableNativeRangeScaling(MeleeAttackInstance instance)
+    {
+        if (instance == null) return;
+        try
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            for (Type type = instance.GetType(); type != null; type = type.BaseType)
+            {
+                FieldInfo field = type.GetField("scaleRangeWithTriggerRange", flags) ?? type.GetField("<scaleRangeWithTriggerRange>k__BackingField", flags);
+                if (field != null && field.FieldType == typeof(bool) && !field.IsInitOnly)
+                {
+                    field.SetValue(instance, true);
+                    return;
+                }
+            }
+            PropertyInfo property = instance.GetType().GetProperty("scaleRangeWithTriggerRange", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (property != null && property.CanWrite && property.PropertyType == typeof(bool)) property.SetValue(instance, true, null);
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("ATK-RANGE", e, "Could not enable MeleeAttackInstance trigger-range scaling");
+        }
+    }
+
     public override void OnCastStart(int configIndex, CastInfo info)
     {
         Hero hero = null;
@@ -130,6 +154,7 @@ public sealed class Ai_DariusAxe : MeleeAttackInstance
 {
     protected override void OnCreate()
     {
+        At_DariusAxe.EnableNativeRangeScaling(this);
         base.OnCreate();
         DariusDirectionalBasicAttackGeometry.AnchorNativeMeleeInstance(this, info, false);
     }
@@ -139,6 +164,7 @@ public sealed class Ai_DariusAxe_Crit : MeleeAttackInstance
 {
     protected override void OnCreate()
     {
+        At_DariusAxe.EnableNativeRangeScaling(this);
         base.OnCreate();
         DariusDirectionalBasicAttackGeometry.AnchorNativeMeleeInstance(this, info, true);
     }
