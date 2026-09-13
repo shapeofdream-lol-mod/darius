@@ -1,6 +1,6 @@
 param(
     [string]$GameDir = $env:SOD_GAME_DIR,
-    [string]$Version = '0.1.0',
+    [string]$Version = '',
     [string]$OutputDir = ''
 )
 
@@ -24,6 +24,17 @@ if (-not (Test-Path $managedDir)) {
 }
 
 [xml]$project = Get-Content $projectPath -Raw
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $Version = @(
+        $project.Project.PropertyGroup |
+            ForEach-Object { [string]$_.SodReferencePackVersion } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    ) | Select-Object -First 1
+}
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    throw 'SodReferencePackVersion is missing from DariusPrototype.csproj.'
+}
+
 $referenceNames = @(
     $project.Project.ItemGroup.Reference |
         ForEach-Object { [string]$_.Include } |
