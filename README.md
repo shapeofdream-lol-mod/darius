@@ -31,7 +31,7 @@
 | --- | --- |
 | 游戏 | Steam 版 Shape of Dreams，Mod 目录位于 `<游戏目录>\Mods\` |
 | 构建工具 | .NET SDK **8.0+**（`dotnet build`，MSBuild） |
-| CI | GitHub Actions `windows-latest`；只验证公共 runner 真实拥有的仓库/构建契约 |
+| CI | GitHub Actions `windows-latest`；使用 GitHub Packages 中由真实游戏程序集生成的 metadata-only reference pack 编译主 DLL |
 | 可选 | 任意 C# IDE；Python 3（仅在重新生成 Riot VFX 载荷时需要） |
 | 资产 | **本仓库不含任何二进制资产**，见 [docs/assets.md](docs/assets.md) |
 
@@ -41,18 +41,19 @@
 
 ```text
 <Steam>\steamapps\common\Shape of Dreams\
-├── Shape of Dreams_Data\Managed\              # 编译引用（mscorlib / Assembly-CSharp / Dew.* / UnityEngine.*）
+├── Shape of Dreams_Data\Managed\   # 本地真实游戏程序集引用
 └── Mods\
-    ├── TravelerBasicAttackVfxReplication.cs   # 跨 Mod 共享源码（见 3.4）
-    └── DariusPrototype\                        # 安装位置（由 DeployMod 写入，不是仓库）
+    └── DariusPrototype\             # 安装位置（由 DeployMod 写入，不是仓库）
 ```
+
+`TravelerBasicAttackVfxReplication` 已内置在 `src/DariusPrototype/TravelerBasicAttackVfxReplication.cs`，构建不再依赖 `Mods\` 下的仓库外共享源码。
 
 仓库可以放在任何地方，与游戏目录解耦。`DeployMod` 会拒绝把部署目标设为仓库本身，以免清理安装目录时误删源码。
 
 ### 3.2 构建与打包
 
 ```powershell
-# 只编译（需要游戏程序集）
+# 本地真实游戏程序集编译
 dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release
 
 # 组装可发布包 -> build/
@@ -87,43 +88,45 @@ dotnet build -p:GameDir="D:\Steam\steamapps\common\Shape of Dreams"
 $env:SOD_GAME_DIR = 'D:\Steam\steamapps\common\Shape of Dreams'
 ```
 
-解析不到时 `CheckGameInstall` 直接报错。`ModsDir` 默认取 `<GameDir>\Mods`，可用 `-p:ModsDir=` 覆盖。
+解析不到时，本地真实游戏构建的 `CheckGameInstall` 会直接报错。`ModsDir` 默认取 `<GameDir>\Mods`，可用 `-p:ModsDir=` 覆盖。
 
-### 3.4 构建前置：外部共享源码
+### 3.4 CI reference pack
 
-csproj 从 `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs` 链接引用一个仓库**之外**的文件：
+CI 不提交游戏 DLL，也不手写 Unity/Dew stub。`tools/SodReferencePack/New-SodReferencePack.ps1` 使用 Refasmer 从本机合法安装的 `Shape of Dreams_Data\Managed` 生成 metadata-only 编译引用，并打包为 `ShapeOfDreams.ReferenceAssemblies`。
 
-```xml
-<Compile Include="$(SharedSource)" Link="TravelerBasicAttackVfxReplication.cs" Condition="Exists('$(SharedSource)')" />
+主项目通过以下模式切换到 reference pack：
+
+```powershell
+dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -p:UseSodReferencePack=true
 ```
 
-代码依赖其 `TravelerBasicAttackVfxReplication.Initialize()` 与 `.Broadcast(...)` API。
-
-> 该文件**不在本仓库内**。缺失时 `CheckGameInstall` 会直接报错。把它放回 `Mods\` 目录后再构建。
+reference pack 只用于**编译/API 契约验证**；本地普通 `dotnet build` 仍直接引用实际游戏 `Managed` DLL。reference pack 版本由 `DariusPrototype.csproj` 的 `SodReferencePackVersion` 统一指定。
 
 ### 3.5 云端 CI
 
-PR、`main` push 和手动 `workflow_dispatch` 会运行 `.github/workflows/dotnet-ci.yml`。CI 只做公共 runner 当前真实具备输入的检查：
+PR、`main` push 和手动 `workflow_dispatch` 会运行 `.github/workflows/dotnet-ci.yml`。当前 CI 会：
 
 - 解析 `about/metadata.json`，检查必需字段、`DariusPrototype.dll` assembly entry 与当前 CHANGELOG 版本；
 - 检查 Workshop ID 仅含数字、Workshop 描述不超过 8000 bytes；
 - 拒绝被 Git 跟踪的二进制资产与构建产物；
-- 直接执行主 csproj 的 `CheckPackageConfiguration`，确认 Release 通过、Debug 被拒绝。
+- 解析 reference-pack 生成脚本，防止 PowerShell 语法回归；
+- 执行主 csproj 的 `CheckPackageConfiguration`，确认 Release 通过、Debug 被拒绝；
+- 使用 GitHub Packages 中的 `ShapeOfDreams.ReferenceAssemblies` 执行真正的 `dotnet build -c Release -p:UseSodReferencePack=true`。
 
-**CI 不伪造 Shape of Dreams API，也不保留没有输入就只能 `SKIP` 的资产/GLB/package 检查。** `DariusPrototype.dll` 的权威编译仍需要真实 `Shape of Dreams_Data\Managed/*.dll`、外部共享源码和本地资产。以后如果合规地向 runner 提供这些真实输入，再直接把真实 Build/Package 接进 CI。
+因此，**当前 HEAD 的 CI 绿色即可视为主 DLL 编译 gate 已完成**，不需要再重复一次本地编译。CI 仍不能证明 Unity/Harmony/Mirror 的实际运行时行为，也不能验证未入库资产的 `PackageMod`；合并/发布前仍应按改动风险做必要的游戏内 smoke test。
 
 ## 4. 仓库结构
 
 ```text
 .
-├── .github/workflows/dotnet-ci.yml # GitHub Actions 云端仓库验证
+├── .github/workflows/dotnet-ci.yml # GitHub Actions：仓库契约 + reference-pack Release build
 ├── src/DariusPrototype/            # 全部 C# 源码 + DariusPrototype.csproj
 │   └── UniversalAnimation/         # 通用动画重定向运行时
-├── tools/                          # 离线资产转换（Python）
+├── tools/                          # 离线资产转换 + SOD reference-pack 生成工具
 ├── about/                          # Mod 加载器元数据与 Workshop 清单
 ├── assets/                         # 二进制资产（不纳入版本控制，见 docs/assets.md）
 ├── docs/                           # 设计、验证与测试文档
-├── build/                          # 可发布包（gitignore，由 PackageMod 生成）
+├── build/                          # 可发布包/本地 reference-pack 输出（gitignore）
 ├── CHANGELOG.md                    # 版本历史
 └── AGENTS.md                       # AI 编码代理工作手册
 ```
@@ -145,18 +148,16 @@ PR、`main` push 和手动 `workflow_dispatch` 会运行 `.github/workflows/dotn
 | [docs/MECHA_VFX_HOTFIX3_CHANGELOG.md](docs/MECHA_VFX_HOTFIX3_CHANGELOG.md) | v0.30.6 机神视觉修复明细 |
 | [docs/MECHA_VFX_HOTFIX3_TEST_CHECKLIST.md](docs/MECHA_VFX_HOTFIX3_TEST_CHECKLIST.md) | v0.30.6 游戏内验证清单 |
 
-## 6. 版本与已知问题
+## 6. 版本与已知边界
 
-- **版本号单一真源**：只维护 `about/metadata.json` 的 `modVer`。运行时（`DariusModEnvironment.Version`）从它读取；README 不再复制“当前版本”字面量。
-- **构建就是 `dotnet build`**：没有 `.bat` / `.ps1` 构建或校验脚本，游戏路径通过 `GameDir` 属性注入（见 3.3）。
-- **云端 CI 保持最小**：只验证当前公共 runner 可真实执行的 metadata / Workshop / tracked-binary / package-configuration 契约，不维护 dormant validator。
+- **版本号单一真源**：只维护 `about/metadata.json` 的 `modVer`。运行时（`DariusModEnvironment.Version`）从它读取；README 不复制“当前版本”字面量。
+- **默认本地构建就是 `dotnet build`**：游戏路径通过 `GameDir` 属性注入；reference-pack 脚本仅用于生成 CI 编译引用，不替代主构建流程。
+- **云端 CI 编译主 DLL**：使用由真实游戏 DLL 生成的 metadata-only reference pack，避免提交游戏程序集或维护手写 stub。
 - **Package preflight**：`PackageMod` 先确认 Release 配置，再检查 voice OGG-only 契约与必需资产，随后编译并生成 snapshot。
 - **发布只发 `build/`**：`PackageMod` 会先清理 `build/` 再生成完整 snapshot；raw 提取资产不进包，`PASS2_MEDIA_MANIFEST.json` 是运行时所需的唯一例外。
 - **语音 OGG-only**：运行时只从 `vo_*.ogg` 加载语音；打包发现 `vo_*.wav` 会失败，且 package 规则不会复制它；启动阶段不做语音预加载。
 - **部署是完整替换**：`DeployMod` 先清理 `<GameDir>\Mods\DariusPrototype`，再复制 package，因此旧版本已删除的音频、贴图或 manifest 不会残留并覆盖新资源。
-- **发布体积约 95 MB**：411 条语音约 8 MB；运行时按需异步解码并只缓存实际触发过的语音，不在启动时批量解码。当前最大静态项是模型 49.8 MB。
-- **没有单元测试框架**：CI 不代替真实游戏程序集编译或游戏内玩法测试。
-- **无法在普通公共 runner 完整构建主 Mod**：编译需要游戏自带的 `Shape of Dreams_Data\Managed\*.dll`、3.4 节外部共享源码和未入库资产；项目不会提交或伪造这些依赖来制造假绿色构建。
+- **没有单元测试框架**：reference-pack CI 覆盖编译/API 契约，不替代游戏内行为验证。
 - **资产未入库**：克隆后必须自行准备资产包才能打包或运行，见 [docs/assets.md](docs/assets.md)。
 
 ## 7. 资产与版权
