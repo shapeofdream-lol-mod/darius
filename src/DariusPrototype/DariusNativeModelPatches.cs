@@ -12,3 +12,16 @@ internal static class DariusNativeModelActivationPatch
         return !DariusNativeModelAssets.TryActivate(__instance);
     }
 }
+
+// Keep AssetBundle lifetime owned by the native-model feature rather than DariusPrototypeMod. This
+// avoids overlapping the lifecycle-audit branch while still releasing bundle state during the
+// registry's established runtime teardown transaction.
+[HarmonyPatch(typeof(DariusTravelerRegistry), nameof(DariusTravelerRegistry.UnregisterRuntimeOnly))]
+internal static class DariusNativeModelUnloadPatch
+{
+    [HarmonyPostfix]
+    private static void Postfix()
+    {
+        DariusNativeModelAssets.Unload();
+    }
+}
