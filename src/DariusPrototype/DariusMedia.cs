@@ -571,7 +571,7 @@ public static class DariusMedia
             UnityEngine.Object.Destroy(go, clip.length + 0.35f);
             DariusLog.Info("VO-PLAY", "Started dedicated 2D VO key=" + key + " channel=" + channel +
                 " clipLength=" + clip.length.ToString("0.000") + " gain=" + gain.ToString("0.##") +
-                " listenerCount=" + UnityEngine.Object.FindObjectsOfType<AudioListener>().Length);
+                " listenerCount=" + UnityEngine.Object.FindObjectsByType<AudioListener>(FindObjectsSortMode.None).Length);
         }
         catch (Exception e)
         {

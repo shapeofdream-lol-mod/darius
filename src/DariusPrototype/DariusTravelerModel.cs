@@ -32,7 +32,6 @@ public sealed class DariusTravelerModelInstance : MonoBehaviour
     private const float NativeModelScale = 0.00921f;
     private const float NativeModelYOffset = 0.04f;
     private const float FastRunThreshold = 6.0f;
-    private const float HomeguardThreshold = 7.6f;
 
     private DariusGlbRuntimeModel _model;
     private DariusSkinModelBinding _binding;
@@ -50,7 +49,6 @@ public sealed class DariusTravelerModelInstance : MonoBehaviour
     private bool _wSwingSequence;
     private bool _deathLatched;
     private bool _godKing;
-    private bool _homeguard;
     private bool _wIdleInAlt;
     private bool _wDeactivateAlt;
     private Coroutine _animationSequence;
@@ -290,7 +288,6 @@ public sealed class DariusTravelerModelInstance : MonoBehaviour
 
         _wasMoving = _isMoving;
         _isMoving = SampleMovement();
-        _homeguard = false;
         UpdateActionLocomotionLayer();
         if (_model.isPlayingFullBodyOneShot || _animationSequence != null) return;
 

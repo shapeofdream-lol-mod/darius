@@ -37,6 +37,21 @@ public static class TravelerBasicAttackVfxReplication
         }
     }
 
+    public static void Shutdown()
+    {
+        // Hot reload destroys the old dynamic assembly. Remove every Mirror-global delegate that can
+        // otherwise keep that assembly reachable between UnloadAll and the replacement mod instance.
+        try { NetworkClient.UnregisterHandler<TravelerBasicAttackVfxMessage>(); }
+        catch (Exception e) { DariusLog.DebugInfo("ATK-NET", "Client VFX handler unregister skipped: " + e.GetType().Name); }
+        try { NetworkServer.UnregisterHandler<TravelerBasicAttackVfxMessage>(); }
+        catch (Exception e) { DariusLog.DebugInfo("ATK-NET", "Server VFX handler unregister skipped: " + e.GetType().Name); }
+
+        try { Writer<TravelerBasicAttackVfxMessage>.write = null; }
+        catch (Exception e) { DariusLog.DebugInfo("ATK-NET", "VFX writer reset skipped: " + e.GetType().Name); }
+        try { Reader<TravelerBasicAttackVfxMessage>.read = null; }
+        catch (Exception e) { DariusLog.DebugInfo("ATK-NET", "VFX reader reset skipped: " + e.GetType().Name); }
+    }
+
     public static void Broadcast(NetworkIdentity identity, byte phase, byte variant, bool critical, Vector3 position, Vector3 direction)
     {
         if (identity == null || identity.netId == 0 || phase > 1 || variant > 1) return;

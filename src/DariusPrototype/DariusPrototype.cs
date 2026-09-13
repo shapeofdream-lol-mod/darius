@@ -35,10 +35,18 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusModEnvironment.Configure(this);
         DariusAudioSettingsRuntime.Bind(skillAudioVolume);
         DariusLog.Initialize();
+
+        bool migrationGuardReady = false;
+        try { migrationGuardReady = DariusConstellationMigrationGuard.Install(harmony); }
+        catch (Exception e) { DariusLog.Exception("CONSTELLATION-MIGRATE", e, "Early migration guard install failed; deferring synchronous core bootstrap to Start"); }
+
         TravelerBasicAttackVfxReplication.Initialize();
         try
         {
-            if (DewResources.database != null && !string.IsNullOrEmpty(DariusModEnvironment.Root))
+            // RepairDariusConstellationLoadout can run during this synchronous bootstrap. If Harmony
+            // is not ready in Awake, defer one frame rather than running profile migrations without
+            // the transaction guard; Start installs the guard before its own bootstrap attempt.
+            if (migrationGuardReady && DewResources.database != null && !string.IsNullOrEmpty(DariusModEnvironment.Root))
                 DariusTravelerRegistry.EnsureCoreRegisteredForLookup("Mod Awake synchronous Workshop bootstrap");
         }
         catch (Exception e)
@@ -55,6 +63,8 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusModEnvironment.Configure(this);
         DariusAudioSettingsRuntime.Bind(skillAudioVolume);
         DariusLog.Initialize();
+        try { DariusConstellationMigrationGuard.Install(harmony); }
+        catch (Exception e) { DariusLog.Exception("CONSTELLATION-MIGRATE", e, "Migration guard install failed during Start"); }
         DariusLog.Info("BOOT", "DariusPrototype version=" + DariusModEnvironment.Version + "; Start() entered. bootstrapped=" + _bootstrapped +
             " modRoot=" + (DariusModEnvironment.Root ?? "<null>") + " source=" + DariusModEnvironment.SourceLabel);
         _diagnostics = gameObject.GetComponent<DariusDiagnostics>();
@@ -181,6 +191,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         if (_shutdownCompleted) return;
         _shutdownCompleted = true;
         DariusLog.Info("BOOT", "Cleaning Darius runtime resources: " + reason);
+        TravelerBasicAttackVfxReplication.Shutdown();
         DariusTravelerRegistry.UnregisterRuntimeOnly();
         DariusFormalRegistry.Unregister();
         try { harmony.UnpatchAll(harmony.Id); } catch { }

@@ -140,35 +140,91 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
         }
         catch { yield break; }
 
+        DewProfile profile = null;
+        List<HeroLoadoutData> pages = null;
+        bool hasPages = false;
+        Exception setupError = null;
         try
         {
-            DewProfile profile = DewSave.profileMain;
-            if (profile == null || profile.heroLoadouts == null) yield break;
-            List<HeroLoadoutData> pages;
-            if (!profile.heroLoadouts.TryGetValue(DariusTravelerRegistry.HeroName, out pages) || pages == null || pages.Count == 0) yield break;
+            profile = DewSave.profileMain;
+            if (profile != null && profile.heroLoadouts != null)
+                hasPages = profile.heroLoadouts.TryGetValue(DariusTravelerRegistry.HeroName, out pages) && pages != null && pages.Count > 0;
+        }
+        catch (Exception e) { setupError = e; }
 
-            int page = 0;
-            try
+        if (setupError != null)
+        {
+            DariusLog.Exception("STAR-RECONCILE", setupError, "Could not read Hero_Darius saved loadout pages");
+            yield break;
+        }
+        if (!hasPages) yield break;
+
+        // Stale deactivation is destructive, unlike the old additive-only fallback. Never infer
+        // page 0 when GameSettings is not ready. Require two consecutive identical, in-range
+        // selected-page reads so a transient lobby/scene value cannot disable the native
+        // StarEffect state that the game has already built for the actual page.
+        int page = -1;
+        int lastCandidate = -1;
+        int stableReads = 0;
+        for (int attempt = 0; attempt < 4; attempt++)
+        {
+            int candidate;
+            if (TryResolveSelectedLoadoutPage(pages, out candidate))
             {
-                var settings = NetworkedManagerBase<GameSettingsManager>.instance != null
-                    ? NetworkedManagerBase<GameSettingsManager>.instance.GetLocalPreferredGameSettings() : null;
-                if (settings != null && settings.heroSelectedLoadoutIndex != null)
+                if (candidate == lastCandidate) stableReads++;
+                else
                 {
-                    int selected;
-                    if (settings.heroSelectedLoadoutIndex.TryGetValue(DariusTravelerRegistry.HeroName, out selected))
-                        page = Mathf.Clamp(selected, 0, pages.Count - 1);
+                    lastCandidate = candidate;
+                    stableReads = 1;
+                }
+                if (stableReads >= 2)
+                {
+                    page = candidate;
+                    break;
                 }
             }
-            catch { page = 0; }
+            else
+            {
+                lastCandidate = -1;
+                stableReads = 0;
+            }
 
-            HeroLoadoutData loadout = pages[Mathf.Clamp(page, 0, pages.Count - 1)];
-            if (loadout == null) yield break;
-            int applied = 0;
-            applied += ApplySavedStars(loadout.cDestruction);
-            applied += ApplySavedStars(loadout.cLife);
-            applied += ApplySavedStars(loadout.cImagination);
-            applied += ApplySavedStars(loadout.cFlexible);
-            DariusLog.Info("STAR-RECONCILE", "Reconciled selected Hero_Darius loadout page=" + page + " activeDariusStars=" + applied);
+            if (attempt < 3) yield return new WaitForSecondsRealtime(0.10f);
+        }
+
+        if (page < 0)
+        {
+            DariusLog.DebugInfo("STAR-RECONCILE", "Selected Hero_Darius loadout page was not stable/available; skipped destructive fallback and kept native StarEffect state authoritative.");
+            yield break;
+        }
+
+        HeroLoadoutData loadout = null;
+        Exception loadoutError = null;
+        try { loadout = pages[page]; }
+        catch (Exception e) { loadoutError = e; }
+        if (loadoutError != null)
+        {
+            DariusLog.Exception("STAR-RECONCILE", loadoutError, "Stable selected Hero_Darius loadout page could not be read");
+            yield break;
+        }
+        if (loadout == null) yield break;
+
+        try
+        {
+            Dictionary<string, int> desired = new Dictionary<string, int>(StringComparer.Ordinal);
+            CollectSavedStars(loadout.cDestruction, desired);
+            CollectSavedStars(loadout.cLife, desired);
+            CollectSavedStars(loadout.cImagination, desired);
+            CollectSavedStars(loadout.cFlexible, desired);
+
+            List<string> stale = new List<string>();
+            foreach (string key in _levels.Keys)
+                if (!desired.ContainsKey(key)) stale.Add(key);
+            for (int i = 0; i < stale.Count; i++) SetStar(stale[i], 1, false);
+            foreach (KeyValuePair<string, int> pair in desired) SetStar(pair.Key, pair.Value, true);
+
+            DariusLog.Info("STAR-RECONCILE", "Reconciled selected Hero_Darius loadout page=" + page +
+                " activeDariusStars=" + desired.Count + " deactivatedStale=" + stale.Count);
         }
         catch (Exception e)
         {
@@ -176,18 +232,39 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
         }
     }
 
-    private int ApplySavedStars(List<LoadoutStarItem> stars)
+    private static bool TryResolveSelectedLoadoutPage(List<HeroLoadoutData> pages, out int page)
     {
-        if (stars == null) return 0;
-        int applied = 0;
+        page = -1;
+        if (pages == null || pages.Count == 0) return false;
+        try
+        {
+            GameSettingsManager manager = NetworkedManagerBase<GameSettingsManager>.instance;
+            if (manager == null) return false;
+            var settings = manager.GetLocalPreferredGameSettings();
+            if (settings == null || settings.heroSelectedLoadoutIndex == null) return false;
+
+            int selected;
+            if (!settings.heroSelectedLoadoutIndex.TryGetValue(DariusTravelerRegistry.HeroName, out selected)) return false;
+            if (selected < 0 || selected >= pages.Count) return false;
+            page = selected;
+            return true;
+        }
+        catch (Exception e)
+        {
+            DariusLog.DebugInfo("STAR-RECONCILE", "Selected loadout page read not ready: " + e.GetType().Name);
+            return false;
+        }
+    }
+
+    private static void CollectSavedStars(List<LoadoutStarItem> stars, Dictionary<string, int> desired)
+    {
+        if (stars == null || desired == null) return;
         for (int i = 0; i < stars.Count; i++)
         {
             LoadoutStarItem item = stars[i];
             if (string.IsNullOrEmpty(item.name) || !DariusConstellationLocalization.IsDariusStarKey(item.name)) continue;
-            SetStar(item.name, Mathf.Max(1, item.level), true);
-            applied++;
+            desired[item.name] = Mathf.Max(1, item.level);
         }
-        return applied;
     }
 
     public void SetStar(string key, int level, bool active)
@@ -840,7 +917,7 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
             int id = trigger.GetInstanceID();
             Coroutine existing;
             if (_cosmicRoutines.TryGetValue(id, out existing) && existing != null) StopCoroutine(existing);
-            _cosmicRoutines[id] = StartCoroutine(CosmicRoutine(trigger, cosmic, spell));
+            _cosmicRoutines[id] = StartCoroutine(CosmicRoutine(trigger, id, cosmic, spell));
         }
     }
 
@@ -860,7 +937,7 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
         _nimbusRoutine = null;
     }
 
-    private IEnumerator CosmicRoutine(AbilityTrigger trigger, int level, string spell)
+    private IEnumerator CosmicRoutine(AbilityTrigger trigger, int triggerId, int level, string spell)
     {
         float[] reductions = { 0.20f, 0.25f, 0.30f };
         float reduction = reductions[Mathf.Clamp(level, 1, reductions.Length) - 1];
@@ -875,7 +952,9 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
             }
             catch (Exception e) { DariusLog.Exception("STAR-COSMIC", e, spell + " cooldown acceleration failed"); }
         }
-        if (trigger != null) _cosmicRoutines.Remove(trigger.GetInstanceID());
+        // Unity-destroyed objects compare null, so never derive the cleanup key from trigger here.
+        // The instance ID captured at schedule time remains valid for dictionary bookkeeping.
+        _cosmicRoutines.Remove(triggerId);
     }
 
     private void RemoveBonus(ref StatBonus bonus)
@@ -898,6 +977,7 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
         RemoveBonus(ref _bloodRushBonus);
         RemoveBonus(ref _dunkmasterBonus);
         RemoveBonus(ref _noxianArenaBonus);
+        _cosmicRoutines.Clear();
     }
 }
 
