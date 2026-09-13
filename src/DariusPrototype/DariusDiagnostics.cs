@@ -7,6 +7,8 @@ using UnityEngine;
 // Keeps the log useful even if a failure happens outside one of the skill try/catch blocks.
 public sealed class DariusDiagnostics : MonoBehaviour
 {
+    private const float StatePollInterval = 0.25f;
+    private float _nextStatePoll;
     private float _nextHeartbeat;
     private bool _lastServer;
     private bool _lastClient;
@@ -24,11 +26,28 @@ public sealed class DariusDiagnostics : MonoBehaviour
         _lastServer = SafeServerActive();
         _lastClient = SafeClientActive();
         _lastHeroId = GetHeroId();
+        _nextStatePoll = Time.unscaledTime + StatePollInterval;
         _nextHeartbeat = Time.unscaledTime + 3f;
         DariusLog.Info("DIAG", "Diagnostics initialized. " + Snapshot());
     }
 
     private void Update()
+    {
+        float now = Time.unscaledTime;
+        if (now >= _nextStatePoll)
+        {
+            _nextStatePoll = now + StatePollInterval;
+            PollState();
+        }
+
+        if (now >= _nextHeartbeat)
+        {
+            _nextHeartbeat = now + 30f;
+            DariusLog.DebugInfo("HEARTBEAT", Snapshot());
+        }
+    }
+
+    private void PollState()
     {
         bool server = SafeServerActive();
         bool client = SafeClientActive();
@@ -47,12 +66,6 @@ public sealed class DariusDiagnostics : MonoBehaviour
             DariusLog.Info("DIAG-HERO", "Local hero changed instanceId=" + _lastHeroId + "->" + heroId +
                 " hero=" + DariusLog.EntityLabel(DewPlayer.local != null ? DewPlayer.local.hero : null));
             _lastHeroId = heroId;
-        }
-
-        if (Time.unscaledTime >= _nextHeartbeat)
-        {
-            _nextHeartbeat = Time.unscaledTime + 30f;
-            DariusLog.DebugInfo("HEARTBEAT", Snapshot());
         }
     }
 
