@@ -11,8 +11,8 @@
 - **形态**：单个 .NET 类库 `DariusPrototype.dll` + `about/` 元数据 + 不入库的二进制资产。
 - **加载方式**：游戏内置 `DewMod` 加载器（`ModBehaviour`）+ Harmony 补丁，全部资源在运行时构建。
 - **语言**：C# 9.0 / `netstandard2.1`。
-- **规模**：`src/DariusPrototype/` 共 45 个 `.cs`；最大的文件包括 `DariusTravelerSystem.cs`、`DariusConstellations.cs`、`DariusLolVfxRuntime.cs`。
-- **没有单元测试框架**。GitHub Actions `.NET CI` 只负责公共 runner 能真实执行的仓库契约；主 DLL 编译和玩法验证仍需要真实游戏环境。
+- **源码组织**：按运行时职责拆分；超过约 200 行只是审查信号，不是自动拆分规则。长但单一职责的状态机可以保持完整。
+- **没有单元测试框架**。GitHub Actions `.NET CI` 会使用 metadata-only Shape of Dreams reference pack 真正编译主 DLL；游戏内行为仍需要 runtime smoke 验证。
 
 ## 2. 技术栈与硬约束
 
@@ -20,14 +20,14 @@
 | --- | --- | --- |
 | 目标框架 | `netstandard2.1` | 必须匹配游戏 Unity 运行时 |
 | 语言版本 | C# 9.0 | 不要使用 C# 10+ 语法（file-scoped namespace、record struct、全局 using 等） |
-| 编译方式 | `NoStdLib` + `DisableImplicitFrameworkReferences` | 所有程序集引用都来自游戏 `Managed` 目录 |
-| 依赖 | **零 NuGet 包** | 不允许新增 `PackageReference`；需要游戏程序集时改 csproj 的 `<Reference>` |
-| 构建 | `dotnet build`（MSBuild） | 没有 shell 构建脚本；游戏路径通过 `GameDir` 属性注入 |
-| CI | GitHub Actions | 只检查 runner 当前真实拥有的输入；不要伪造游戏 API 或资产追求绿色 |
-| 平台 | Windows | 游戏与 Steam 安装路径为 Windows 形式；CI 使用 `windows-latest` |
+| 编译方式 | `NoStdLib` + `DisableImplicitFrameworkReferences` | 默认本地构建引用游戏 `Managed` DLL；CI 可切换 metadata-only reference pack |
+| 运行时依赖 | 不新增第三方运行时包 | 主项目仅在 `UseSodReferencePack=true` 时使用私有编译引用包 `ShapeOfDreams.ReferenceAssemblies`，并设置 `PrivateAssets=all` |
+| 构建 | `dotnet build`（MSBuild） | 本地游戏路径通过 `GameDir` 属性注入 |
+| CI | GitHub Actions | 使用 GitHub Packages reference pack 编译；不要手写 Unity/Dew stub |
+| 平台 | Windows | 游戏与 Steam 安装路径为 Windows 形式；CI 使用 GitHub-hosted Windows runner |
 | 编码 | UTF-8 | 新建文件用无 BOM UTF-8、LF |
 
-**不要做的事**：升级 TargetFramework、开启主项目 implicit usings、引入第三方库、把运行时代码拆成新项目、改 `AssemblyName`。
+**不要做的事**：升级 TargetFramework、开启主项目 implicit usings、引入第三方运行时库、把运行时代码拆成新项目、改 `AssemblyName`、为了行数机械拆 partial class。
 
 ## 3. 源码职责地图
 
@@ -35,79 +35,103 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `DariusPrototype.cs` | `DariusPrototypeMod : ModBehaviour` 入口；引导路径异常不得中断核心注册 |
-| `DariusPrototype.csproj` | SDK 风格工程、游戏程序集引用、Package/Deploy targets |
-| `.github/workflows/dotnet-ci.yml` | PR / `main` push / 手动触发的最小云端仓库验证 |
+| `DariusPrototype.cs` | `DariusPrototypeMod : ModBehaviour` 生命周期/bootstrap；可选表现失败不得中断核心注册 |
+| `DariusCombatController.cs` | 历史诊断/战斗控制器 |
+| `DariusPrototypeVfx.cs` | Darius 高层表现 facade |
+| `DariusPrototype.csproj` | SDK 风格工程、真实游戏引用/reference-pack 切换、Package/Deploy targets |
+| `.github/workflows/dotnet-ci.yml` | 仓库契约 + reference-pack Release build |
+| `tools/SodReferencePack/*` | 从本机真实游戏程序集生成 metadata-only CI 编译引用 |
 
 ### 3.2 技能与战斗
 
 | 文件 | 职责 |
 | --- | --- |
-| `Ai_Darius_Decimate.cs` | Q 大杀四方，服务端执行体 |
-| `Ai_Darius_CripplingStrike.cs` | W 致残打击 |
-| `Ai_Darius_Apprehend.cs` | E 无情铁手 |
-| `Ai_Darius_NoxianGuillotine.cs` | R 诺克萨斯断头台 |
-| `St_Darius_*.cs` | 对应技能的 `SkillTrigger` 定义 |
+| `Ai_Darius_Decimate.cs` | Q 大杀四方服务端执行体 |
+| `Ai_Darius_CripplingStrike.cs` | W 一次性 `AbilityInstance` |
+| `DariusCripplingStrikeRuntime.cs` | W Hero 常驻武器强化状态 |
+| `Ai_Darius_Apprehend.cs` | E 无情铁手执行体 |
+| `Ai_Darius_NoxianGuillotine.cs` | R `AbilityInstance` 执行体 |
+| `St_Darius_*.cs` | 对应技能的 `SkillTrigger` 定义/输入状态 |
 | `St_D_Darius_Hemorrhage.cs` | 被动 Identity `SkillTrigger` |
-| `Gem_Darius_Hemorrhage.cs` | 出血 `Gem` |
-| `DariusMemoryScaling.cs` | Memory 无限成长曲线 |
-| `DariusMemoryEffectBridge.cs` | Memory 直接执行桥 |
-| `DariusNativeAttack.cs` | 原生普攻接入 |
+| `Gem_Darius_Hemorrhage.cs` | 旧 Gem 兼容适配器 |
+| `DariusHemorrhageRuntime.cs` | 出血/Noxian Might Hero 状态机 |
+| `DariusMemoryScaling.cs` | Memory 等级成长规则唯一实现 |
+| `DariusMemoryEffectBridge.cs` | direct-execution 技能的 Damage/Heal/Cast 归因桥 |
+| `DariusNativeAttack.cs` | 原生普攻 trigger/instances/binder |
+| `DariusDirectionalBasicAttack.cs` | 定向普攻几何/状态 |
+| `DariusDirectionalBasicAttackSectorPatch.cs` | 普攻命中扇区 Harmony 过滤 |
 | `DariusNativeDisplacement.cs` | Flash / Ghost 原生位移接管 |
-| `DariusSummonerSkills.cs` | 召唤师技能槽替换 |
-| `DariusSlowHelper.cs` | 减速工具 |
+| `DariusSummonerSkills.cs` | 召唤师技能平衡/原生配置派生 |
+| `DariusFlashSkill.cs` | Flash trigger/warp |
+| `DariusGhostSkill.cs` | Ghost trigger/runtime |
+| `DariusSummonerRuntime.cs` | 召唤师方向解析/兼容反射 |
+| `DariusSlowHelper.cs` | 减速应用 helper/runtime |
 | `DariusHemorrhageHud.cs` | 出血层数 HUD |
 | `DariusEnemyClassifier.cs` | 敌人分类 |
 | `DariusRInputGuard.cs` | R 输入守卫 |
-| `DariusTriggerConfigRuntimeEditor.cs` | 写入 `TriggerConfig` 私有后备字段 |
+| `DariusTriggerConfigRuntimeEditor.cs` | `TriggerConfig` 私有后备字段统一访问 |
 
-### 3.3 资源、表现与本地化
+### 3.3 Traveler、皮肤与表现
 
 | 文件 | 职责 |
 | --- | --- |
-| `DariusTravelerSystem.cs` | Hero/Skin/EntityModel/资源构建、场景切换后的整代重建 |
-| `DariusSkinSystem.cs` | 皮肤与动画层、技能动画桥 |
-| `DariusMedia.cs` | VFX 贴图 + 技能 SFX（同步 WAV）+ 语音 OGG（首次选中时异步解码、缓存并播放） |
-| `DariusLolVfxRuntime.cs` | Riot `VfxSystemDefinitionData` 运行时解释器 |
+| `DariusTravelerNativeIntegration.cs` | `Hero_Darius` 与 native model/animation guard Harmony patches |
+| `DariusTravelerRegistry.cs` | Hero/Skin/Attack 运行时资源注册、查找、自愈、卸载；长但共享一个资源状态机，勿按行数继续拆 |
+| `DariusTravelerModel.cs` | skin model binding + `DariusTravelerModelInstance` 模型/动画状态机 |
+| `DariusTravelerLifecycle.cs` | 场景/profile repair lifecycle + Traveler localization patch |
+| `DariusSkinAnimationHooks.cs` | 皮肤动画桥接 |
+| `DariusBasicAttackVisualRuntime.cs` | 普攻视觉 runtime |
+| `DariusGlbRuntimeModel.cs` | GLB 模型/材质/动画解释状态机；长但内聚 |
+| `DariusMedia.cs` | VFX 贴图 + 技能 SFX + 语音资源加载/cache |
+| `DariusLolVfxRuntime.cs` | Riot `VfxSystemDefinitionData` interpreter/cache；长但内聚 |
+| `DariusLolVfxComponents.cs` | LoL VFX interpreter 使用的短生命周期 MonoBehaviour 组件 |
 | `DariusVoiceRuntime.cs` | 施法语音路由；不得伪造或跨皮肤替代语音 |
 | `DariusPrototypeIcons.cs` | 图标加载 |
-| `DariusFormalRegistry.cs` | 正式 Memory/Essence 运行时资源注册 |
-| `DariusDejaVuRegistry.cs` | Deja Vu 起手装备接入 |
-| `DariusRuntimeResourceCompatibility.cs` | 运行时资源 Dew 查找兼容层 |
-| `DariusConstellations.cs` | 星效定义 |
-| `DariusEquipmentConstellations.cs` | 装备类星效 |
-| `DariusConstellationPersistence.cs` | 星座购买/存档持久化 |
+| `TravelerBasicAttackVfxReplication.cs` | 仓库内置 Mirror 普攻表现消息/relay；不再依赖仓库外共享源码 |
+
+### 3.4 注册、星座与兼容
+
+| 文件 | 职责 |
+| --- | --- |
+| `DariusFormalRegistry.cs` | Memory/AbilityInstance/Identity 正式运行时资源注册 |
+| `DariusDejaVuRegistry.cs` | Deja Vu/profile/content 接入与相关兼容 patch；保持一个候选资源契约 |
+| `DariusRuntimeResourceCompatibility.cs` | DewResources/Harmony 运行时查找兼容层 |
+| `DariusConstellationDefinitions.cs` | Darius 星座 ID/StarEffect 类型 |
+| `DariusConstellationRegistry.cs` | 星座运行时资源注册 + reflection hydration |
+| `DariusConstellationRuntime.cs` | Hero 星座 gameplay 状态机 |
+| `DariusConstellationPresentation.cs` | 星座本地化 + Lobby UI/Harmony presentation guard |
+| `DariusConstellationPersistence.cs` | 星座购买/存档 capture/restore/persistence |
+| `DariusEquipmentConstellationDefinitions.cs` | 装备星 ID/类型/本地化 |
+| `DariusEquipmentRuntime.cs` | 装备星 gameplay 状态机 |
+| `DariusAwooAudioRuntime.cs` | Awoo 可选本地音频播放 |
 | `DariusFormalLocalization.cs` / `DariusEnglishLocalization.cs` / `DariusJapaneseLocalization.cs` | zh_CN / en_US / ja_JP 文案 |
 | `DariusAudioSettings.cs` | ModConfig 音量字段 |
 
-### 3.4 基础设施
+### 3.5 基础设施与离线工具
 
 | 文件 | 职责 |
 | --- | --- |
-| `DariusLog.cs` | 统一日志，写入共享 Mods 目录 |
+| `DariusLog.cs` | 统一日志 |
 | `DariusDiagnostics.cs` | 首测运行时快照 |
 | `DariusModEnvironment.cs` | 解析 Mod 物理目录；版本读取 `about/metadata.json` |
 | `DariusResourceIds.cs` | 共享资源 GUID 唯一定义处 |
 | `DariusModLifecycle.cs` | 区分真正热卸载与普通场景销毁 |
 | `src/DariusPrototype/UniversalAnimation/*.cs` | 通用动画重定向运行时 |
-
-### 3.5 离线工具
-
-| 文件 | 职责 |
-| --- | --- |
 | `tools/BuildDariusPass5AuthenticVfx.py` | 解析 Riot `PROP` BIN，生成 LoL VFX 载荷 |
+| `tools/SodReferencePack/New-SodReferencePack.ps1` | 从真实 SOD Managed DLL 生成/打包 reference assemblies |
 
 音频资产来自 `assets/raw_lol_audio/**/*.wem`。技能 SFX 最终为 PCM16 WAV；语音最终只保留 `vo_*.ogg`。具体生成与发布契约见 `docs/assets.md`。
 
 ## 4. 构建与验证
 
-### 4.1 本地主 Mod 构建前置条件
+### 4.1 本地真实游戏构建前置条件
 
 1. 本机安装 **Shape of Dreams**，且存在 `<游戏目录>\Shape of Dreams_Data\Managed\`。
 2. 安装 **.NET SDK 8.0+**。
 3. 设置 `GameDir`（`-p:` / `Directory.Build.props` / `SOD_GAME_DIR`）。
-4. `<游戏目录>\Mods\TravelerBasicAttackVfxReplication.cs` 存在。
-5. 打包时二进制资产齐备。
+4. 打包/部署时二进制资产齐备。
+
+`TravelerBasicAttackVfxReplication.cs` 已在仓库内，不存在额外共享源码前置条件。
 
 ### 4.2 构建 / 打包 / 部署
 
@@ -127,27 +151,30 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod
 
 游戏路径解析顺序：`-p:GameDir=...` → `Directory.Build.props` → `SOD_GAME_DIR`。发布只发 `build/`。
 
-### 4.3 构建边界与云端 CI
+### 4.3 CI reference-pack 编译
 
-主 csproj 维护真正的打包边界：
+主 csproj 有两种引用模式：
 
-- `CheckPackageConfiguration`：`PackageMod` 必须使用 Release；
-- `CheckGameInstall`：游戏程序集、外部共享源码；
-- `VerifyVoiceAssets`：必须存在 `assets/audio/vo_*.ogg`，并拒绝任何 `vo_*.wav`；
-- `VerifyPackageAssets`：其它打包必需资产。
+- 默认：直接引用 `$(GameManagedDir)` 下实际游戏 DLL；`CheckGameInstall` 生效。
+- `-p:UseSodReferencePack=true`：使用 GitHub Packages 中的 `ShapeOfDreams.ReferenceAssemblies` metadata-only 包；`CheckGameInstall` 不运行。
 
-`.NET CI` 不再维护第二套 validator。它只用 workflow 内置 PowerShell/.NET CLI 检查当前公共 runner 能真实验证的内容：metadata/Workshop、tracked binary 红线，以及 `CheckPackageConfiguration` 的 Release/Debug 行为。
+reference pack 由 `tools/SodReferencePack/New-SodReferencePack.ps1` 从本机真实游戏 DLL 通过 Refasmer 生成；不要提交真实游戏 DLL，也不要手写 stub。
 
-因为公共 runner 没有游戏程序集、仓库外共享源码和未入库资产，所以**不保留永远只能 skip 的音频头、GLB、package snapshot 代码**。以后真实输入接入 runner 时，再直接加入真实 Build/Package 检查。
+`.NET CI` 当前会验证 metadata/Workshop、tracked binary 红线、reference-pack 脚本语法、`CheckPackageConfiguration`，并执行：
+
+```powershell
+dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -p:UseSodReferencePack=true
+```
+
+因此**当前 HEAD 的 CI 绿色即表示编译/API gate 已完成**。不要为了重复证明同一件事再要求本地 `dotnet build`。CI 不覆盖未入库资产的 PackageMod，也不能证明游戏内 Unity/Harmony/Mirror 行为。
 
 ### 4.4 验证层次
 
 | 层次 | 手段 |
 | --- | --- |
-| 云端仓库验证 | GitHub Actions `.NET CI` |
-| 主 DLL 编译 | `dotnet build ... -c Release`；需要真实游戏程序集 |
+| 仓库/编译 gate | GitHub Actions `.NET CI` + SOD reference pack |
 | Package / Deploy | `PackageMod` / `DeployMod`；需要本地资产与游戏目录 |
-| 运行时 | 游戏内人工清单 + `DariusPrototype_runtime.log` |
+| 运行时 | 游戏内 smoke/checklist + `DariusPrototype_runtime.log` |
 
 > 不要创建假 Unity/Dew/Shape of Dreams stub 来制造绿色 CI。
 
@@ -157,13 +184,14 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod
 2. **日志**：统一用 `DariusLog`，不要新增 `Debug.Log` / `Console.WriteLine` 作为长期输出。
 3. **异常处理**：引导、Harmony 补丁、资源注册路径必须捕获并记录；表现层失败不能阻断 `Hero_Darius` 注册。
 4. **反射**：访问游戏私有成员必须做存在性/null 检查并提供回退路径。
-5. **Harmony 补丁**：集中放在 `*Registry` / `*Compatibility` / `*Lifecycle` 类中。
+5. **Harmony 补丁**：优先按 registry / compatibility / lifecycle / presentation 职责集中，不为一行 patch 单独制造文件。
 6. **性能**：高频路径已有缓存时不要破坏。
 7. **注释**：解释“为什么”；涉及 Riot 原语/游戏版本差异时写明限制。
-8. **不要顺手重构**：未经要求不要重排、重命名或格式化无关大文件。
-9. **版本号单一真源**：只改 `about/metadata.json` 的 `modVer`。
-10. **共享 GUID**：只在 `src/DariusPrototype/DariusResourceIds.cs` 定义，不得更改既有值。
-11. **日志级别**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`，`EXCEPTION` 不受过滤。
+8. **Ponytail/YAGNI**：先问代码是否需要存在；优先删除/移动/复用；长文件只有在多职责时拆，单一状态机不要为了行数拆 partial。
+9. **不要顺手重构**：未经要求不要重排、重命名或格式化无关大文件。
+10. **版本号单一真源**：只改 `about/metadata.json` 的 `modVer`。
+11. **共享 GUID**：只在 `src/DariusPrototype/DariusResourceIds.cs` 定义，不得更改既有值。
+12. **日志级别**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`，`EXCEPTION` 不受过滤。
 
 ## 6. 资产与版权红线
 
@@ -176,10 +204,12 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod
 
 ## 7. 常见陷阱
 
-- **没有 shell 构建脚本**：构建就是 `dotnet build`；不要重新引入 `.bat` / `.ps1` 构建脚本。
-- **CI 保持小**：不要为“以后也许有资产/私有 DLL”预建 validator、抽象层或 skip 分支；输入真的存在时再加真实检查。
-- **云端 CI 不是主 DLL 的假编译**：不要用 stub 替代 Shape of Dreams/Dew/Unity 程序集。
-- **`TravelerBasicAttackVfxReplication.cs` 不在仓库里**。
+- **默认构建就是 `dotnet build`**；reference-pack PowerShell 仅生成 CI 编译引用，不是另一套主构建系统。
+- **CI 已是真编译 gate**：不要再说公共 runner 不能编译主 DLL；它通过 metadata-only reference pack 编译，但仍不能证明运行时行为。
+- **reference pack 不是 hand-written stub**：它必须从真实游戏程序集生成；游戏版本/API 变化时重新生成并发布新版本。
+- **`TravelerBasicAttackVfxReplication.cs` 已在仓库里**：不要恢复 `SharedSource` 或要求 `<GameDir>\Mods` 下额外源码。
+- **长文件不等于坏文件**：`DariusTravelerRegistry`、`DariusLolVfxRuntime`、`DariusGlbRuntimeModel`、`DariusConstellationRuntime` 等共享连续私有状态；没有新职责证据时不要继续拆。
+- **不要创建 `DariusUtils`/万能 reflection helper** 只为消除少量形状相似的局部代码；只有规则真正共享时才抽公共层。
 - **版本号只有一个真源**：`about/metadata.json` 的 `modVer`。
 - **共享 GUID 不得改值**。
 - **Package/Deploy 是 snapshot 语义**，都必须使用 Release。
@@ -193,11 +223,6 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod
 
 - 提交信息：`<scope>: <摘要>`。
 - 一次提交只做一件事；不要把重命名/格式化和逻辑修改混在一起。
-- 提交前至少检查：
-  ```powershell
-  git status --short
-  git check-ignore -v <path>
-  ```
 - 构建逻辑放 `*.csproj` / `*.targets`；CI 专属、且确实需要的少量仓库检查直接留在 workflow，不另建验证框架。
 - 发版时同步 `about/metadata.json` 的 `modVer` 与根目录 `CHANGELOG.md`。
 - 新增文档放 `docs/`，并在 README 索引登记。
@@ -210,20 +235,20 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod
 - [ ] 涉及资产时先确认本机资产是否存在。
 
 **改动中**
-- [ ] 只改与任务相关的文件；不引入新依赖；主运行时代码不使用 C# 10+ 语法。
+- [ ] 只改与任务相关的文件；不引入新运行时依赖；主运行时代码不使用 C# 10+ 语法。
 - [ ] 改动资产/引用时改真源（csproj / 源码 / manifest）。
-- [ ] 新增 CI 检查前先确认公共 runner 真有对应输入；没有就不加。
+- [ ] 抽公共 helper 前确认至少存在稳定的共享规则，而不是仅仅长得相似。
 - [ ] 版本号只改 `about/metadata.json`。
 
 **收尾**
-- [ ] PR 上确认 `.NET CI` 绿色。
-- [ ] 有真实游戏环境时运行主 DLL Release build；没有时明确声明未完成游戏程序集编译验证。
+- [ ] PR 上确认 `.NET CI` 绿色；绿色即完成编译/API gate，不重复要求本地 build。
+- [ ] gameplay/runtime 改动按风险完成必要的游戏内 smoke；纯文档/CI 变更不强制游戏 smoke。
 - [ ] 发布前运行 `-c Release -t:PackageMod`，确认 package 只含运行时资产且 voice 为 OGG。
 - [ ] 更新受影响文档。
-- [ ] `git status` 确认无二进制、日志、`bin/`、`obj/` 进入版本控制。
+- [ ] 确认无二进制、日志、`bin/`、`obj/` 进入版本控制。
 
 **绝对不要**
 - 提交任何二进制资产或构建产物。
-- 声称完成未实际执行的主 DLL 编译或游戏内验证。
+- 声称完成未实际执行的游戏内验证。
 - 为了 CI 绿色伪造游戏程序集/资产或删掉真实构建契约。
-- 未经要求大规模重构 `src/DariusPrototype/` 下的超大文件。
+- 为了满足行数阈值继续拆已经内聚的状态机。

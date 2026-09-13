@@ -5,6 +5,21 @@
 
 > `0.30.x` 及更早的 Mod 历史（Riot VFX 重建、皮肤、星座、平衡等）见 [docs/archive/CHANGELOG-legacy.md](docs/archive/CHANGELOG-legacy.md)，仅作保留、不再维护。
 
+## [Unreleased]
+
+## [0.31.1-refactor] - 2026-09-13
+
+### Changed
+
+- 按现有职责边界拆分历史聚合文件：Native Attack、Summoner、Prototype、Crippling Strike、Hemorrhage、Skin、Equipment、LoL VFX、Constellation 与 Traveler；长但内聚的 gameplay/registry/model/interpreter 状态机保持完整，不按行数机械拆分。
+- 新增 `ShapeOfDreams.ReferenceAssemblies` metadata-only reference pack 流程；GitHub Actions 现在可在不安装游戏的 hosted runner 上执行真实 Release 编译/API 契约检查。
+- CI 使用仓库 `GITHUB_TOKEN` 读取 GitHub Packages reference pack，不保存长期 package PAT。
+
+### Fixed
+
+- `TravelerBasicAttackVfxReplication` 已内置进仓库并移除 `SharedSource`/`<GameDir>\Mods\TravelerBasicAttackVfxReplication.cs` 外部源码依赖。
+- README / AGENTS 的源码职责图、CI 边界与构建前置条件更新到当前实现。
+
 ## [0.31.0-refactor] - 2026-09-09
 
 工程重构版本：不改变玩法与数值，目标是让仓库符合常规工程习惯、把构建交还给 .NET 工具链、压缩发布体积。
