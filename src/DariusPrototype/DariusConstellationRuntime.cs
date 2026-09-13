@@ -163,12 +163,21 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
 
             HeroLoadoutData loadout = pages[Mathf.Clamp(page, 0, pages.Count - 1)];
             if (loadout == null) yield break;
-            int applied = 0;
-            applied += ApplySavedStars(loadout.cDestruction);
-            applied += ApplySavedStars(loadout.cLife);
-            applied += ApplySavedStars(loadout.cImagination);
-            applied += ApplySavedStars(loadout.cFlexible);
-            DariusLog.Info("STAR-RECONCILE", "Reconciled selected Hero_Darius loadout page=" + page + " activeDariusStars=" + applied);
+
+            Dictionary<string, int> desired = new Dictionary<string, int>(StringComparer.Ordinal);
+            CollectSavedStars(loadout.cDestruction, desired);
+            CollectSavedStars(loadout.cLife, desired);
+            CollectSavedStars(loadout.cImagination, desired);
+            CollectSavedStars(loadout.cFlexible, desired);
+
+            List<string> stale = new List<string>();
+            foreach (string key in _levels.Keys)
+                if (!desired.ContainsKey(key)) stale.Add(key);
+            for (int i = 0; i < stale.Count; i++) SetStar(stale[i], 1, false);
+            foreach (KeyValuePair<string, int> pair in desired) SetStar(pair.Key, pair.Value, true);
+
+            DariusLog.Info("STAR-RECONCILE", "Reconciled selected Hero_Darius loadout page=" + page +
+                " activeDariusStars=" + desired.Count + " deactivatedStale=" + stale.Count);
         }
         catch (Exception e)
         {
@@ -176,18 +185,15 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
         }
     }
 
-    private int ApplySavedStars(List<LoadoutStarItem> stars)
+    private static void CollectSavedStars(List<LoadoutStarItem> stars, Dictionary<string, int> desired)
     {
-        if (stars == null) return 0;
-        int applied = 0;
+        if (stars == null || desired == null) return;
         for (int i = 0; i < stars.Count; i++)
         {
             LoadoutStarItem item = stars[i];
             if (string.IsNullOrEmpty(item.name) || !DariusConstellationLocalization.IsDariusStarKey(item.name)) continue;
-            SetStar(item.name, Mathf.Max(1, item.level), true);
-            applied++;
+            desired[item.name] = Mathf.Max(1, item.level);
         }
-        return applied;
     }
 
     public void SetStar(string key, int level, bool active)
@@ -840,7 +846,7 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
             int id = trigger.GetInstanceID();
             Coroutine existing;
             if (_cosmicRoutines.TryGetValue(id, out existing) && existing != null) StopCoroutine(existing);
-            _cosmicRoutines[id] = StartCoroutine(CosmicRoutine(trigger, cosmic, spell));
+            _cosmicRoutines[id] = StartCoroutine(CosmicRoutine(trigger, id, cosmic, spell));
         }
     }
 
@@ -860,7 +866,7 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
         _nimbusRoutine = null;
     }
 
-    private IEnumerator CosmicRoutine(AbilityTrigger trigger, int level, string spell)
+    private IEnumerator CosmicRoutine(AbilityTrigger trigger, int triggerId, int level, string spell)
     {
         float[] reductions = { 0.20f, 0.25f, 0.30f };
         float reduction = reductions[Mathf.Clamp(level, 1, reductions.Length) - 1];
@@ -875,7 +881,9 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
             }
             catch (Exception e) { DariusLog.Exception("STAR-COSMIC", e, spell + " cooldown acceleration failed"); }
         }
-        if (trigger != null) _cosmicRoutines.Remove(trigger.GetInstanceID());
+        // Unity-destroyed objects compare null, so never derive the cleanup key from trigger here.
+        // The instance ID captured at schedule time remains valid for dictionary bookkeeping.
+        _cosmicRoutines.Remove(triggerId);
     }
 
     private void RemoveBonus(ref StatBonus bonus)
@@ -898,6 +906,7 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
         RemoveBonus(ref _bloodRushBonus);
         RemoveBonus(ref _dunkmasterBonus);
         RemoveBonus(ref _noxianArenaBonus);
+        _cosmicRoutines.Clear();
     }
 }
 
