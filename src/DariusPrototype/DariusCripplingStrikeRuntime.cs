@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
@@ -28,6 +29,7 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
     private int _memoryLevel = 1;
     private AbilityTrigger _sourceTrigger;
     private GameObject _armVfx;
+    private Coroutine _expiryRoutine;
 
     public bool IsArmed { get { return _armed; } }
 
@@ -46,6 +48,7 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
         _armed = true;
         DariusSkinAnimationHooks.SetWArmed(owner, true);
         _expiresAt = Time.time + ArmDuration;
+        RestartExpiryTimer(castId);
         ClearArmVfx();
         try { _armVfx = DariusPrototypeVfx.CreateWArm(owner); }
         catch (Exception e) { DariusLog.Exception("W-VFX", e, "cast#" + castId + " persistent arm VFX failed"); }
@@ -53,21 +56,37 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
             " coreScale=" + DariusMemoryScaling.Multiplier(_memoryLevel).ToString("0.###") + " expiresAt=" + _expiresAt.ToString("0.000"));
     }
 
-    private void Update()
+    private void RestartExpiryTimer(int castId)
     {
-        if (_armed && Time.time >= _expiresAt)
-        {
-            _armed = false;
-            _sourceTrigger = null;
-            DariusSkinAnimationHooks.SetWArmed(_owner, false);
-            ClearArmVfx();
-            DariusLog.Info("W", "cast#" + _castId + " expired without consuming an attack.");
-        }
+        StopExpiryTimer();
+        _expiryRoutine = StartCoroutine(ExpireWhenDue(castId));
+    }
+
+    private IEnumerator ExpireWhenDue(int castId)
+    {
+        float delay = Mathf.Max(0f, _expiresAt - Time.time);
+        if (delay > 0f) yield return new WaitForSeconds(delay);
+        _expiryRoutine = null;
+        if (!_armed || castId != _castId || Time.time + 0.0001f < _expiresAt) yield break;
+
+        _armed = false;
+        _sourceTrigger = null;
+        DariusSkinAnimationHooks.SetWArmed(_owner, false);
+        ClearArmVfx();
+        DariusLog.Info("W", "cast#" + castId + " expired without consuming an attack.");
+    }
+
+    private void StopExpiryTimer()
+    {
+        if (_expiryRoutine == null) return;
+        try { StopCoroutine(_expiryRoutine); } catch { }
+        _expiryRoutine = null;
     }
 
     private void OnDestroy()
     {
         DariusLog.DebugInfo("W", "runtime destroyed.");
+        StopExpiryTimer();
         DariusSkinAnimationHooks.SetWArmed(_owner, false);
         _sourceTrigger = null;
         ClearArmVfx();
@@ -137,6 +156,7 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
             AbilityTrigger sourceTrigger = _sourceTrigger;
             _armed = false;
             _sourceTrigger = null;
+            StopExpiryTimer();
             DariusSkinAnimationHooks.SetWArmed(_owner, false);
             ClearArmVfx();
             float ad = _owner.Status.finalStats.attackDamage;
