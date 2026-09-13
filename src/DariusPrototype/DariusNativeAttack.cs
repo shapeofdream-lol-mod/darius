@@ -13,6 +13,18 @@ public sealed class At_DariusAxe : AttackTrigger
     public const float AttackHalfAngle = AttackArcDegrees * 0.5f;
     public const float ContactTolerance = 0.10f;
 
+    public static float ResolveEffectiveRange(TriggerConfig cfg)
+    {
+        if (cfg == null) return AttackRange;
+        try
+        {
+            if (cfg.effectiveRange > 0.05f) return cfg.effectiveRange;
+            if (cfg.castMethod != null && cfg.castMethod._range > 0.05f) return cfg.castMethod._range;
+        }
+        catch { }
+        return AttackRange;
+    }
+
     public override void OnCastStart(int configIndex, CastInfo info)
     {
         Hero hero = null;
@@ -36,28 +48,27 @@ public sealed class At_DariusAxe : AttackTrigger
             direction.y = 0f; direction.Normalize();
             try { info.angle = CastInfo.GetAngle(direction); } catch { }
         }
+
+        TriggerConfig activeConfig = null;
+        try
+        {
+            if (configs != null && configIndex >= 0 && configIndex < configs.Length)
+                activeConfig = configs[configIndex];
+        }
+        catch { }
+        float effective = ResolveEffectiveRange(activeConfig);
+
         DariusDirectionalBasicAttackState state = hero.GetComponent<DariusDirectionalBasicAttackState>();
         if (state == null) state = hero.gameObject.AddComponent<DariusDirectionalBasicAttackState>();
-        state.Capture(direction, configIndex);
+        state.Capture(direction, configIndex, effective);
 
         // IMPORTANT: no target/range rejection here. A basic attack is always allowed to swing into
         // empty space. Whether anything is hit is decided only by the directional sector at impact.
         base.OnCastStart(configIndex, info);
 
-        float effective = AttackRange;
-        try
-        {
-            if (configs != null && configIndex >= 0 && configIndex < configs.Length && configs[configIndex] != null)
-            {
-                TriggerConfig cfg = configs[configIndex];
-                effective = cfg.effectiveRange > 0.05f ? cfg.effectiveRange : AttackRange;
-            }
-        }
-        catch { }
-
         DariusLog.DebugInfo("ATK-DIR", "At_DariusAxe.OnCastStart configIndex=" + configIndex +
             " caster=" + DariusLog.EntityLabel(hero) + " dir=" + DariusLog.Vec(direction) +
-            " range=" + AttackRange.ToString("0.###") + " arc=" + AttackArcDegrees.ToString("0.#") +
+            " fallbackRange=" + AttackRange.ToString("0.###") + " arc=" + AttackArcDegrees.ToString("0.#") +
             " effectiveRange=" + effective.ToString("0.###") + " targetIgnoredForAim=true");
 
         try
