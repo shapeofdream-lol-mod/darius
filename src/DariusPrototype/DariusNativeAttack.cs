@@ -25,10 +25,10 @@ public sealed class At_DariusAxe : AttackTrigger
         return AttackRange;
     }
 
-    // The stock melee references (Vesper/Mist/Husk) all use Target cast semantics and permit
-    // non-targeted swings through AttackTrigger.allowNonTargetedCast. Keep Darius on that native
-    // input path instead of using an ability-style Cone indicator; the Darius sector patch remains
-    // the single authority for the final 90-degree cleave geometry.
+    // Stock Vesper/Mist/Husk melee attacks use Target cast semantics while still permitting an
+    // empty-space swing through allowNonTargetedCast. Keep Darius on that native input path instead
+    // of using an ability-style Cone indicator. The Darius sector patch remains the final authority
+    // for the 90-degree cleave, while the inherited melee instance stays a fixed broad phase.
     public static void ApplyVesperStyleTriggerSemantics(At_DariusAxe attack)
     {
         if (attack == null) return;
@@ -57,175 +57,11 @@ public sealed class At_DariusAxe : AttackTrigger
         }
     }
 
-    // Darius attack instances are structurally cloned from Vesper. Preserve Vesper's fixed melee
-    // broad phase instead of treating TriggerConfig.effectiveRange as a collider scale factor.
-    // The registry historically normalized the cloned DewCollider to AttackRange; this read-only
-    // stock-copy step restores Vesper's exact geometry on the inactive Darius prefab before a live
-    // instance is spawned. Final Darius reach/arc is still enforced by the sector hit patch.
-    public static void AlignBroadPhaseWithVesper(MeleeAttackInstance destination, bool critical)
-    {
-        if (destination == null || DewResources.database == null) return;
-        string sourceTypeName = critical ? "Ai_Atk_VesperMace_Crit" : "Ai_Atk_VesperMace";
-        MeleeAttackInstance source = ResolveStockMeleeByTypeName(sourceTypeName);
-        if (source == null)
-        {
-            DariusLog.Warn("ATK-NATIVE-PREFAB", "Could not resolve stock Vesper melee source " + sourceTypeName + "; keeping cloned fixed broad-phase.");
-            return;
-        }
-
-        try
-        {
-            SetBoolMember(destination, "scaleRangeWithTriggerRange", false);
-            Component[] sourceComponents = source.GetComponentsInChildren<Component>(true);
-            Component[] destinationComponents = destination.GetComponentsInChildren<Component>(true);
-            int sourceDewCount = CountDewColliders(sourceComponents);
-            int destinationDewCount = CountDewColliders(destinationComponents);
-            int copyCount = Mathf.Min(sourceDewCount, destinationDewCount);
-            int copiedFields = 0;
-            for (int i = 0; i < copyCount; i++)
-            {
-                Component sourceDew = GetNthDewCollider(sourceComponents, i);
-                Component destinationDew = GetNthDewCollider(destinationComponents, i);
-                copiedFields += CopyColliderGeometry(sourceDew, destinationDew);
-            }
-            DariusLog.DebugInfo("ATK-NATIVE-PREFAB", "Aligned " + destination.name + " broad-phase with " + sourceTypeName +
-                " dewColliders=" + copyCount + " copiedGeometryFields=" + copiedFields + " scaleWithTriggerRange=false");
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("ATK-NATIVE-PREFAB", e, "Failed restoring Vesper broad-phase geometry for " + destination.name);
-        }
-    }
-
-    private static int CountDewColliders(Component[] components)
-    {
-        if (components == null) return 0;
-        int count = 0;
-        for (int i = 0; i < components.Length; i++)
-            if (components[i] != null && components[i].GetType().Name.IndexOf("DewCollider", StringComparison.OrdinalIgnoreCase) >= 0) count++;
-        return count;
-    }
-
-    private static Component GetNthDewCollider(Component[] components, int index)
-    {
-        if (components == null || index < 0) return null;
-        int current = 0;
-        for (int i = 0; i < components.Length; i++)
-        {
-            Component component = components[i];
-            if (component == null || component.GetType().Name.IndexOf("DewCollider", StringComparison.OrdinalIgnoreCase) < 0) continue;
-            if (current == index) return component;
-            current++;
-        }
-        return null;
-    }
-
-    private static int CopyColliderGeometry(Component source, Component destination)
-    {
-        if (source == null || destination == null) return 0;
-        int copied = 0;
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-        for (Type sourceType = source.GetType(); sourceType != null && sourceType != typeof(Component); sourceType = sourceType.BaseType)
-        {
-            FieldInfo[] sourceFields = sourceType.GetFields(flags);
-            for (int i = 0; i < sourceFields.Length; i++)
-            {
-                FieldInfo sourceField = sourceFields[i];
-                if (sourceField.IsStatic || !LooksLikeColliderGeometry(sourceField.Name)) continue;
-                FieldInfo destinationField = FindField(destination.GetType(), sourceField.Name, sourceField.FieldType);
-                if (destinationField == null || destinationField.IsStatic || destinationField.IsInitOnly) continue;
-                try
-                {
-                    destinationField.SetValue(destination, sourceField.GetValue(source));
-                    copied++;
-                }
-                catch { }
-            }
-        }
-        return copied;
-    }
-
-    private static bool LooksLikeColliderGeometry(string name)
-    {
-        if (string.IsNullOrEmpty(name)) return false;
-        string n = name.ToLowerInvariant();
-        return n.Contains("shape") || n.Contains("radius") || n.Contains("range") || n.Contains("size") ||
-               n.Contains("center") || n.Contains("offset") || n.Contains("point") || n.Contains("vert") || n.Contains("polygon");
-    }
-
-    private static FieldInfo FindField(Type type, string name, Type fieldType)
-    {
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-        for (Type current = type; current != null; current = current.BaseType)
-        {
-            FieldInfo field = current.GetField(name, flags);
-            if (field != null && field.FieldType == fieldType) return field;
-        }
-        return null;
-    }
-
-    private static void SetBoolMember(object owner, string name, bool value)
-    {
-        if (owner == null) return;
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-        for (Type type = owner.GetType(); type != null; type = type.BaseType)
-        {
-            FieldInfo field = type.GetField(name, flags) ?? type.GetField("<" + name + ">k__BackingField", flags);
-            if (field != null && field.FieldType == typeof(bool) && !field.IsInitOnly)
-            {
-                field.SetValue(owner, value);
-                return;
-            }
-        }
-        PropertyInfo property = owner.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (property != null && property.CanWrite && property.PropertyType == typeof(bool)) property.SetValue(owner, value, null);
-    }
-
-    private static MeleeAttackInstance ResolveStockMeleeByTypeName(string typeName)
-    {
-        Type resourceType = null;
-        Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
-        for (int i = 0; i < assemblies.Length && resourceType == null; i++)
-        {
-            try { resourceType = assemblies[i].GetType(typeName, false); }
-            catch { }
-        }
-        if (resourceType == null) return null;
-
-        MethodInfo[] methods = typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-        for (int i = 0; i < methods.Length; i++)
-        {
-            MethodInfo method = methods[i];
-            if (method.Name != "GetByType" || method.IsGenericMethod) continue;
-            ParameterInfo[] parameters = method.GetParameters();
-            if (parameters.Length < 1 || parameters[0].ParameterType != typeof(Type)) continue;
-            object[] args = new object[parameters.Length];
-            args[0] = resourceType;
-            for (int j = 1; j < parameters.Length; j++)
-                args[j] = parameters[j].HasDefaultValue ? parameters[j].DefaultValue :
-                    (parameters[j].ParameterType.IsValueType ? Activator.CreateInstance(parameters[j].ParameterType) : null);
-            try
-            {
-                MeleeAttackInstance result = method.Invoke(null, args) as MeleeAttackInstance;
-                if (result != null) return result;
-            }
-            catch { }
-        }
-        return null;
-    }
-
-    public static void ApplyVesperStyleNativeContract(At_DariusAxe attack)
-    {
-        ApplyVesperStyleTriggerSemantics(attack);
-        AlignBroadPhaseWithVesper(DariusTravelerRegistry.AttackInstancePrefab, false);
-        AlignBroadPhaseWithVesper(DariusTravelerRegistry.AttackCritInstancePrefab, true);
-    }
-
     public override void OnCastStart(int configIndex, CastInfo info)
     {
-        // Reassert the stock-melee contract at the lifecycle boundary. The Hero binder applies this
-        // earlier for indicator/input presentation; this call protects hot-reload/self-heal paths.
-        ApplyVesperStyleNativeContract(this);
+        // The prefab binder applies this before input/indicator use. Reassert here as protection for
+        // hot-reload and runtime self-heal paths before the current swing captures its live range.
+        ApplyVesperStyleTriggerSemantics(this);
 
         Hero hero = null;
         try { hero = info.caster as Hero; }
@@ -330,8 +166,8 @@ public sealed class Ai_DariusAxe : MeleeAttackInstance
 {
     protected override void OnCreate()
     {
-        // Vesper's stock melee instance keeps scaleRangeWithTriggerRange=false. Darius now retains
-        // the same fixed broad-phase semantics; the directional sector performs the precise range cut.
+        // Vesper keeps scaleRangeWithTriggerRange=false. Darius intentionally keeps the same fixed
+        // broad-phase contract; final range and cleave angle are enforced by the sector hit patch.
         base.OnCreate();
         DariusDirectionalBasicAttackGeometry.AnchorNativeMeleeInstance(this, info, false);
     }
@@ -358,11 +194,11 @@ public sealed class DariusNativeAttackBinder : MonoBehaviour
         if (hero == null || ability == null || attack == null) return;
         try
         {
-            At_DariusAxe.ApplyVesperStyleNativeContract(attack);
+            At_DariusAxe.ApplyVesperStyleTriggerSemantics(attack);
             ability.attackAbilityPreset = new AssetRef<AttackTrigger>(attack);
             DariusLog.DebugInfo("ATK-NATIVE-BIND", "Bound EntityAbility.attackAbilityPreset -> At_DariusAxe owner=" + hero.name +
                 " reason=" + reason + " method=Target range=" + At_DariusAxe.AttackRange.ToString("0.###") +
-                " arc=" + At_DariusAxe.AttackArcDegrees.ToString("0.#") + " broadPhase=VesperFixed");
+                " arc=" + At_DariusAxe.AttackArcDegrees.ToString("0.#") + " broadPhase=fixed");
         }
         catch (Exception e)
         {
