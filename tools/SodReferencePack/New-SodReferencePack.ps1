@@ -25,19 +25,18 @@ if (-not (Test-Path $managedDir)) {
 
 [xml]$project = Get-Content $projectPath -Raw
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = @(
-        $project.Project.PropertyGroup |
-            ForEach-Object { [string]$_.SodReferencePackVersion } |
-            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-    ) | Select-Object -First 1
+    $versionNode = $project.SelectSingleNode('//SodReferencePackVersion')
+    if ($null -ne $versionNode) {
+        $Version = [string]$versionNode.InnerText
+    }
 }
 if ([string]::IsNullOrWhiteSpace($Version)) {
     throw 'SodReferencePackVersion is missing from DariusPrototype.csproj.'
 }
 
 $referenceNames = @(
-    $project.Project.ItemGroup.Reference |
-        ForEach-Object { [string]$_.Include } |
+    $project.SelectNodes('//Reference') |
+        ForEach-Object { [string]$_.GetAttribute('Include') } |
         Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
         Sort-Object -Unique
 )
