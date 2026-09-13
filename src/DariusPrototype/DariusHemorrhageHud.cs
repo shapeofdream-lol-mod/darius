@@ -1,3 +1,4 @@
+using System.Reflection;
 using UnityEngine;
 
 public sealed class DariusHemorrhageHud : MonoBehaviour
@@ -5,9 +6,15 @@ public sealed class DariusHemorrhageHud : MonoBehaviour
     private Hero _owner;
     private DariusHemorrhageRuntime _passive;
     private UI_HealthBar_Simple _healthBar;
+    private RectTransform _visibleHealthBar;
     private float _nextHealthBarLookupAt;
+    private readonly Vector3[] _corners = new Vector3[4];
 
-    private void Awake() { _owner = GetComponent<Hero>(); _passive = GetComponent<DariusHemorrhageRuntime>(); }
+    private void Awake()
+    {
+        _owner = GetComponent<Hero>();
+        _passive = GetComponent<DariusHemorrhageRuntime>();
+    }
 
     private void OnGUI()
     {
@@ -44,35 +51,45 @@ public sealed class DariusHemorrhageHud : MonoBehaviour
     private bool TryGetWorldHealthBarRect(out Rect rect)
     {
         rect = default(Rect);
-        if ((_healthBar == null || _healthBar.target != _owner) && Time.unscaledTime >= _nextHealthBarLookupAt)
+        if (_healthBar == null || _healthBar.target != _owner)
         {
-            _nextHealthBarLookupAt = Time.unscaledTime + 0.5f; _healthBar = null;
-            UI_HealthBar_Simple[] bars = Object.FindObjectsOfType<UI_HealthBar_Simple>();
-            for (int i = 0; i < bars.Length; i++) if (bars[i] != null && bars[i].target == _owner) { _healthBar = bars[i]; break; }
-        }
-        if (_healthBar != null && _healthBar.hpBgTransform != null)
-        {
-            RectTransform visibleBar = _healthBar.hpBgTransform;
-            try
+            _visibleHealthBar = null;
+            if (Time.unscaledTime >= _nextHealthBarLookupAt)
             {
-                var field = _healthBar.GetType().GetField("healthFill");
-                Component fill = field != null ? field.GetValue(_healthBar) as Component : null;
-                RectTransform fillRect = fill != null ? fill.transform as RectTransform : null;
-                if (fillRect != null) visibleBar = fillRect;
-            }
-            catch { }
-            Vector3[] corners = new Vector3[4]; visibleBar.GetWorldCorners(corners);
-            Vector2 a = corners[0];
-            Vector2 b = corners[2];
-            float nativeWidth = Mathf.Abs(b.x - a.x);
-            if (nativeWidth > 8f)
-            {
-                float width = Mathf.Clamp(nativeWidth, 96f, 180f);
-                float nativeHeight = Mathf.Abs(b.y - a.y);
-                rect = new Rect((a.x + b.x - width) * 0.5f, Screen.height - Mathf.Max(a.y, b.y), width, Mathf.Max(8f, nativeHeight));
-                return true;
+                _nextHealthBarLookupAt = Time.unscaledTime + 2f;
+                UI_HealthBar_Simple found = null;
+                UI_HealthBar_Simple[] bars = Object.FindObjectsByType<UI_HealthBar_Simple>(FindObjectsSortMode.None);
+                for (int i = 0; i < bars.Length; i++)
+                {
+                    if (bars[i] != null && bars[i].target == _owner)
+                    {
+                        found = bars[i];
+                        break;
+                    }
+                }
+                BindHealthBar(found);
             }
         }
+
+        if (_healthBar != null)
+        {
+            RectTransform visibleBar = _visibleHealthBar != null ? _visibleHealthBar : _healthBar.hpBgTransform;
+            if (visibleBar != null)
+            {
+                visibleBar.GetWorldCorners(_corners);
+                Vector2 a = _corners[0];
+                Vector2 b = _corners[2];
+                float nativeWidth = Mathf.Abs(b.x - a.x);
+                if (nativeWidth > 8f)
+                {
+                    float width = Mathf.Clamp(nativeWidth, 96f, 180f);
+                    float nativeHeight = Mathf.Abs(b.y - a.y);
+                    rect = new Rect((a.x + b.x - width) * 0.5f, Screen.height - Mathf.Max(a.y, b.y), width, Mathf.Max(8f, nativeHeight));
+                    return true;
+                }
+            }
+        }
+
         try
         {
             Camera cam = Dew.mainCamera != null ? Dew.mainCamera : Camera.main;
@@ -84,6 +101,22 @@ public sealed class DariusHemorrhageHud : MonoBehaviour
             rect = new Rect(screen.x - width * 0.5f, Screen.height - screen.y - 5f, width, 16f); return true;
         }
         catch { return false; }
+    }
+
+    private void BindHealthBar(UI_HealthBar_Simple bar)
+    {
+        _healthBar = bar;
+        _visibleHealthBar = bar != null ? bar.hpBgTransform : null;
+        if (bar == null) return;
+
+        try
+        {
+            FieldInfo field = bar.GetType().GetField("healthFill", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Component fill = field != null ? field.GetValue(bar) as Component : null;
+            RectTransform fillRect = fill != null ? fill.transform as RectTransform : null;
+            if (fillRect != null) _visibleHealthBar = fillRect;
+        }
+        catch { }
     }
 
     private void ReadSyncedState(out int stacks, out float mightRatio)
