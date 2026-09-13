@@ -147,21 +147,46 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
             List<HeroLoadoutData> pages;
             if (!profile.heroLoadouts.TryGetValue(DariusTravelerRegistry.HeroName, out pages) || pages == null || pages.Count == 0) yield break;
 
-            int page = 0;
-            try
+            // Stale deactivation is destructive, unlike the old additive-only fallback. Never infer
+            // page 0 when GameSettings is not ready. Require two consecutive identical, in-range
+            // selected-page reads so a transient lobby/scene value cannot disable the native
+            // StarEffect state that the game has already built for the actual page.
+            int page = -1;
+            int lastCandidate = -1;
+            int stableReads = 0;
+            for (int attempt = 0; attempt < 4; attempt++)
             {
-                var settings = NetworkedManagerBase<GameSettingsManager>.instance != null
-                    ? NetworkedManagerBase<GameSettingsManager>.instance.GetLocalPreferredGameSettings() : null;
-                if (settings != null && settings.heroSelectedLoadoutIndex != null)
+                int candidate;
+                if (TryResolveSelectedLoadoutPage(pages, out candidate))
                 {
-                    int selected;
-                    if (settings.heroSelectedLoadoutIndex.TryGetValue(DariusTravelerRegistry.HeroName, out selected))
-                        page = Mathf.Clamp(selected, 0, pages.Count - 1);
+                    if (candidate == lastCandidate) stableReads++;
+                    else
+                    {
+                        lastCandidate = candidate;
+                        stableReads = 1;
+                    }
+                    if (stableReads >= 2)
+                    {
+                        page = candidate;
+                        break;
+                    }
                 }
-            }
-            catch { page = 0; }
+                else
+                {
+                    lastCandidate = -1;
+                    stableReads = 0;
+                }
 
-            HeroLoadoutData loadout = pages[Mathf.Clamp(page, 0, pages.Count - 1)];
+                if (attempt < 3) yield return new WaitForSecondsRealtime(0.10f);
+            }
+
+            if (page < 0)
+            {
+                DariusLog.DebugInfo("STAR-RECONCILE", "Selected Hero_Darius loadout page was not stable/available; skipped destructive fallback and kept native StarEffect state authoritative.");
+                yield break;
+            }
+
+            HeroLoadoutData loadout = pages[page];
             if (loadout == null) yield break;
 
             Dictionary<string, int> desired = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -182,6 +207,30 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
         catch (Exception e)
         {
             DariusLog.Exception("STAR-RECONCILE", e, "Could not reconcile selected Darius constellation loadout");
+        }
+    }
+
+    private static bool TryResolveSelectedLoadoutPage(List<HeroLoadoutData> pages, out int page)
+    {
+        page = -1;
+        if (pages == null || pages.Count == 0) return false;
+        try
+        {
+            GameSettingsManager manager = NetworkedManagerBase<GameSettingsManager>.instance;
+            if (manager == null) return false;
+            var settings = manager.GetLocalPreferredGameSettings();
+            if (settings == null || settings.heroSelectedLoadoutIndex == null) return false;
+
+            int selected;
+            if (!settings.heroSelectedLoadoutIndex.TryGetValue(DariusTravelerRegistry.HeroName, out selected)) return false;
+            if (selected < 0 || selected >= pages.Count) return false;
+            page = selected;
+            return true;
+        }
+        catch (Exception e)
+        {
+            DariusLog.DebugInfo("STAR-RECONCILE", "Selected loadout page read not ready: " + e.GetType().Name);
+            return false;
         }
     }
 
