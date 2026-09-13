@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 // Native Shape of Dreams ModConfig-backed mix controls. ModConfig owns persistence and its
@@ -68,14 +67,14 @@ public sealed class DariusAudioVolumeConfig : ModConfig
             case DariusAudioChannel.Voice: percent = voiceVolume; break;
             default: return 1f;
         }
-        return Mathf.Clamp(percent, 0f, 200f) * 0.01f;
+        float multiplier = Mathf.Clamp(percent, 0f, 200f) * 0.01f;
+        Debug.Log("[DariusAudio] resolve channel=" + channel + " configuredPercent=" + percent.ToString("0.##") + " multiplier=" + multiplier.ToString("0.###"));
+        return multiplier;
     }
 }
 
 public static class DariusAudioSettingsRuntime
 {
-    private static readonly Dictionary<string, DariusAudioChannel> ChannelByKey =
-        new Dictionary<string, DariusAudioChannel>(StringComparer.OrdinalIgnoreCase);
     private static DariusAudioVolumeConfig _config;
 
     public static void Bind(DariusAudioVolumeConfig config)
@@ -91,36 +90,17 @@ public static class DariusAudioSettingsRuntime
     public static DariusAudioChannel Resolve(string key)
     {
         if (string.IsNullOrEmpty(key)) return DariusAudioChannel.Auto;
-
-        DariusAudioChannel cached;
-        if (ChannelByKey.TryGetValue(key, out cached)) return cached;
-
-        string normalized = key.Trim();
-        DariusAudioChannel resolved = DariusAudioChannel.Auto;
-        if (normalized.StartsWith("vo_", StringComparison.OrdinalIgnoreCase) ||
-            normalized.StartsWith("voice_", StringComparison.OrdinalIgnoreCase) ||
-            normalized.IndexOf("_vo_", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            normalized.IndexOf("voice", StringComparison.OrdinalIgnoreCase) >= 0)
-            resolved = DariusAudioChannel.Voice;
-        else if (string.Equals(normalized, "flash", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(normalized, "ghost", StringComparison.OrdinalIgnoreCase) ||
-                 normalized.IndexOf("dodge", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                 normalized.IndexOf("dash", StringComparison.OrdinalIgnoreCase) >= 0)
-            resolved = DariusAudioChannel.Dodge;
-        else if (normalized.IndexOf("basic_attack", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                 normalized.StartsWith("attack", StringComparison.OrdinalIgnoreCase) ||
-                 normalized.StartsWith("aa_", StringComparison.OrdinalIgnoreCase))
-            resolved = DariusAudioChannel.BasicAttack;
-        else if (normalized.StartsWith("q_", StringComparison.OrdinalIgnoreCase) || string.Equals(normalized, "q", StringComparison.OrdinalIgnoreCase))
-            resolved = DariusAudioChannel.Q;
-        else if (normalized.StartsWith("w_", StringComparison.OrdinalIgnoreCase) || string.Equals(normalized, "w", StringComparison.OrdinalIgnoreCase))
-            resolved = DariusAudioChannel.W;
-        else if (normalized.StartsWith("e_", StringComparison.OrdinalIgnoreCase) || string.Equals(normalized, "e", StringComparison.OrdinalIgnoreCase))
-            resolved = DariusAudioChannel.E;
-        else if (normalized.StartsWith("r_", StringComparison.OrdinalIgnoreCase) || string.Equals(normalized, "r", StringComparison.OrdinalIgnoreCase))
-            resolved = DariusAudioChannel.R;
-
-        ChannelByKey[key] = resolved;
-        return resolved;
+        string normalized = key.Trim().ToLowerInvariant();
+        if (normalized.StartsWith("vo_", StringComparison.Ordinal) || normalized.StartsWith("voice_", StringComparison.Ordinal) || normalized.Contains("_vo_") || normalized.Contains("voice"))
+            return DariusAudioChannel.Voice;
+        if (normalized == "flash" || normalized == "ghost" || normalized.Contains("dodge") || normalized.Contains("dash"))
+            return DariusAudioChannel.Dodge;
+        if (normalized.Contains("basic_attack") || normalized.StartsWith("attack", StringComparison.Ordinal) || normalized.StartsWith("aa_", StringComparison.Ordinal))
+            return DariusAudioChannel.BasicAttack;
+        if (normalized.StartsWith("q_", StringComparison.Ordinal) || normalized == "q") return DariusAudioChannel.Q;
+        if (normalized.StartsWith("w_", StringComparison.Ordinal) || normalized == "w") return DariusAudioChannel.W;
+        if (normalized.StartsWith("e_", StringComparison.Ordinal) || normalized == "e") return DariusAudioChannel.E;
+        if (normalized.StartsWith("r_", StringComparison.Ordinal) || normalized == "r") return DariusAudioChannel.R;
+        return DariusAudioChannel.Auto;
     }
 }
