@@ -72,4 +72,14 @@ jobs:
       - name: Build Release against SOD reference pack
         shell: pwsh
         run: |
-          dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -p:UseSodReferencePack=true --nologo
+          dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -p:UseSodReferencePack=true --nologo 2>&1 | Tee-Object -FilePath release-build.log
+          exit $LASTEXITCODE
+
+      - name: Upload compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build-log
+          path: release-build.log
+          if-no-files-found: warn
+          retention-days: 1
