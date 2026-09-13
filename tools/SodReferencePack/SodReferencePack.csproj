@@ -5,7 +5,6 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <PackageId>ShapeOfDreams.ReferenceAssemblies</PackageId>
-    <Version>0.1.0</Version>
     <Authors>shapeofdream-lol-mod</Authors>
     <Description>Compile-time reference assemblies generated locally from Shape of Dreams.</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
