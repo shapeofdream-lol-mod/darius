@@ -15,8 +15,7 @@
     Configurable machine paths. Override with -p:Name=value or a git-ignored Directory.Build.props.
 
       GameDir       game install; falls back to the SOD_GAME_DIR environment variable
-      ModsDir       <GameDir>\Mods, holds the shared Traveler source and deployed mods
-      SharedSource  optional override for TravelerBasicAttackVfxReplication.cs
+      ModsDir       <GameDir>\Mods, used as the deployment parent
 
     Destructive output paths are intentionally local properties and are not externally overridable:
       ModRootDir = repository root
@@ -30,7 +29,6 @@
     <GameDir Condition="'$(GameDir)' == '' and '$(SOD_GAME_DIR)' != ''">$(SOD_GAME_DIR)</GameDir>
     <ModsDir Condition="'$(ModsDir)' == '' and '$(GameDir)' != ''">$(GameDir)\Mods</ModsDir>
     <GameManagedDir Condition="'$(GameManagedDir)' == '' and '$(GameDir)' != ''">$(GameDir)\Shape of Dreams_Data\Managed</GameManagedDir>
-    <SharedSource Condition="'$(SharedSource)' == '' and '$(ModsDir)' != ''">$(ModsDir)\TravelerBasicAttackVfxReplication.cs</SharedSource>
     <DeployDir Condition="'$(ModsDir)' != ''">$(ModsDir)\DariusPrototype</DeployDir>
 
     <!-- Normalize destructive target paths once so PackageMod/DeployMod can validate before RemoveDir. -->
@@ -39,10 +37,6 @@
     <PackageDirFull>$([System.IO.Path]::GetFullPath('$(PackageDir)'))</PackageDirFull>
     <DeployDirFull Condition="'$(DeployDir)' != ''">$([System.IO.Path]::GetFullPath('$(DeployDir)'))</DeployDirFull>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Compile Include="$(SharedSource)" Link="TravelerBasicAttackVfxReplication.cs" Condition="'$(SharedSource)' != '' and Exists('$(SharedSource)')" />
-  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="mscorlib"><HintPath>$(GameManagedDir)\mscorlib.dll</HintPath><Private>false</Private></Reference>
@@ -71,12 +65,10 @@
     <Reference Include="UnityEngine.AnimationModule"><HintPath>$(GameManagedDir)\UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
-  <!-- Boundary checks: the two absences that otherwise produce confusing compile errors. -->
+  <!-- Fail early when the real game assemblies are not available. -->
   <Target Name="CheckGameInstall" BeforeTargets="ResolveReferences">
     <Error Condition="'$(GameManagedDir)' == '' or !Exists('$(GameManagedDir)\Assembly-CSharp.dll')"
            Text="Game assemblies not found. Set GameDir: dotnet build -p:GameDir=&quot;...\Shape of Dreams&quot;, the SOD_GAME_DIR environment variable, or a git-ignored Directory.Build.props." />
-    <Error Condition="'$(SharedSource)' == '' or !Exists('$(SharedSource)')"
-           Text="Shared mod source not found. Set GameDir/ModsDir or override SharedSource; it ships with the base Traveler mod package." />
   </Target>
 
   <!-- Deployable package contents. Extraction sources stay out; only the Pass2 routing manifest is retained. -->
