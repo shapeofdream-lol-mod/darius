@@ -1,11 +1,16 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 // Pass 2 full-character voice router. It never manufactures lines or substitutes another skin's
 // bank: DariusMedia only returns an event when the selected LoL skin actually owns that Wwise pool.
+// Movement/death observation is intentionally low-frequency presentation state, not render-frame
+// logic, so it runs on a small realtime coroutine instead of MonoBehaviour.Update.
 public sealed class DariusVoiceRuntime : MonoBehaviour
 {
+    private const float PollInterval = 0.10f;
+
     private Hero _hero;
     private Vector3 _lastPosition;
     private float _movingSince = -1f;
@@ -19,6 +24,8 @@ public sealed class DariusVoiceRuntime : MonoBehaviour
     private bool _firstKillPlayed;
     private readonly HashSet<int> _recentVictims = new HashSet<int>();
     private float _recentVictimClearAt;
+    private Coroutine _pollRoutine;
+    private WaitForSecondsRealtime _pollWait;
 
     public static DariusVoiceRuntime Ensure(Hero hero)
     {
@@ -33,6 +40,21 @@ public sealed class DariusVoiceRuntime : MonoBehaviour
     {
         _hero = GetComponent<Hero>();
         if (_hero != null) _lastPosition = _hero.transform.position;
+        _pollWait = new WaitForSecondsRealtime(PollInterval);
+    }
+
+    private void OnEnable()
+    {
+        if (_pollRoutine == null) _pollRoutine = StartCoroutine(PollLoop());
+    }
+
+    private void OnDisable()
+    {
+        if (_pollRoutine != null)
+        {
+            try { StopCoroutine(_pollRoutine); } catch { }
+            _pollRoutine = null;
+        }
     }
 
     public void Bind(Hero hero)
@@ -45,6 +67,7 @@ public sealed class DariusVoiceRuntime : MonoBehaviour
             _movingSince = -1f;
             _nextMoveVoiceAt = Time.unscaledTime + 1.0f;
         }
+        if (isActiveAndEnabled && _pollRoutine == null) _pollRoutine = StartCoroutine(PollLoop());
     }
 
     private bool IsLocalHero()
@@ -53,7 +76,16 @@ public sealed class DariusVoiceRuntime : MonoBehaviour
         catch { return false; }
     }
 
-    private void Update()
+    private IEnumerator PollLoop()
+    {
+        while (true)
+        {
+            PollPresentationState();
+            yield return _pollWait;
+        }
+    }
+
+    private void PollPresentationState()
     {
         if (!IsLocalHero() || _hero == null) return;
 
