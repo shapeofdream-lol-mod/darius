@@ -71,6 +71,13 @@ try {
     & $refasmer -q --public --omit-non-api-members=true -O $referenceDir @assemblies
     if ($LASTEXITCODE -ne 0) { throw 'Refasmer failed to generate reference assemblies.' }
 
+    foreach ($name in $referenceNames) {
+        $generated = Join-Path $referenceDir ($name + '.dll')
+        if (-not (Test-Path $generated)) {
+            throw "Reference assembly was not generated: $generated"
+        }
+    }
+
     & dotnet pack $packProject -c Release -o $OutputDir "-p:ReferencePackDir=$referenceDir" "-p:PackageVersion=$Version" --nologo
     if ($LASTEXITCODE -ne 0) { throw 'Failed to create the reference package.' }
 
