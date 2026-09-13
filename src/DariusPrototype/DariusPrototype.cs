@@ -17,15 +17,19 @@ public sealed class DariusPrototypeMod : ModBehaviour
     public override void OnConfigChanged()
     {
         DariusAudioSettingsRuntime.Bind(skillAudioVolume);
-        Debug.Log("[DariusAudio] config applied q=" + skillAudioVolume.qVolume.ToString("0.##") + " w=" + skillAudioVolume.wVolume.ToString("0.##") + " e=" + skillAudioVolume.eVolume.ToString("0.##") + " r=" + skillAudioVolume.rVolume.ToString("0.##") + " basic=" + skillAudioVolume.basicAttackVolume.ToString("0.##") + " dodge=" + skillAudioVolume.dodgeVolume.ToString("0.##") + " voice=" + skillAudioVolume.voiceVolume.ToString("0.##"));
+        DariusLog.Info("AUDIO-CONFIG", "Applied q=" + skillAudioVolume.qVolume.ToString("0.##") +
+            " w=" + skillAudioVolume.wVolume.ToString("0.##") +
+            " e=" + skillAudioVolume.eVolume.ToString("0.##") +
+            " r=" + skillAudioVolume.rVolume.ToString("0.##") +
+            " basic=" + skillAudioVolume.basicAttackVolume.ToString("0.##") +
+            " dodge=" + skillAudioVolume.dodgeVolume.ToString("0.##") +
+            " voice=" + skillAudioVolume.voiceVolume.ToString("0.##"));
     }
 
     private static bool _bootstrapped;
     private static bool _applicationQuitting;
     private static bool _shutdownCompleted;
     private DariusDiagnostics _diagnostics;
-
-    private void LateUpdate() { DariusAudioSettingsRuntime.Bind(skillAudioVolume); }
 
     private void Awake()
     {
