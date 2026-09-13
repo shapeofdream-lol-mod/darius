@@ -9,6 +9,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AssemblyName>DariusPrototype</AssemblyName>
     <RootNamespace>DariusPrototype</RootNamespace>
+    <SodReferencePackVersion Condition="'$(SodReferencePackVersion)' == ''">0.1.0</SodReferencePackVersion>
   </PropertyGroup>
 
   <!--
@@ -16,6 +17,8 @@
 
       GameDir       game install; falls back to the SOD_GAME_DIR environment variable
       ModsDir       <GameDir>\Mods, used as the deployment parent
+
+    CI can compile without a game install by passing -p:UseSodReferencePack=true.
 
     Destructive output paths are intentionally local properties and are not externally overridable:
       ModRootDir = repository root
@@ -38,7 +41,13 @@
     <DeployDirFull Condition="'$(DeployDir)' != ''">$([System.IO.Path]::GetFullPath('$(DeployDir)'))</DeployDirFull>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(UseSodReferencePack)' == 'true'">
+    <PackageReference Include="ShapeOfDreams.ReferenceAssemblies"
+                      Version="$(SodReferencePackVersion)"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseSodReferencePack)' != 'true'">
     <Reference Include="mscorlib"><HintPath>$(GameManagedDir)\mscorlib.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="netstandard"><HintPath>$(GameManagedDir)\netstandard.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="System"><HintPath>$(GameManagedDir)\System.dll</HintPath><Private>false</Private></Reference>
@@ -65,8 +74,8 @@
     <Reference Include="UnityEngine.AnimationModule"><HintPath>$(GameManagedDir)\UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
-  <!-- Fail early when the real game assemblies are not available. -->
-  <Target Name="CheckGameInstall" BeforeTargets="ResolveReferences">
+  <!-- Fail early only when compiling against the real local game install. -->
+  <Target Name="CheckGameInstall" BeforeTargets="ResolveReferences" Condition="'$(UseSodReferencePack)' != 'true'">
     <Error Condition="'$(GameManagedDir)' == '' or !Exists('$(GameManagedDir)\Assembly-CSharp.dll')"
            Text="Game assemblies not found. Set GameDir: dotnet build -p:GameDir=&quot;...\Shape of Dreams&quot;, the SOD_GAME_DIR environment variable, or a git-ignored Directory.Build.props." />
   </Target>
