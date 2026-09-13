@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [0.31.1-refactor] - 2026-09-13
+
 ### Changed
 
 - 按现有职责边界拆分历史聚合文件：Native Attack、Summoner、Prototype、Crippling Strike、Hemorrhage、Skin、Equipment、LoL VFX、Constellation 与 Traveler；长但内聚的 gameplay/registry/model/interpreter 状态机保持完整，不按行数机械拆分。
