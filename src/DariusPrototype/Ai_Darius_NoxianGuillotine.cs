@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using UnityEngine;
 using Mirror;
@@ -46,13 +46,24 @@ public sealed class Ai_Darius_NoxianGuillotine : AbilityInstance
         if (NetworkServer.active) Destroy();
     }
 
-    private void OnDestroy()
+    protected override void OnDestroy()
     {
-        if (!NetworkServer.active || _normalTerminalReached || _sourceDariusTrigger == null) return;
-        // A native Action/attack cancellation can destroy this actor without allowing RunExecute to
-        // reach the line above. Recover the whole R state instead of leaving a hidden cast lock.
-        _sourceDariusTrigger.NotifyNativeExecutionInterrupted("AbilityInstance destroyed before normal terminal callback");
-        _sourceDariusTrigger = null;
+        try
+        {
+            if (NetworkServer.active && !_normalTerminalReached && _sourceDariusTrigger != null)
+            {
+                // A native Action/attack cancellation can destroy this actor without allowing RunExecute to
+                // reach the line above. Recover the whole R state instead of leaving a hidden cast lock.
+                _sourceDariusTrigger.NotifyNativeExecutionInterrupted("AbilityInstance destroyed before normal terminal callback");
+                _sourceDariusTrigger = null;
+            }
+        }
+        finally
+        {
+            // AbilityInstance ultimately derives from DewNetworkBehaviour. Preserve Dew/Mirror teardown
+            // regardless of whether the Darius interruption recovery path succeeds or throws.
+            base.OnDestroy();
+        }
     }
 
     public static IEnumerator Execute(CastInfo castInfo, AbilityTrigger sourceTrigger, Actor sourceActor = null)
