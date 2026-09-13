@@ -8,6 +8,8 @@
     <Authors>shapeofdream-lol-mod</Authors>
     <Description>Compile-time reference assemblies generated locally from Shape of Dreams.</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/shapeofdream-lol-mod/darius</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
