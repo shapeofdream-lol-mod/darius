@@ -1,17 +1,12 @@
 using System;
-using System.IO;
-using System.Collections;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
-using Mirror;
-using UnityEngine;
-using UnityEngine.SceneManagement;
 
 // Independent traveler implementation for Hero_Darius.
-// This deliberately uses runtime-created resources because the stock mod loader does not
-// extend the game's Addressables catalog with custom Hero/Skin GUIDs.
+// Runtime-created Hero/Skin resources remain necessary because the stock mod loader does not
+// extend the game's Addressables catalog with custom Hero/Skin GUIDs. Model playback itself now
+// prefers Unity-native assets and Shape of Dreams' EntityAnimation contract.
 public sealed class Hero_Darius : Hero
 {
     public override void OnModelLoaded()
@@ -19,12 +14,16 @@ public sealed class Hero_Darius : Hero
         base.OnModelLoaded();
         try
         {
-            DariusTravelerModelInstance model = GetComponentInChildren<DariusTravelerModelInstance>(true);
-            if (model != null) model.BindHero(this);
+            DariusNativeModelBridge native = GetComponentInChildren<DariusNativeModelBridge>(true);
+            DariusTravelerModelInstance legacy = GetComponentInChildren<DariusTravelerModelInstance>(true);
+            if (native != null && native.IsReady) native.BindHero(this);
+            else if (legacy != null) legacy.BindHero(this);
+
             DariusBasicAttackVisualRuntime attackVisual = GetComponent<DariusBasicAttackVisualRuntime>();
             if (attackVisual == null) attackVisual = gameObject.AddComponent<DariusBasicAttackVisualRuntime>();
             attackVisual.Bind(this);
-            DariusLog.Info("TRAVELER-MODEL", "Hero_Darius.OnModelLoaded modelBridge=" + (model != null) + " attackVisual=" + (attackVisual != null));
+            DariusLog.Info("TRAVELER-MODEL", "Hero_Darius.OnModelLoaded native=" + (native != null && native.IsReady) +
+                " legacy=" + (legacy != null && (native == null || !native.IsReady)) + " attackVisual=" + (attackVisual != null));
         }
         catch (Exception e)
         {
@@ -33,11 +32,40 @@ public sealed class Hero_Darius : Hero
     }
 }
 
-// The clean runtime EntityModel intentionally has no stock body-renderer hierarchy. In the current
-// game build, EntityVisual.LoadModelLocal completes the Darius skin/custom-model activation and then
-// dereferences a stock renderer member that does not exist, throwing one benign NullReferenceException
-// on spawn. Do not skip LoadModelLocal (the GLB is activated inside that lifecycle); suppress only that
-// known tail exception for Hero_Darius after the custom model has already taken over.
+internal static class DariusNativeAnimationMode
+{
+    public static bool IsNative(EntityAnimation animation)
+    {
+        if (animation == null) return false;
+        try
+        {
+            Hero_Darius hero = animation.GetComponent<Hero_Darius>();
+            if (hero == null) hero = animation.GetComponentInParent<Hero_Darius>();
+            if (hero == null) return false;
+            DariusNativeModelBridge bridge = hero.GetComponentInChildren<DariusNativeModelBridge>(true);
+            return bridge != null && bridge.IsReady;
+        }
+        catch { return false; }
+    }
+
+    public static bool IsNative(EntityVisual visual)
+    {
+        if (visual == null) return false;
+        try
+        {
+            Hero_Darius hero = visual.GetComponent<Hero_Darius>();
+            if (hero == null) hero = visual.GetComponentInParent<Hero_Darius>();
+            if (hero == null) return false;
+            DariusNativeModelBridge bridge = hero.GetComponentInChildren<DariusNativeModelBridge>(true);
+            return bridge != null && bridge.IsReady;
+        }
+        catch { return false; }
+    }
+}
+
+// Legacy compatibility only. The raw runtime-GLB model is missing parts of the stock EntityModel
+// hierarchy and historically triggered one benign tail NRE. Never suppress that exception when a
+// native Unity model is active: native mode is expected to satisfy the real game contract.
 [HarmonyPatch]
 internal static class DariusEntityVisualLoadModelFinalizerPatch
 {
@@ -50,13 +78,14 @@ internal static class DariusEntityVisualLoadModelFinalizerPatch
     {
         if (__exception == null || __instance == null) return __exception;
         if (!(__exception is NullReferenceException)) return __exception;
+        if (DariusNativeAnimationMode.IsNative(__instance)) return __exception;
         try
         {
             Hero_Darius hero = __instance.GetComponent<Hero_Darius>();
             if (hero == null) hero = __instance.GetComponentInParent<Hero_Darius>();
             if (hero == null) return __exception;
-            DariusLog.DebugInfoThrottled("MODEL-NATIVE-GUARD", "load-model-tail",
-                "Suppressed stock EntityVisual.LoadModelLocal tail NullReference after Darius GLB takeover.", 20.0);
+            DariusLog.DebugInfoThrottled("MODEL-NATIVE-GUARD", "legacy-load-model-tail",
+                "Suppressed stock EntityVisual.LoadModelLocal tail NullReference for legacy GLB fallback.", 20.0);
             return null;
         }
         catch
@@ -66,10 +95,9 @@ internal static class DariusEntityVisualLoadModelFinalizerPatch
     }
 }
 
-// Hero_Darius renders and animates its independent GLB directly. The stock EntityAnimation RPC
-// still tries to replace clips on the stripped generic model contract; in rc4 logs that path threw
-// EntityAnimation.ReplaceAnimationLocal NullReferenceException repeatedly during combat. Skip only
-// that stock replacement for Hero_Darius while leaving every other traveler untouched.
+// These two guards are retained only for the legacy GLB fallback. Native bundle models deliberately
+// return true so Shape of Dreams can execute ReplaceAnimationLocal and its normal networked ability
+// animation receiver again.
 [HarmonyPatch]
 internal static class DariusEntityAnimationReplaceAnimationLocalPatch
 {
@@ -82,26 +110,20 @@ internal static class DariusEntityAnimationReplaceAnimationLocalPatch
     private static bool Prefix(EntityAnimation __instance)
     {
         if (__instance == null) return true;
+        if (DariusNativeAnimationMode.IsNative(__instance)) return true;
         try
         {
             Hero_Darius hero = __instance.GetComponent<Hero_Darius>();
             if (hero == null) hero = __instance.GetComponentInParent<Hero_Darius>();
             if (hero == null) return true;
-            DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "replace-local",
-                "Skipped stock EntityAnimation.ReplaceAnimationLocal for Hero_Darius; custom GLB animation is authoritative.", 20.0);
+            DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "legacy-replace-local",
+                "Skipped stock ReplaceAnimationLocal only because Hero_Darius is using the legacy GLB fallback.", 20.0);
             return false;
         }
-        catch
-        {
-            return true;
-        }
+        catch { return true; }
     }
 }
 
-// ReplaceAnimationLocal is not the only dereference inside the stock ability-animation RPC.
-// rc6 skipped that helper but the generated UserCode_RpcPlayAbilityAnimation method continued and
-// still threw at EntityAnimation.cs:228. Stop the whole receiver-side stock RPC for Hero_Darius;
-// the custom GLB hooks above are the authoritative animation path.
 [HarmonyPatch]
 internal static class DariusEntityAnimationAbilityRpcPatch
 {
@@ -115,18 +137,16 @@ internal static class DariusEntityAnimationAbilityRpcPatch
     private static bool Prefix(EntityAnimation __instance)
     {
         if (__instance == null) return true;
+        if (DariusNativeAnimationMode.IsNative(__instance)) return true;
         try
         {
             Hero_Darius hero = __instance.GetComponent<Hero_Darius>();
             if (hero == null) hero = __instance.GetComponentInParent<Hero_Darius>();
             if (hero == null) return true;
-            DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "ability-rpc",
-                "Skipped stock RpcPlayAbilityAnimation receiver for Hero_Darius; custom GLB animation is authoritative.", 20.0);
+            DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "legacy-ability-rpc",
+                "Skipped stock ability-animation RPC only because Hero_Darius is using the legacy GLB fallback.", 20.0);
             return false;
         }
-        catch
-        {
-            return true;
-        }
+        catch { return true; }
     }
 }
