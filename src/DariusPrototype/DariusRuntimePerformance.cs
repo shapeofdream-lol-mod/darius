@@ -3,11 +3,8 @@ using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
 
-// Transitional performance guards for runtime systems that predate this audit.
-// Presentation is moving to Unity/Shape-of-Dreams native Animator + EntityAnimation. Gameplay
-// state that currently lives in MonoBehaviour.Update is bounded to the same 30 Hz cadence used by
-// Shape of Dreams LogicBehaviour until those types can be migrated without changing persistence or
-// network lifecycle contracts in the same patch.
+// Presentation-only guards retained on this branch. Gameplay/runtime cadence cleanup belongs to the
+// separate static-audit branch; this file is intentionally limited to model/skinning cost.
 internal static class DariusRuntimePerformance
 {
     public static void OptimizeSkinnedRenderers(GameObject root, bool disableAuthoredHidden)
@@ -60,9 +57,9 @@ internal static class DariusRuntimePerformance
     }
 }
 
-// At 120/144/240 Hz the old C# animation interpreter previously sampled and rewrote the full
-// skeleton every rendered frame. Keep 60 Hz gameplay visually unchanged while coalescing very
-// high-refresh frames. Native Animator assets will remove this patch entirely after asset cutover.
+// Transitional fallback only: native AssetBundle models bypass the C# GLB interpreter completely.
+// Until the local binary bundle is rebuilt, cap high-refresh displays from evaluating that legacy
+// interpreter more than 90 times per second. This does not change gameplay state.
 [HarmonyPatch(typeof(DariusGlbRuntimeModel), nameof(DariusGlbRuntimeModel.Tick))]
 internal static class DariusLegacyGlbTickBudgetPatch
 {
@@ -104,9 +101,6 @@ internal static class DariusLegacyGlbDisposePerformancePatch
     }
 }
 
-// Apply Unity's normal off-screen culling contract after the legacy GLB has finished creating its
-// SkinnedMeshRenderers. updateWhenOffscreen is deliberately not a permanent correctness mechanism;
-// the native asset build must author conservative renderer bounds instead.
 [HarmonyPatch(typeof(DariusTravelerModelInstance), "OnEnable")]
 internal static class DariusLegacyModelRendererPerformancePatch
 {
@@ -140,8 +134,6 @@ internal static class DariusLegacyFullMeshOverlayPerformancePatch
     }
 }
 
-// God-King's Wolf_Mat lives on the authored-hidden mesh. Alpha-zero materials still leave a live
-// skinned renderer, so disable that renderer outside Spell4 and only wake it for the real reveal.
 [HarmonyPatch(typeof(DariusGlbRuntimeModel), nameof(DariusGlbRuntimeModel.SetMaterialVisible))]
 internal static class DariusGodKingHiddenRendererPerformancePatch
 {
@@ -157,117 +149,5 @@ internal static class DariusGodKingHiddenRendererPerformancePatch
     {
         if (!visible && string.Equals(sourceName, "Wolf_Mat", StringComparison.OrdinalIgnoreCase))
             DariusRuntimePerformance.SetGodKingHiddenRendererEnabled(__instance, false);
-    }
-}
-
-// Hemorrhage state uses one-second damage ticks and time-based expiry, but its MonoBehaviour Update
-// used to scan all bleeding targets at render frequency. Match Shape of Dreams' native logic cadence
-// (30 Hz) until this runtime can be converted directly to LogicBehaviour without mixing that larger
-// lifecycle change into the model migration.
-[HarmonyPatch(typeof(DariusHemorrhageRuntime), "Update")]
-internal static class DariusHemorrhageLogicCadencePatch
-{
-    private const float LogicInterval = 1f / 30f;
-    private static readonly Dictionary<int, float> NextTickByInstance = new Dictionary<int, float>();
-
-    [HarmonyPrefix]
-    private static bool Prefix(DariusHemorrhageRuntime __instance)
-    {
-        if (__instance == null) return true;
-        int id = __instance.GetInstanceID();
-        float now = Time.time;
-        float next;
-        if (NextTickByInstance.TryGetValue(id, out next) && now + 0.0001f < next)
-            return false;
-        NextTickByInstance[id] = now + LogicInterval;
-        return true;
-    }
-
-    internal static void Forget(DariusHemorrhageRuntime runtime)
-    {
-        if (runtime != null) NextTickByInstance.Remove(runtime.GetInstanceID());
-    }
-}
-
-[HarmonyPatch(typeof(DariusHemorrhageRuntime), "OnDestroy")]
-internal static class DariusHemorrhageLogicCadenceCleanupPatch
-{
-    [HarmonyPostfix]
-    private static void Postfix(DariusHemorrhageRuntime __instance)
-    {
-        DariusHemorrhageLogicCadencePatch.Forget(__instance);
-    }
-}
-
-// Equipment state performs timer expiry, movement accumulation, deferred-damage queues and status
-// refreshes. None of those rules need render-frame frequency; 30 Hz also caps the cost of the
-// Black-Cleaver dictionary walk and room/status probes at the game's normal logic cadence.
-[HarmonyPatch(typeof(DariusEquipmentRuntime), "Update")]
-internal static class DariusEquipmentLogicCadencePatch
-{
-    private const float LogicInterval = 1f / 30f;
-    private static readonly Dictionary<int, float> NextTickByInstance = new Dictionary<int, float>();
-
-    [HarmonyPrefix]
-    private static bool Prefix(DariusEquipmentRuntime __instance)
-    {
-        if (__instance == null) return true;
-        int id = __instance.GetInstanceID();
-        float now = Time.time;
-        float next;
-        if (NextTickByInstance.TryGetValue(id, out next) && now + 0.0001f < next) return false;
-        NextTickByInstance[id] = now + LogicInterval;
-        return true;
-    }
-
-    internal static void Forget(DariusEquipmentRuntime runtime)
-    {
-        if (runtime != null) NextTickByInstance.Remove(runtime.GetInstanceID());
-    }
-}
-
-[HarmonyPatch(typeof(DariusEquipmentRuntime), "OnDestroy")]
-internal static class DariusEquipmentLogicCadenceCleanupPatch
-{
-    [HarmonyPostfix]
-    private static void Postfix(DariusEquipmentRuntime __instance)
-    {
-        DariusEquipmentLogicCadencePatch.Forget(__instance);
-    }
-}
-
-// Constellation maintenance contains periodic nearby-enemy physics scans plus health/bonus state.
-// Keep that work on the same 30 Hz logic budget instead of letting a 240 Hz monitor multiply it.
-[HarmonyPatch(typeof(DariusConstellationRuntime), "Update")]
-internal static class DariusConstellationLogicCadencePatch
-{
-    private const float LogicInterval = 1f / 30f;
-    private static readonly Dictionary<int, float> NextTickByInstance = new Dictionary<int, float>();
-
-    [HarmonyPrefix]
-    private static bool Prefix(DariusConstellationRuntime __instance)
-    {
-        if (__instance == null) return true;
-        int id = __instance.GetInstanceID();
-        float now = Time.time;
-        float next;
-        if (NextTickByInstance.TryGetValue(id, out next) && now + 0.0001f < next) return false;
-        NextTickByInstance[id] = now + LogicInterval;
-        return true;
-    }
-
-    internal static void Forget(DariusConstellationRuntime runtime)
-    {
-        if (runtime != null) NextTickByInstance.Remove(runtime.GetInstanceID());
-    }
-}
-
-[HarmonyPatch(typeof(DariusConstellationRuntime), "OnDestroy")]
-internal static class DariusConstellationLogicCadenceCleanupPatch
-{
-    [HarmonyPostfix]
-    private static void Postfix(DariusConstellationRuntime __instance)
-    {
-        DariusConstellationLogicCadencePatch.Forget(__instance);
     }
 }
