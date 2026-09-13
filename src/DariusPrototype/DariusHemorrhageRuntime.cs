@@ -135,20 +135,24 @@ public sealed class DariusHemorrhageRuntime : MonoBehaviour
             return;
         }
 
+        ClearRuntimeState("No active Identity/legacy source");
+    }
+
+    private void ClearRuntimeState(string reason)
+    {
         UnsubscribeAttack();
         int stateCount = _states.Count;
         foreach (KeyValuePair<Entity, BleedState> pair in _states)
         {
-            if (pair.Value != null)
-            {
-                if (pair.Value.stackVfx != null) try { UnityEngine.Object.Destroy(pair.Value.stackVfx); } catch { }
-                if (pair.Value.fiveStackVfx != null) try { UnityEngine.Object.Destroy(pair.Value.fiveStackVfx); } catch { }
-            }
+            if (pair.Value == null) continue;
+            if (pair.Value.stackVfx != null) try { UnityEngine.Object.Destroy(pair.Value.stackVfx); } catch { }
+            if (pair.Value.fiveStackVfx != null) try { UnityEngine.Object.Destroy(pair.Value.fiveStackVfx); } catch { }
         }
         _states.Clear();
+        _remove.Clear();
         _warFervorApplications.Clear();
         RemoveNoxianMight();
-        DariusLog.Info("HEM", "No active Identity/legacy source; cleared " + stateCount + " bleed targets and Noxian Might.");
+        DariusLog.Info("HEM", reason + "; cleared " + stateCount + " bleed targets and Noxian Might.");
     }
 
     private void SubscribeAttackIfNeeded()
@@ -222,9 +226,7 @@ public sealed class DariusHemorrhageRuntime : MonoBehaviour
 
     private void OnDestroy()
     {
-        DariusLog.Info("HEM", "Runtime OnDestroy owner=" + DariusLog.EntityLabel(_owner));
-        UnsubscribeAttack();
-        RemoveNoxianMight();
+        ClearRuntimeState("Runtime OnDestroy owner=" + DariusLog.EntityLabel(_owner));
     }
 
     public void Apply(Entity target, int stacks, string source = null)
