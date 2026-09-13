@@ -140,55 +140,77 @@ public sealed class DariusConstellationRuntime : MonoBehaviour
         }
         catch { yield break; }
 
+        DewProfile profile = null;
+        List<HeroLoadoutData> pages = null;
+        bool hasPages = false;
+        Exception setupError = null;
         try
         {
-            DewProfile profile = DewSave.profileMain;
-            if (profile == null || profile.heroLoadouts == null) yield break;
-            List<HeroLoadoutData> pages;
-            if (!profile.heroLoadouts.TryGetValue(DariusTravelerRegistry.HeroName, out pages) || pages == null || pages.Count == 0) yield break;
+            profile = DewSave.profileMain;
+            if (profile != null && profile.heroLoadouts != null)
+                hasPages = profile.heroLoadouts.TryGetValue(DariusTravelerRegistry.HeroName, out pages) && pages != null && pages.Count > 0;
+        }
+        catch (Exception e) { setupError = e; }
 
-            // Stale deactivation is destructive, unlike the old additive-only fallback. Never infer
-            // page 0 when GameSettings is not ready. Require two consecutive identical, in-range
-            // selected-page reads so a transient lobby/scene value cannot disable the native
-            // StarEffect state that the game has already built for the actual page.
-            int page = -1;
-            int lastCandidate = -1;
-            int stableReads = 0;
-            for (int attempt = 0; attempt < 4; attempt++)
+        if (setupError != null)
+        {
+            DariusLog.Exception("STAR-RECONCILE", setupError, "Could not read Hero_Darius saved loadout pages");
+            yield break;
+        }
+        if (!hasPages) yield break;
+
+        // Stale deactivation is destructive, unlike the old additive-only fallback. Never infer
+        // page 0 when GameSettings is not ready. Require two consecutive identical, in-range
+        // selected-page reads so a transient lobby/scene value cannot disable the native
+        // StarEffect state that the game has already built for the actual page.
+        int page = -1;
+        int lastCandidate = -1;
+        int stableReads = 0;
+        for (int attempt = 0; attempt < 4; attempt++)
+        {
+            int candidate;
+            if (TryResolveSelectedLoadoutPage(pages, out candidate))
             {
-                int candidate;
-                if (TryResolveSelectedLoadoutPage(pages, out candidate))
-                {
-                    if (candidate == lastCandidate) stableReads++;
-                    else
-                    {
-                        lastCandidate = candidate;
-                        stableReads = 1;
-                    }
-                    if (stableReads >= 2)
-                    {
-                        page = candidate;
-                        break;
-                    }
-                }
+                if (candidate == lastCandidate) stableReads++;
                 else
                 {
-                    lastCandidate = -1;
-                    stableReads = 0;
+                    lastCandidate = candidate;
+                    stableReads = 1;
                 }
-
-                if (attempt < 3) yield return new WaitForSecondsRealtime(0.10f);
+                if (stableReads >= 2)
+                {
+                    page = candidate;
+                    break;
+                }
             }
-
-            if (page < 0)
+            else
             {
-                DariusLog.DebugInfo("STAR-RECONCILE", "Selected Hero_Darius loadout page was not stable/available; skipped destructive fallback and kept native StarEffect state authoritative.");
-                yield break;
+                lastCandidate = -1;
+                stableReads = 0;
             }
 
-            HeroLoadoutData loadout = pages[page];
-            if (loadout == null) yield break;
+            if (attempt < 3) yield return new WaitForSecondsRealtime(0.10f);
+        }
 
+        if (page < 0)
+        {
+            DariusLog.DebugInfo("STAR-RECONCILE", "Selected Hero_Darius loadout page was not stable/available; skipped destructive fallback and kept native StarEffect state authoritative.");
+            yield break;
+        }
+
+        HeroLoadoutData loadout = null;
+        Exception loadoutError = null;
+        try { loadout = pages[page]; }
+        catch (Exception e) { loadoutError = e; }
+        if (loadoutError != null)
+        {
+            DariusLog.Exception("STAR-RECONCILE", loadoutError, "Stable selected Hero_Darius loadout page could not be read");
+            yield break;
+        }
+        if (loadout == null) yield break;
+
+        try
+        {
             Dictionary<string, int> desired = new Dictionary<string, int>(StringComparer.Ordinal);
             CollectSavedStars(loadout.cDestruction, desired);
             CollectSavedStars(loadout.cLife, desired);
