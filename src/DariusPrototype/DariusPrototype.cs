@@ -187,6 +187,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusLog.Info("BOOT", "Cleaning Darius runtime resources: " + reason);
         DariusTravelerRegistry.UnregisterRuntimeOnly();
         DariusFormalRegistry.Unregister();
+        try { DariusNativeModelAssets.Unload(); } catch (Exception e) { DariusLog.Exception("NATIVE-MODEL", e, "AssetBundle unload failed during " + reason); }
         try { harmony.UnpatchAll(harmony.Id); } catch { }
         _bootstrapped = false;
         DariusLog.Flush();
