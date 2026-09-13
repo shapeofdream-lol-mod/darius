@@ -181,6 +181,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         if (_shutdownCompleted) return;
         _shutdownCompleted = true;
         DariusLog.Info("BOOT", "Cleaning Darius runtime resources: " + reason);
+        TravelerBasicAttackVfxReplication.Shutdown();
         DariusTravelerRegistry.UnregisterRuntimeOnly();
         DariusFormalRegistry.Unregister();
         try { harmony.UnpatchAll(harmony.Id); } catch { }
