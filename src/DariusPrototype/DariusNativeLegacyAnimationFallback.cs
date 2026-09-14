@@ -25,14 +25,50 @@ internal sealed class DariusNativeLegacyAnimationFallback : MonoBehaviour
         return true;
     }
 
+    public void PlayAttack(string clip, float fade = 0.05f)
+    {
+        PlayState(clip, fade, 1f);
+    }
+
+    public void PlayOneShot(string clip)
+    {
+        PlayState(clip, 0.05f, 1f);
+    }
+
+    public void PlayTimed(string clip, float duration, float speed = 1f)
+    {
+        StopSequence();
+        PlayState(clip, 0.05f, speed);
+        if (duration > 0f)
+            _sequence = StartCoroutine(ResetSpeedAfter(duration));
+    }
+
+    private IEnumerator ResetSpeedAfter(float duration)
+    {
+        yield return new WaitForSeconds(duration);
+        if (_animator != null) _animator.speed = 1f;
+        _sequence = null;
+    }
+
+    public void SetArmedState(string clip, bool armed)
+    {
+        if (armed) PlayState(clip, 0.05f, 1f);
+        else Stop();
+    }
+
     public void Stop()
+    {
+        StopSequence();
+        if (_animator != null) _animator.speed = 1f;
+    }
+
+    private void StopSequence()
     {
         if (_sequence != null)
         {
-            StopCoroutine(_sequence);
+            try { StopCoroutine(_sequence); } catch { }
             _sequence = null;
         }
-        if (_animator != null) _animator.speed = 1f;
     }
 
     private void OnDestroy()
