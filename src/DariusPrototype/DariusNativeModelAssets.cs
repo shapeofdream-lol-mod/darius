@@ -152,6 +152,7 @@ public sealed class DariusNativeModelBridge : MonoBehaviour
     private EntityAnimation _entityAnimation;
     private readonly Dictionary<string, AnimationClip> _clips = new Dictionary<string, AnimationClip>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Transform> _anchors = new Dictionary<string, Transform>(StringComparer.OrdinalIgnoreCase);
+    private Renderer[] _godKingWolfRenderers;
     private Coroutine _sequence;
 
     public bool IsReady { get { return _modelRoot != null && _animator != null; } }
@@ -238,14 +239,18 @@ public sealed class DariusNativeModelBridge : MonoBehaviour
         if (_entityModel == null || _modelRoot == null) return;
         Renderer[] allRenderers = _modelRoot.GetComponentsInChildren<Renderer>(true);
         List<Renderer> visibleRenderers = new List<Renderer>(allRenderers.Length);
+        List<Renderer> godKingWolfRenderers = IsGodKingSkin ? new List<Renderer>() : null;
         for (int i = 0; i < allRenderers.Length; i++)
         {
             Renderer renderer = allRenderers[i];
             if (renderer == null) continue;
             if (renderer is SkinnedMeshRenderer)
                 ((SkinnedMeshRenderer)renderer).updateWhenOffscreen = false;
+            if (IsGodKingSkin && RendererContainsMaterial(renderer, "Wolf_Mat"))
+                godKingWolfRenderers.Add(renderer);
             if (!IsHiddenPresentationObject(renderer.gameObject)) visibleRenderers.Add(renderer);
         }
+        _godKingWolfRenderers = godKingWolfRenderers != null ? godKingWolfRenderers.ToArray() : null;
         _entityModel.bodyRenderers = visibleRenderers.ToArray();
 
         AnimationClip run = FindClip(RunClipName);
@@ -466,13 +471,12 @@ public sealed class DariusNativeModelBridge : MonoBehaviour
 
     public bool SetGodKingWolfVisible(bool visible)
     {
-        if (!IsGodKingSkin || _modelRoot == null) return false;
+        if (!IsGodKingSkin || _godKingWolfRenderers == null) return false;
         bool changed = false;
-        Renderer[] renderers = _modelRoot.GetComponentsInChildren<Renderer>(true);
-        for (int i = 0; i < renderers.Length; i++)
+        for (int i = 0; i < _godKingWolfRenderers.Length; i++)
         {
-            Renderer renderer = renderers[i];
-            if (renderer == null || !RendererContainsMaterial(renderer, "Wolf_Mat")) continue;
+            Renderer renderer = _godKingWolfRenderers[i];
+            if (renderer == null) continue;
             renderer.enabled = visible;
             changed = true;
         }
