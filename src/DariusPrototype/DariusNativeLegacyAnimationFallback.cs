@@ -1,9 +1,8 @@
 using System.Collections;
 using UnityEngine;
 
-// Temporary compatibility layer for native model migration.
-// This class owns legacy Animator-driven presentation only while EntityAnimation becomes the
-// authoritative animation path. It is intentionally isolated so it can be deleted after smoke tests.
+// Compatibility layer for temporary legacy Animator presentation.
+// EntityAnimation remains the preferred authority; this class only owns old Animator sequences.
 internal sealed class DariusNativeLegacyAnimationFallback : MonoBehaviour
 {
     private Animator _animator;
@@ -43,6 +42,12 @@ internal sealed class DariusNativeLegacyAnimationFallback : MonoBehaviour
             _sequence = StartCoroutine(ResetSpeedAfter(duration));
     }
 
+    public void PlaySequence(IEnumerator sequence)
+    {
+        StopSequence();
+        if (sequence != null) _sequence = StartCoroutine(sequence);
+    }
+
     private IEnumerator ResetSpeedAfter(float duration)
     {
         yield return new WaitForSeconds(duration);
@@ -62,7 +67,7 @@ internal sealed class DariusNativeLegacyAnimationFallback : MonoBehaviour
         if (_animator != null) _animator.speed = 1f;
     }
 
-    private void StopSequence()
+    public void StopSequence()
     {
         if (_sequence != null)
         {
