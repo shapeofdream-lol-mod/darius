@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-public static partial class DariusJapaneseLocalization
+﻿public static partial class DariusJapaneseLocalization
 {
     public static bool TryGet(string key, bool description, out string value)
     {

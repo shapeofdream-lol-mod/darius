@@ -1,6 +1,3 @@
-using System;
-using UnityEngine;
-
 // Hero_Darius Identity Memory: Hemorrhage.
 // This is intentionally a SkillTrigger instead of a Gem so it occupies the native Hero
 // Identity slot. It no longer copies St_D_Resolve; the slot is assigned directly by the

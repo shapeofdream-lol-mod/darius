@@ -1,6 +1,3 @@
-using System;
-using UnityEngine;
-
 // Native-model presentation guard only. General gameplay cadence, diagnostics, HUD and legacy
 // cleanup belong to their dedicated branches. Keeping this helper free of legacy GLB type references
 // lets the static-audit branch remove old implementations without creating a merge dependency here.

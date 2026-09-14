@@ -1,8 +1,3 @@
-using System;
-using System.Collections;
-using UnityEngine;
-using Mirror;
-
 public sealed partial class Ai_Darius_NoxianGuillotine : AbilityInstance
 {
     private static bool IsLegalTarget(Hero owner, Entity target)

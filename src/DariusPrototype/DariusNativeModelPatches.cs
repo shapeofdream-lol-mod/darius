@@ -1,5 +1,3 @@
-using HarmonyLib;
-
 // Prefer the Unity-native AssetBundle model before the legacy runtime GLB parser gets a chance to
 // allocate meshes, decode textures, or start its C# animation interpreter. Returning false skips
 // DariusTravelerModelInstance.OnEnable only when the native model was activated successfully.

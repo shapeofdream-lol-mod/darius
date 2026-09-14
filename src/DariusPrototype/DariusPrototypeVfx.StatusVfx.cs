@@ -1,6 +1,3 @@
-using System;
-using UnityEngine;
-
 public static partial class DariusPrototypeVfx
 {
     public static void CreateBleedStack(Hero owner, Transform t, int stacks)

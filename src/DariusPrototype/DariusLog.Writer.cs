@@ -1,10 +1,3 @@
-using System;
-using System.IO;
-using System.Reflection;
-using System.Text;
-using Mirror;
-using UnityEngine;
-
 public static partial class DariusLog
 {
     private static bool ShouldSuppress(string level)

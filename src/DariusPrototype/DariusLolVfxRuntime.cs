@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using Newtonsoft.Json.Linq;
-using UnityEngine;
-
 // Runtime interpreter for Riot's VfxSystemDefinitionData converted from the user's current
 // Darius WAD. This deliberately maps authored LoL emitter parameters instead of redrawing the
 // effect from screenshots. Unsupported Riot primitives are logged explicitly rather than being

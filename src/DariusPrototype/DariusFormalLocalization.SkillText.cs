@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using DewInternal;
-
 public static partial class DariusFormalLocalization
 {
     public static string HemorrhageDescription

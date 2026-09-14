@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
-using UnityEngine;
-
 // Loads League of Legends presentation icons packaged under assets/icons.
 // The file-name map below is the single source of truth for the icon set; runtime fallback remains only as a last-resort guard for damaged installs.
 public static partial class DariusPrototypeIcons

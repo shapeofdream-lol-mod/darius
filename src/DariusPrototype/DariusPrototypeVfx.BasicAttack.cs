@@ -1,6 +1,3 @@
-using System;
-using UnityEngine;
-
 public static partial class DariusPrototypeVfx
 {
     public static void CreateBasicAttackRangeArc(Hero owner, Vector3 forward, float range)

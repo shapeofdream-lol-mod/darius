@@ -1,6 +1,3 @@
-using System;
-using UnityEngine;
-
 public static partial class DariusPrototypeVfx
 {
     private static bool GodKing(Hero owner)

@@ -1,7 +1,4 @@
-﻿using System;
-using UnityEngine;
-
-public sealed class Gem_Darius_Hemorrhage : Gem
+﻿public sealed class Gem_Darius_Hemorrhage : Gem
 {
     public override void OnEquipGem(Hero newOwner)
     {

@@ -1,6 +1,3 @@
-using System;
-using UnityEngine;
-
 // Native Shape of Dreams ModConfig-backed mix controls. ModConfig owns persistence and its
 // settings UI edits these public fields directly; DariusMedia reads the current value at every
 // playback, so changes take effect without restarting or rebuilding the mod.

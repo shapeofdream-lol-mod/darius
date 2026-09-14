@@ -1,14 +1,3 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Reflection.Emit;
-using HarmonyLib;
-using Mirror;
-using UnityEngine;
-using UnityEngine.SceneManagement;
-
 // Native Darius constellation set. Every entry is a real StarEffect bound to Hero_Darius and
 // participates in Shape of Dreams' normal constellation loadout, profile, slot and level pipeline.
 public static class DariusConstellationIds

@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using UnityEngine;
-using Mirror;
-
 public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
 {
     public void Apply(Entity target, int stacks, string source = null)

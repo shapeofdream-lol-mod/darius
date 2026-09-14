@@ -1,6 +1,3 @@
-using System.Collections;
-using UnityEngine;
-
 // Compatibility layer for temporary legacy Animator presentation.
 // EntityAnimation remains the preferred authority; this class only owns old Animator sequences.
 internal sealed class DariusNativeLegacyAnimationFallback : MonoBehaviour

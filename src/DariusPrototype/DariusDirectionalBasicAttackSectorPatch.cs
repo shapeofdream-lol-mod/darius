@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Reflection;
-using HarmonyLib;
-using UnityEngine;
-
 // The stock MeleeAttackInstance remains responsible for native damage/crit/on-hit event semantics,
 // but every generated hit must lie in the directional sector. Because the stock melee instance is
 // an overlap/AOE actor, all enemies inside the sector can pass this filter during the same swing.

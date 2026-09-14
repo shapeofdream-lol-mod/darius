@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 public static partial class DariusJapaneseLocalization
 {
     private static bool TryGetItemText(string key, bool description, out string value)

@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
-using UnityEngine;
-
 public static partial class DariusPrototypeIcons
 {
     private static Sprite CreateFallback(string key)

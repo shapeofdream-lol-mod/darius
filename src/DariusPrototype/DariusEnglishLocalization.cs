@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-public static class DariusLanguage
+﻿public static class DariusLanguage
 {
     private static bool StartsWithAny(string language, params string[] prefixes)
     {

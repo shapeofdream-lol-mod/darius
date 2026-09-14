@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using UnityEngine;
-
 namespace DariusModelAnimationRuntime
 {
     internal sealed class UniversalRetargeter : MonoBehaviour

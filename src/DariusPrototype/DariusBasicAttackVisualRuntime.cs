@@ -1,7 +1,3 @@
-using System;
-using Mirror;
-using UnityEngine;
-
 // Hero_Darius basic-attack visual adapter.
 // v0.18 no longer watches a foreign hero attack event and never scans the scene to delete
 // another traveler's effects. Hero_Darius owns At_DariusAxe; its native

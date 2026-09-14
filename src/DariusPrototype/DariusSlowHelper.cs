@@ -1,7 +1,3 @@
-using System;
-using System.Collections;
-using UnityEngine;
-
 public static class DariusSlowHelper
 {
     public static void Apply(Entity target, float strength, float duration, string source = null)

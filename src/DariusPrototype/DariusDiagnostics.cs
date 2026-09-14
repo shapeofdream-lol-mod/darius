@@ -1,8 +1,3 @@
-using System;
-using System.Text;
-using Mirror;
-using UnityEngine;
-
 // High-level flight recorder for first-pass in-game testing.
 // Keeps the log useful even if a failure happens outside one of the skill try/catch blocks.
 public sealed class DariusDiagnostics : MonoBehaviour

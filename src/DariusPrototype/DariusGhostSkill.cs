@@ -1,8 +1,3 @@
-using System;
-using System.Collections;
-using Mirror;
-using UnityEngine;
-
 public sealed class St_Darius_Ghost : SkillTrigger
 {
     protected override void OnPrepare()

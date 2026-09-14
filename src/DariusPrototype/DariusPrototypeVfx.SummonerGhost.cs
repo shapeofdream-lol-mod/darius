@@ -1,6 +1,3 @@
-using System;
-using UnityEngine;
-
 public static partial class DariusPrototypeVfx
 {
     public static GameObject CreateSummonerGhost(Transform owner, float duration)

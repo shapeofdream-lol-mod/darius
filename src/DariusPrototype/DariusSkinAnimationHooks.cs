@@ -1,5 +1,3 @@
-using UnityEngine;
-
 // Animation entry point. Native Unity models use Shape of Dreams EntityAnimation as the
 // animation authority. Legacy GLB animation remains a fallback until native assets are ready.
 public static class DariusSkinAnimationHooks

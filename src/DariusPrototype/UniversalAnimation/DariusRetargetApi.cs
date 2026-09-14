@@ -1,6 +1,3 @@
-using System;
-using UnityEngine;
-
 namespace DariusModelAnimationRuntime
 {
     // Skill-side bridge: animations belong to the Darius skills, not to a specific skin.
