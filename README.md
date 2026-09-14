@@ -46,7 +46,7 @@
     └── DariusPrototype\             # 安装位置（由 DeployMod 写入，不是仓库）
 ```
 
-`TravelerBasicAttackVfxReplication` 已内置在 `src/DariusPrototype/TravelerBasicAttackVfxReplication.cs`，构建不再依赖 `Mods\` 下的仓库外共享源码。
+`TravelerBasicAttackVfxReplication` 已内置在 `src/DariusPrototype/Presentation/Vfx/TravelerBasicAttackVfxReplication.cs`，构建不再依赖 `Mods\` 下的仓库外共享源码。
 
 仓库可以放在任何地方，与游戏目录解耦。`DeployMod` 会拒绝把部署目标设为仓库本身，以免清理安装目录时误删源码。
 
@@ -121,6 +121,14 @@ PR、`main` push 和手动 `workflow_dispatch` 会运行 `.github/workflows/dotn
 .
 ├── .github/workflows/dotnet-ci.yml # GitHub Actions：仓库契约 + reference-pack Release build
 ├── src/DariusPrototype/            # 全部 C# 源码 + DariusPrototype.csproj
+│   ├── Core/                       # 引导、日志、环境/诊断、共享资源 ID
+│   ├── Combat/                     # 技能与战斗（Skills / BasicAttack / Summoners）
+│   ├── Traveler/                   # Hero_Darius 注册、模型绑定、生命周期
+│   ├── Constellations/             # 星座 + 装备星
+│   ├── Registration/               # 正式资源注册 / Deja Vu / 兼容层
+│   ├── Presentation/               # 表现层（Vfx / Model / Media）
+│   ├── Localization/               # zh_CN / en_US / ja_JP 文案
+│   ├── Native/                     # 游戏原生动画/模型 Harmony 补丁
 │   └── UniversalAnimation/         # 通用动画重定向运行时
 ├── tools/                          # 离线资产转换 + SOD reference-pack 生成工具
 ├── about/                          # Mod 加载器元数据与 Workshop 清单
