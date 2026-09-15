@@ -6,7 +6,9 @@ using UnityEngine;
 
 public static partial class DariusLolVfxRuntime
 {
-    private static void ApplyStartSizeAxes(ParticleSystem ps, JObject birthScale, Vector3 size, bool uniformScale, bool qReadability, bool skin67NoxianAirflow, string primitive, string name)
+    private static void ApplyStartSizeAxes(ParticleSystem ps, JObject birthScale, Vector3 size, bool uniformScale, bool qReadability,
+        bool skin67NoxianAirflow, bool skin67WindupDisc, bool skin67WindupTeamRing, float skin67NoxianAirflowSpatialScale,
+        string primitive, string name)
     {
         ParticleSystem.MainModule main = ps.main;
         if (skin67WindupDisc)
@@ -39,7 +41,7 @@ public static partial class DariusLolVfxRuntime
             // creating the giant triangular sheets seen in the recording.
             ParticleSystem.MinMaxCurve u = ToAxisCurve(birthScale, 0, size.x);
             if (qReadability && string.Equals(primitive, "VfxPrimitiveArbitraryQuad", StringComparison.OrdinalIgnoreCase)) u = ScaleCurve(u, 2f);
-            if (skin67NoxianAirflow) u = ScaleCurve(u, Skin67NoxianAirflowSpatialScale);
+            if (skin67NoxianAirflow) u = ScaleCurve(u, skin67NoxianAirflowSpatialScale);
             main.startSizeX = u; main.startSizeY = u; main.startSizeZ = u;
         }
         else
@@ -57,9 +59,9 @@ public static partial class DariusLolVfxRuntime
             }
             if (skin67NoxianAirflow)
             {
-                sx = ScaleCurve(sx, Skin67NoxianAirflowSpatialScale);
-                sy = ScaleCurve(sy, Skin67NoxianAirflowSpatialScale);
-                sz = ScaleCurve(sz, Skin67NoxianAirflowSpatialScale);
+                sx = ScaleCurve(sx, skin67NoxianAirflowSpatialScale);
+                sy = ScaleCurve(sy, skin67NoxianAirflowSpatialScale);
+                sz = ScaleCurve(sz, skin67NoxianAirflowSpatialScale);
             }
             main.startSizeX = sx; main.startSizeY = sy; main.startSizeZ = sz;
         }
