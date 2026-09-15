@@ -31,13 +31,34 @@
 
 ## 3. 源码职责地图
 
+源码按运行时职责分目录（SDK 风格 csproj 递归收集 `**/*.cs`，移动文件不影响编译；代码处于全局命名空间，不要为此新增 namespace）：
+
+```text
+src/DariusPrototype/
+├── Core/                 # 引导、统一日志、环境/诊断、共享资源 ID
+├── Combat/
+│   ├── Skills/           # 技能/战斗支撑（R 输入守卫、TriggerConfig 访问、战斗控制器）
+│   │   ├── Abilities/    # Q/W/E/R 执行体与对应 SkillTrigger（Ai_* / St_* / Gem_*）
+│   │   └── Effects/      # 出血/被动、Memory 成长、减速、敌人分类、层数 HUD
+│   ├── BasicAttack/      # 原生普攻与定向普攻扇区
+│   └── Summoners/        # Flash / Ghost / 原生位移
+├── Traveler/             # Hero_Darius 注册、模型绑定、生命周期
+├── Constellations/       # 星座 + 装备星（含 persistence / presentation）
+├── Registration/         # 正式资源注册 / Deja Vu / 运行时查找兼容层
+├── Presentation/
+│   ├── Vfx/              # 高层表现 facade、LoL VFX interpreter、普攻视觉
+│   ├── Model/            # GLB 运行时模型、native model bridge、皮肤动画桥
+│   └── Media/            # 贴图/图标、SFX、语音资源加载
+├── Localization/         # zh_CN / en_US / ja_JP 文案
+├── Native/               # 游戏原生动画/模型 Harmony 补丁
+└── UniversalAnimation/   # 通用动画重定向运行时
+```
+
 ### 3.1 入口与构建
 
 | 文件 | 职责 |
 | --- | --- |
-| `DariusPrototype.cs` | `DariusPrototypeMod : ModBehaviour` 生命周期/bootstrap；可选表现失败不得中断核心注册 |
-| `DariusCombatController.cs` | 历史诊断/战斗控制器 |
-| `DariusPrototypeVfx.cs` | Darius 高层表现 facade |
+| `Core/DariusPrototype.cs` | `DariusPrototypeMod : ModBehaviour` 生命周期/bootstrap；可选表现失败不得中断核心注册 |
 | `DariusPrototype.csproj` | SDK 风格工程、真实游戏引用/reference-pack 切换、Package/Deploy targets |
 | `.github/workflows/dotnet-ci.yml` | 仓库契约 + reference-pack Release build |
 | `tools/SodReferencePack/*` | 从本机真实游戏程序集生成 metadata-only CI 编译引用 |
@@ -46,76 +67,78 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `Ai_Darius_Decimate.cs` | Q 大杀四方服务端执行体 |
-| `Ai_Darius_CripplingStrike.cs` | W 一次性 `AbilityInstance` |
-| `DariusCripplingStrikeRuntime.cs` | W Hero 常驻武器强化状态 |
-| `Ai_Darius_Apprehend.cs` | E 无情铁手执行体 |
-| `Ai_Darius_NoxianGuillotine.cs` | R `AbilityInstance` 执行体 |
-| `St_Darius_*.cs` | 对应技能的 `SkillTrigger` 定义/输入状态 |
-| `St_D_Darius_Hemorrhage.cs` | 被动 Identity `SkillTrigger` |
-| `Gem_Darius_Hemorrhage.cs` | 旧 Gem 兼容适配器 |
-| `DariusHemorrhageRuntime.cs` | 出血/Noxian Might Hero 状态机 |
-| `DariusMemoryScaling.cs` | Memory 等级成长规则唯一实现 |
-| `DariusMemoryEffectBridge.cs` | direct-execution 技能的 Damage/Heal/Cast 归因桥 |
-| `DariusNativeAttack.cs` | 原生普攻 trigger/instances/binder |
-| `DariusDirectionalBasicAttack.cs` | 定向普攻几何/状态 |
-| `DariusDirectionalBasicAttackSectorPatch.cs` | 普攻命中扇区 Harmony 过滤 |
-| `DariusNativeDisplacement.cs` | Flash / Ghost 原生位移接管 |
-| `DariusSummonerSkills.cs` | 召唤师技能平衡/原生配置派生 |
-| `DariusFlashSkill.cs` | Flash trigger/warp |
-| `DariusGhostSkill.cs` | Ghost trigger/runtime |
-| `DariusSummonerRuntime.cs` | 召唤师方向解析/兼容反射 |
-| `DariusSlowHelper.cs` | 减速应用 helper/runtime |
-| `DariusHemorrhageHud.cs` | 出血层数 HUD |
-| `DariusEnemyClassifier.cs` | 敌人分类 |
-| `DariusRInputGuard.cs` | R 输入守卫 |
-| `DariusTriggerConfigRuntimeEditor.cs` | `TriggerConfig` 私有后备字段统一访问 |
+| `Combat/Skills/Abilities/Ai_Darius_Decimate.cs` | Q 大杀四方服务端执行体 |
+| `Combat/Skills/Abilities/Ai_Darius_CripplingStrike.cs` | W 一次性 `AbilityInstance` |
+| `Combat/Skills/Abilities/DariusCripplingStrikeRuntime.cs` | W Hero 常驻武器强化状态 |
+| `Combat/Skills/Abilities/Ai_Darius_Apprehend.cs` | E 无情铁手执行体 |
+| `Combat/Skills/Abilities/Ai_Darius_NoxianGuillotine.cs` | R `AbilityInstance` 执行体 |
+| `Combat/Skills/Abilities/St_Darius_*.cs` | 对应技能的 `SkillTrigger` 定义/输入状态 |
+| `Combat/Skills/Abilities/St_D_Darius_Hemorrhage.cs` | 被动 Identity `SkillTrigger` |
+| `Combat/Skills/Abilities/Gem_Darius_Hemorrhage.cs` | 旧 Gem 兼容适配器 |
+| `Combat/Skills/Effects/DariusHemorrhageRuntime.cs` | 出血/Noxian Might Hero 状态机 |
+| `Combat/Skills/Effects/DariusMemoryScaling.cs` | Memory 等级成长规则唯一实现 |
+| `Combat/Skills/Effects/DariusMemoryEffectBridge.cs` | direct-execution 技能的 Damage/Heal/Cast 归因桥 |
+| `Combat/BasicAttack/DariusNativeAttack.cs` | 原生普攻 trigger/instances/binder |
+| `Combat/BasicAttack/DariusDirectionalBasicAttack.cs` | 定向普攻几何/状态 |
+| `Combat/BasicAttack/DariusDirectionalBasicAttackSectorPatch.cs` | 普攻命中扇区 Harmony 过滤 |
+| `Combat/Summoners/DariusNativeDisplacement.cs` | Flash / Ghost 原生位移接管 |
+| `Combat/Summoners/DariusSummonerSkills.cs` | 召唤师技能平衡/原生配置派生 |
+| `Combat/Summoners/DariusFlashSkill.cs` | Flash trigger/warp |
+| `Combat/Summoners/DariusGhostSkill.cs` | Ghost trigger/runtime |
+| `Combat/Summoners/DariusSummonerRuntime.cs` | 召唤师方向解析/兼容反射 |
+| `Combat/Skills/Effects/DariusSlowHelper.cs` | 减速应用 helper/runtime |
+| `Combat/Skills/Effects/DariusHemorrhageHud.cs` | 出血层数 HUD |
+| `Combat/Skills/Effects/DariusEnemyClassifier.cs` | 敌人分类 |
+| `Combat/Skills/DariusRInputGuard.cs` | R 输入守卫 |
+| `Combat/Skills/DariusTriggerConfigRuntimeEditor.cs` | `TriggerConfig` 私有后备字段统一访问 |
+| `Combat/Skills/DariusCombatController.cs` | 历史诊断/战斗控制器 |
 
 ### 3.3 Traveler、皮肤与表现
 
 | 文件 | 职责 |
 | --- | --- |
-| `DariusTravelerNativeIntegration.cs` | `Hero_Darius` 与 native model/animation guard Harmony patches |
-| `DariusTravelerRegistry.cs` | Hero/Skin/Attack 运行时资源注册、查找、自愈、卸载；长但共享一个资源状态机，勿按行数继续拆 |
-| `DariusTravelerModel.cs` | skin model binding + `DariusTravelerModelInstance` 模型/动画状态机 |
-| `DariusTravelerLifecycle.cs` | 场景/profile repair lifecycle + Traveler localization patch |
-| `DariusSkinAnimationHooks.cs` | 皮肤动画桥接 |
-| `DariusBasicAttackVisualRuntime.cs` | 普攻视觉 runtime |
-| `DariusGlbRuntimeModel.cs` | GLB 模型/材质/动画解释状态机；长但内聚 |
-| `DariusMedia.cs` | VFX 贴图 + 技能 SFX + 语音资源加载/cache |
-| `DariusLolVfxRuntime.cs` | Riot `VfxSystemDefinitionData` interpreter/cache；长但内聚 |
-| `DariusLolVfxComponents.cs` | LoL VFX interpreter 使用的短生命周期 MonoBehaviour 组件 |
-| `DariusVoiceRuntime.cs` | 施法语音路由；不得伪造或跨皮肤替代语音 |
-| `DariusPrototypeIcons.cs` | 图标加载 |
-| `TravelerBasicAttackVfxReplication.cs` | 仓库内置 Mirror 普攻表现消息/relay；不再依赖仓库外共享源码 |
+| `Traveler/DariusTravelerNativeIntegration.cs` | `Hero_Darius` 与 native model/animation guard Harmony patches |
+| `Traveler/DariusTravelerRegistry.cs` | Hero/Skin/Attack 运行时资源注册、查找、自愈、卸载；长但共享一个资源状态机，勿按行数继续拆 |
+| `Traveler/DariusTravelerModel.cs` | skin model binding + `DariusTravelerModelInstance` 模型/动画状态机 |
+| `Traveler/DariusTravelerLifecycle.cs` | 场景/profile repair lifecycle + Traveler localization patch |
+| `Presentation/Model/DariusSkinAnimationHooks.cs` | 皮肤动画桥接 |
+| `Presentation/Vfx/DariusPrototypeVfx.cs` | Darius 高层表现 facade |
+| `Presentation/Vfx/DariusBasicAttackVisualRuntime.cs` | 普攻视觉 runtime |
+| `Presentation/Model/DariusGlbRuntimeModel.cs` | GLB 模型/材质/动画解释状态机；长但内聚 |
+| `Presentation/Media/DariusMedia.cs` | VFX 贴图 + 技能 SFX + 语音资源加载/cache |
+| `Presentation/Vfx/DariusLolVfxRuntime.cs` | Riot `VfxSystemDefinitionData` interpreter/cache；长但内聚 |
+| `Presentation/Vfx/DariusLolVfxComponents.cs` | LoL VFX interpreter 使用的短生命周期 MonoBehaviour 组件 |
+| `Presentation/Media/DariusVoiceRuntime.cs` | 施法语音路由；不得伪造或跨皮肤替代语音 |
+| `Presentation/Media/DariusPrototypeIcons.cs` | 图标加载 |
+| `Presentation/Vfx/TravelerBasicAttackVfxReplication.cs` | 仓库内置 Mirror 普攻表现消息/relay；不再依赖仓库外共享源码 |
 
 ### 3.4 注册、星座与兼容
 
 | 文件 | 职责 |
 | --- | --- |
-| `DariusFormalRegistry.cs` | Memory/AbilityInstance/Identity 正式运行时资源注册 |
-| `DariusDejaVuRegistry.cs` | Deja Vu/profile/content 接入与相关兼容 patch；保持一个候选资源契约 |
-| `DariusRuntimeResourceCompatibility.cs` | DewResources/Harmony 运行时查找兼容层 |
-| `DariusConstellationDefinitions.cs` | Darius 星座 ID/StarEffect 类型 |
-| `DariusConstellationRegistry.cs` | 星座运行时资源注册 + reflection hydration |
-| `DariusConstellationRuntime.cs` | Hero 星座 gameplay 状态机 |
-| `DariusConstellationPresentation.cs` | 星座本地化 + Lobby UI/Harmony presentation guard |
-| `DariusConstellationPersistence.cs` | 星座购买/存档 capture/restore/persistence |
-| `DariusEquipmentConstellationDefinitions.cs` | 装备星 ID/类型/本地化 |
-| `DariusEquipmentRuntime.cs` | 装备星 gameplay 状态机 |
-| `DariusAwooAudioRuntime.cs` | Awoo 可选本地音频播放 |
-| `DariusFormalLocalization.cs` / `DariusEnglishLocalization.cs` / `DariusJapaneseLocalization.cs` | zh_CN / en_US / ja_JP 文案 |
-| `DariusAudioSettings.cs` | ModConfig 音量字段 |
+| `Registration/DariusFormalRegistry.cs` | Memory/AbilityInstance/Identity 正式运行时资源注册 |
+| `Registration/DariusDejaVuRegistry.cs` | Deja Vu/profile/content 接入与相关兼容 patch；保持一个候选资源契约 |
+| `Registration/DariusRuntimeResourceCompatibility.cs` | DewResources/Harmony 运行时查找兼容层 |
+| `Constellations/DariusConstellationDefinitions.cs` | Darius 星座 ID/StarEffect 类型 |
+| `Constellations/DariusConstellationRegistry.cs` | 星座运行时资源注册 + reflection hydration |
+| `Constellations/DariusConstellationRuntime.cs` | Hero 星座 gameplay 状态机 |
+| `Constellations/DariusConstellationPresentation.cs` | 星座本地化 + Lobby UI/Harmony presentation guard |
+| `Constellations/DariusConstellationPersistence.cs` | 星座购买/存档 capture/restore/persistence |
+| `Constellations/DariusEquipmentConstellationDefinitions.cs` | 装备星 ID/类型/本地化 |
+| `Constellations/DariusEquipmentRuntime.cs` | 装备星 gameplay 状态机 |
+| `Presentation/Media/DariusAwooAudioRuntime.cs` | Awoo 可选本地音频播放 |
+| `Localization/DariusFormalLocalization.cs` / `Localization/DariusEnglishLocalization.cs` / `Localization/DariusJapaneseLocalization.cs` | zh_CN / en_US / ja_JP 文案 |
+| `Core/DariusAudioSettings.cs` | ModConfig 音量字段 |
 
 ### 3.5 基础设施与离线工具
 
 | 文件 | 职责 |
 | --- | --- |
-| `DariusLog.cs` | 统一日志 |
-| `DariusDiagnostics.cs` | 首测运行时快照 |
-| `DariusModEnvironment.cs` | 解析 Mod 物理目录；版本读取 `about/metadata.json` |
-| `DariusResourceIds.cs` | 共享资源 GUID 唯一定义处 |
-| `DariusModLifecycle.cs` | 区分真正热卸载与普通场景销毁 |
+| `Core/DariusLog.cs` | 统一日志 |
+| `Core/DariusDiagnostics.cs` | 首测运行时快照 |
+| `Core/DariusModEnvironment.cs` | 解析 Mod 物理目录；版本读取 `about/metadata.json` |
+| `Core/DariusResourceIds.cs` | 共享资源 GUID 唯一定义处 |
+| `Core/DariusModLifecycle.cs` | 区分真正热卸载与普通场景销毁 |
 | `src/DariusPrototype/UniversalAnimation/*.cs` | 通用动画重定向运行时 |
 | `tools/BuildDariusPass5AuthenticVfx.py` | 解析 Riot `PROP` BIN，生成 LoL VFX 载荷 |
 | `tools/SodReferencePack/New-SodReferencePack.ps1` | 从真实 SOD Managed DLL 生成/打包 reference assemblies |
@@ -131,7 +154,7 @@
 3. 设置 `GameDir`（`-p:` / `Directory.Build.props` / `SOD_GAME_DIR`）。
 4. 打包/部署时二进制资产齐备。
 
-`TravelerBasicAttackVfxReplication.cs` 已在仓库内，不存在额外共享源码前置条件。
+`Presentation/Vfx/TravelerBasicAttackVfxReplication.cs` 已在仓库内，不存在额外共享源码前置条件。
 
 ### 4.2 构建 / 打包 / 部署
 
@@ -190,7 +213,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -p:UseSodRefe
 8. **Ponytail/YAGNI**：先问代码是否需要存在；优先删除/移动/复用；长文件只有在多职责时拆，单一状态机不要为了行数拆 partial。
 9. **不要顺手重构**：未经要求不要重排、重命名或格式化无关大文件。
 10. **版本号单一真源**：只改 `about/metadata.json` 的 `modVer`。
-11. **共享 GUID**：只在 `src/DariusPrototype/DariusResourceIds.cs` 定义，不得更改既有值。
+11. **共享 GUID**：只在 `Core/DariusResourceIds.cs` 定义，不得更改既有值。
 12. **日志级别**：`DARIUS_LOG_LEVEL=debug|info|warn|error|off`，`EXCEPTION` 不受过滤。
 
 ## 6. 资产与版权红线
@@ -207,7 +230,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -p:UseSodRefe
 - **默认构建就是 `dotnet build`**；reference-pack PowerShell 仅生成 CI 编译引用，不是另一套主构建系统。
 - **CI 已是真编译 gate**：不要再说公共 runner 不能编译主 DLL；它通过 metadata-only reference pack 编译，但仍不能证明运行时行为。
 - **reference pack 不是 hand-written stub**：它必须从真实游戏程序集生成；游戏版本/API 变化时重新生成并发布新版本。
-- **`TravelerBasicAttackVfxReplication.cs` 已在仓库里**：不要恢复 `SharedSource` 或要求 `<GameDir>\Mods` 下额外源码。
+- **`Presentation/Vfx/TravelerBasicAttackVfxReplication.cs` 已在仓库里**：不要恢复 `SharedSource` 或要求 `<GameDir>\Mods` 下额外源码。
 - **长文件不等于坏文件**：`DariusTravelerRegistry`、`DariusLolVfxRuntime`、`DariusGlbRuntimeModel`、`DariusConstellationRuntime` 等共享连续私有状态；没有新职责证据时不要继续拆。
 - **不要创建 `DariusUtils`/万能 reflection helper** 只为消除少量形状相似的局部代码；只有规则真正共享时才抽公共层。
 - **版本号只有一个真源**：`about/metadata.json` 的 `modVer`。
