@@ -1,3 +1,5 @@
+using System;
+
 // Thin adapter between Darius presentation hooks and Shape of Dreams animation runtime.
 // This intentionally does not own Animator state. EntityAnimation remains the authority.
 internal static class DariusNativeAnimationAdapter

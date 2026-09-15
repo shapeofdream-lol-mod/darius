@@ -1,3 +1,6 @@
+using System;
+using UnityEngine;
+
 public sealed class St_Darius_Apprehend : SkillTrigger
 {
     protected override void OnPrepare()

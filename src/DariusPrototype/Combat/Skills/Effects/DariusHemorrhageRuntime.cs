@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using Mirror;
+
 public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
 {
     public const int MaxStacks = 5; // Base cap; runtime cap grows with the Identity Memory.

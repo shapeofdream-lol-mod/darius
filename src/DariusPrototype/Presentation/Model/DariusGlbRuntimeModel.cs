@@ -1,3 +1,13 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Newtonsoft.Json.Linq;
+using Mirror;
+using UnityEngine;
+
 // The pre-v0.18 DariusSkinInstance/Vesper rig-diagnostic implementation was removed.
 // Skin_Darius_Default is now the sole Darius visual path.
 

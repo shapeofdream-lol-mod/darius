@@ -1,3 +1,9 @@
+using System;
+using System.Collections;
+using System.IO;
+using UnityEngine;
+using UnityEngine.Networking;
+
 // Optional local song player for the user-authored Awoo constellation. The Mod does not bundle
 // copyrighted music. If the user puts assets/audio/animals.ogg or animals.wav in their own Mod
 // folder, this component uses that exact local file. Missing audio is a silent, non-fatal state.

@@ -1,3 +1,7 @@
+using System;
+using Mirror;
+using UnityEngine;
+
 // Visual-only multiplayer relay for Darius basic attacks.
 // The local owner renders immediately; this message only mirrors the swing/impact to observers.
 public struct TravelerBasicAttackVfxMessage : NetworkMessage

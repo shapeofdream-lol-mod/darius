@@ -1,3 +1,8 @@
+using System;
+using System.IO;
+using System.Reflection;
+using UnityEngine;
+
 // Resolves the physical mod directory in a source-agnostic way.
 // Local Mods use .../Mods/DariusPrototype, while Steam Workshop items live under a numeric
 // published-file folder. The loader's ModItem.path is authoritative when available.

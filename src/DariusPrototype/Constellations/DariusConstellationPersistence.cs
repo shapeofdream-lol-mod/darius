@@ -1,3 +1,11 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using Newtonsoft.Json;
+using UnityEngine;
+
 // Protects custom constellation purchases/loadouts from DewProfile.Validate removing runtime-only
 // StarEffect names before the mod has fully rebuilt its resource maps. Native profile data remains
 // authoritative; the JSON file is only a boot-time safety copy for the narrow window before the

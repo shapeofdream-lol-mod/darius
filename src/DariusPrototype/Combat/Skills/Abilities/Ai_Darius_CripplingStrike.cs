@@ -1,4 +1,9 @@
-﻿public sealed class Ai_Darius_CripplingStrike : AbilityInstance
+﻿using System;
+using System.Collections;
+using UnityEngine;
+using Mirror;
+
+public sealed class Ai_Darius_CripplingStrike : AbilityInstance
 {
     protected override void OnCreate()
     {

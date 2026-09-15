@@ -1,3 +1,14 @@
+using System;
+using System.IO;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using HarmonyLib;
+using Mirror;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
 public sealed partial class DariusTravelerModelInstance : MonoBehaviour
 {
     private const float NativeModelScale = 0.00921f;

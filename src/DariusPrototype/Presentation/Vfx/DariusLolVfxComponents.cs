@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using UnityEngine;
+
 // Small MonoBehaviour components used by DariusLolVfxRuntime to host per-effect lifetime behavior.
 public sealed class DariusLolVfxLinkedObjects : MonoBehaviour
 {

@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using Mirror;
+
 public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
 {
     private int GetHighestActiveStackCount()

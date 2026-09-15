@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+
 public static partial class DariusLolVfxRuntime
 {
     private static Gradient BuildGradient(JObject data, Color fallback, bool qReadability = false)

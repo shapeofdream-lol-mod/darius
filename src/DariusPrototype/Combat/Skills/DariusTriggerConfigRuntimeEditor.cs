@@ -1,3 +1,6 @@
+using System;
+using System.Reflection;
+
 // Current Shape of Dreams builds keep several TriggerConfig values in private backing fields.
 // This helper mirrors the runtime-edit pattern used by current 2026 community mods so we do
 // not depend on old public-field layouts.

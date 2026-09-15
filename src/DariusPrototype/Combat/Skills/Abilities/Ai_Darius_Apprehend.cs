@@ -1,4 +1,10 @@
-﻿public sealed class Ai_Darius_Apprehend : AbilityInstance
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using Mirror;
+
+public sealed class Ai_Darius_Apprehend : AbilityInstance
 {
     public const float Range = 5.35f;
     public const float HalfAngle = 30f;

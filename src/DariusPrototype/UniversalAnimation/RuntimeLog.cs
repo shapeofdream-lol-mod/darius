@@ -1,3 +1,5 @@
+using System;
+
 namespace DariusModelAnimationRuntime
 {
     // Adapter kept for the reusable retargeting code. It resolves assets from the main

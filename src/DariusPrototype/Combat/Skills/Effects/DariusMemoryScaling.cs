@@ -1,4 +1,8 @@
-﻿// Centralizes Darius' infinite in-run Memory growth.
+﻿using System;
+using System.Reflection;
+using UnityEngine;
+
+// Centralizes Darius' infinite in-run Memory growth.
 // Shape of Dreams scales each description value independently: damage can grow every level while
 // healing/control/range can advance only on milestones. Darius direct-execution skills bypass the
 // serialized ScalingValue pipeline, so gameplay and tooltip code call these same helpers directly.

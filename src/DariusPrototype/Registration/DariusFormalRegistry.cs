@@ -1,3 +1,13 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using HarmonyLib;
+using Mirror;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
 // Registers the formal Darius Memories / Essence as real runtime resources.
 // The first playable milestone deliberately keeps them excluded from the random pool and
 // drops one test set beside the local host player. This avoids touching permanent save data.

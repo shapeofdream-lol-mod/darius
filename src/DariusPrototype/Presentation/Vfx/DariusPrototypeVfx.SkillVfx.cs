@@ -1,3 +1,6 @@
+using System;
+using UnityEngine;
+
 public static partial class DariusPrototypeVfx
 {
     public static void CreateQInstantSwing(Hero owner)

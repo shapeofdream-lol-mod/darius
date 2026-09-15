@@ -1,3 +1,5 @@
+using UnityEngine;
+
 public sealed class DariusDirectionalBasicAttackState : MonoBehaviour
 {
     public Vector3 Direction { get; private set; }

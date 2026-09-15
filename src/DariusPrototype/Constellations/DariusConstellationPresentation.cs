@@ -1,3 +1,14 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
+using HarmonyLib;
+using Mirror;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
 // Keep the stock constellation browser state coherent when the list is rebuilt after a run,
 // category switch, loadout migration, or star purchase. The stock UI keeps a hovered index
 // separately from the rebuilt item list; a stale index is enough to make StarDetails repeatedly

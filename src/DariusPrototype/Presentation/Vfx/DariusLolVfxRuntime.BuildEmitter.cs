@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+
 public static partial class DariusLolVfxRuntime
 {
     private static float BuildEmitter(Hero owner, Transform root, JObject e, int index, bool persistent, float authoredTimeOffset, string systemName)

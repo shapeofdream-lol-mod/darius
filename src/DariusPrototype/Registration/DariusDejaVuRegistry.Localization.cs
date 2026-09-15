@@ -1,3 +1,13 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using HarmonyLib;
+using Mirror;
+using UnityEngine;
+using DewInternal;
+
 public static partial class DariusDejaVuRegistry
 {
     private static bool LooksLikeDescriptionRequest(MethodBase method, string key)

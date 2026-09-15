@@ -1,3 +1,9 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+
 public static partial class DariusEnemyClassifier
 {
     private static bool ReadBoolRecursive(object obj, string[] names, out string matchedMember)

@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+
 namespace DariusModelAnimationRuntime
 {
     internal sealed class RetargetProfile

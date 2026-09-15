@@ -1,3 +1,13 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using HarmonyLib;
+using Mirror;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
 public static partial class DariusFormalRegistry
 {
     private static void ConfigureSkillPrefab(SkillTrigger skill, Rarity rarity, float cooldown, string iconKey, string locationName, AbilityInstance spawnedInstance, Action<TriggerConfig> extra)

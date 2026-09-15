@@ -1,3 +1,9 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using Mirror;
+
 public sealed partial class Ai_Darius_Decimate : AbilityInstance
 {
     private static void ResolveServerHit(Hero owner, int castId, bool instantQ, int memoryLevel, float memoryScale, float qDamageMultiplier, AbilityTrigger sourceTrigger, Actor sourceActor)

@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
 // Pass 2 full-character voice router. It never manufactures lines or substitutes another skin's
 // bank: DariusMedia only returns an event when the selected LoL skin actually owns that Wwise pool.
 public sealed class DariusVoiceRuntime : MonoBehaviour

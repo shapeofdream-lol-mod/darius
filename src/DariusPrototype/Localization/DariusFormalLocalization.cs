@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using DewInternal;
+
 // Darius localization deliberately returns fresh tooltip text on every localization request.
 // The direct-execution abilities do not use the game's serialized ScalingValue fields, so this
 // class mirrors their runtime Memory-level math and can render the same current -> next preview

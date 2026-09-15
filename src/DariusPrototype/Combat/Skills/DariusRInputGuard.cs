@@ -1,3 +1,8 @@
+using System;
+using System.Reflection;
+using HarmonyLib;
+using Mirror;
+
 // Watches the ControlManager layer rather than only SkillTrigger.OnCastComplete.
 // A broken R press can fail during target selection / command reservation before the SkillTrigger
 // ever sees OnCastComplete, so the R itself cannot diagnose that failure without an earlier hook.

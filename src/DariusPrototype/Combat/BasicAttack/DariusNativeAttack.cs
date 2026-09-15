@@ -1,3 +1,7 @@
+using System;
+using System.Reflection;
+using UnityEngine;
+
 // v0.21.0 directional basic-attack pipeline.
 // AttackTrigger still owns cadence/crit/attack lifecycle. Target selection no longer owns the swing:
 // the cast intent is a direction, the native melee instance is anchored to the caster, and the final

@@ -1,3 +1,8 @@
+using System;
+using System.Linq;
+using System.Reflection;
+using HarmonyLib;
+
 // Independent traveler implementation for Hero_Darius.
 // Runtime-created Hero/Skin resources remain necessary because the stock mod loader does not
 // extend the game's Addressables catalog with custom Hero/Skin GUIDs. Model playback itself now

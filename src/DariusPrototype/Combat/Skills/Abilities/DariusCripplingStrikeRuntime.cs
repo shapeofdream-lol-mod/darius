@@ -1,3 +1,6 @@
+using System;
+using UnityEngine;
+
 public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
 {
     public const float ArmDuration = 4.0f;

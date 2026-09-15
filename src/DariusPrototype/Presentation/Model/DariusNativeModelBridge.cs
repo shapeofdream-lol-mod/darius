@@ -1,3 +1,10 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using UnityEngine;
+
 // Thin presentation bridge for Unity-native prefabs. It never samples bones itself.
 public sealed partial class DariusNativeModelBridge : MonoBehaviour
 {

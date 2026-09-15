@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+
 public static partial class DariusLolVfxRuntime
 {
     private static void ApplyStartSizeAxes(ParticleSystem ps, JObject birthScale, Vector3 size, bool uniformScale, bool qReadability, bool skin67NoxianAirflow, string primitive, string name)

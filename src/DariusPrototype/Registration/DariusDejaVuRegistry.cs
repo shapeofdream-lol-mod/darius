@@ -1,3 +1,13 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using HarmonyLib;
+using Mirror;
+using UnityEngine;
+using DewInternal;
+
 // Injects the Darius test Memories/Essence into the game's native Deja Vu start-loadout system.
 // The implementation intentionally mirrors the profile/content registration path used by
 // current (2026) Shape of Dreams mods, with reflection fallbacks for gem-side collections.

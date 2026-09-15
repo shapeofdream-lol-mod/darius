@@ -1,3 +1,14 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
+using HarmonyLib;
+using Mirror;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
 public static class DariusConstellationLocalization
 {
     private static readonly Dictionary<string, string> Names = new Dictionary<string, string>(StringComparer.Ordinal)

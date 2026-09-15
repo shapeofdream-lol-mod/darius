@@ -1,3 +1,9 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using Mirror;
+
 // Darius Q. Core invariant: one delayed resolution, one physics snapshot,
 // mutually-exclusive inner/outer classification, one damage event per target.
 public sealed partial class Ai_Darius_Decimate : AbilityInstance

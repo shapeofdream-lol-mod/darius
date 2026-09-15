@@ -1,3 +1,7 @@
+using System;
+using System.Reflection;
+using HarmonyLib;
+
 // Distinguishes a true DewMod hot-unload from ordinary scene-lifecycle destruction.
 // Application.isPlaying is true in both cases, so it is not a sufficient discriminator.
 public static class DariusModLifecycle

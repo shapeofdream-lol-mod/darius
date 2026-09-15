@@ -1,3 +1,12 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+using UnityEngine.Networking;
+
 public static partial class DariusMedia
 {
     private static readonly Dictionary<string, string[]> ClassicSfx = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)

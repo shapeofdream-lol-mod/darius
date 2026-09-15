@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 // Pass 2 equipment constellation layer.
 // Equipment stars import only the recognizable item mechanism; they never grant the item's base
 // stat line. All item artwork is Riot's original Data Dragon icon. Flexible is reserved for stars

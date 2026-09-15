@@ -1,4 +1,7 @@
-﻿// Direct-execution Darius skills do not spawn their AbilityInstance prefabs in SoD 1.3.x because
+﻿using System;
+using Mirror;
+
+// Direct-execution Darius skills do not spawn their AbilityInstance prefabs in SoD 1.3.x because
 // runtime-created Actor parenting is unsafe in that path. Keep the authored direct gameplay, but
 // attribute damage/heal/cast events back to the equipped SkillTrigger so ordinary Gems/Essences can
 // observe the same source Actor they would receive from a native Memory.

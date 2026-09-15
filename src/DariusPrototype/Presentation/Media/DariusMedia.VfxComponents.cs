@@ -1,3 +1,12 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+using UnityEngine.Networking;
+
 // Drives short-lived textured quads without requiring an AssetBundle prefab.
 public sealed class DariusVfxQuadMotion : MonoBehaviour
 {
