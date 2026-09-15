@@ -20,6 +20,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private EntityAnimation _entityAnimation;
 
+    private bool _entityAnimationModelSetup;
+
     private readonly Dictionary<string, AnimationClip> _clips = new Dictionary<string, AnimationClip>(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<string, Transform> _anchors = new Dictionary<string, Transform>(StringComparer.OrdinalIgnoreCase);
@@ -39,6 +41,9 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         _binding = binding;
         _modelRoot = modelRoot;
         _entityModel = GetComponent<EntityModel>();
+        _hero = null;
+        _entityAnimation = null;
+        _entityAnimationModelSetup = false;
         _animator = modelRoot != null ? modelRoot.GetComponentInChildren<Animator>(true) : null;
         if (_animator == null) throw new InvalidDataException("Native Darius prefab has no Animator: " + VariantKey);
 
@@ -56,22 +61,42 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     public void BindHero(Hero hero)
     {
-        _hero = hero;
-        if (_hero == null) return;
-        DariusVoiceRuntime.Ensure(_hero);
-        _entityAnimation = _hero.GetComponent<EntityAnimation>();
-        if (_entityAnimation != null)
+        if (hero == null)
         {
-            try
-            {
-                _entityAnimation.SetupModel();
-                DariusLog.Info("NATIVE-MODEL", "EntityAnimation.SetupModel completed skin=" + VariantKey +
-                    " animator=" + (_entityAnimation.animator != null));
-            }
-            catch (Exception e)
-            {
-                DariusLog.Exception("NATIVE-MODEL", e, "EntityAnimation.SetupModel failed skin=" + VariantKey + "; Unity Animator remains usable");
-            }
+            _hero = null;
+            _entityAnimation = null;
+            _entityAnimationModelSetup = false;
+            return;
+        }
+
+        if (!ReferenceEquals(_hero, hero))
+        {
+            _hero = hero;
+            _entityAnimation = null;
+            _entityAnimationModelSetup = false;
+        }
+
+        DariusVoiceRuntime.Ensure(_hero);
+
+        EntityAnimation animation = _hero.GetComponent<EntityAnimation>();
+        if (!ReferenceEquals(_entityAnimation, animation))
+        {
+            _entityAnimation = animation;
+            _entityAnimationModelSetup = false;
+        }
+
+        if (_entityAnimation == null || _entityAnimationModelSetup) return;
+
+        try
+        {
+            _entityAnimation.SetupModel();
+            _entityAnimationModelSetup = true;
+            DariusLog.Info("NATIVE-MODEL", "EntityAnimation.SetupModel completed skin=" + VariantKey +
+                " animator=" + (_entityAnimation.animator != null));
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("NATIVE-MODEL", e, "EntityAnimation.SetupModel failed skin=" + VariantKey + "; Unity Animator remains usable");
         }
     }
 
