@@ -147,7 +147,9 @@ public static partial class DariusLolVfxRuntime
             string.Equals(primitive, "VfxPrimitiveMesh", StringComparison.OrdinalIgnoreCase) &&
             name.StartsWith("teamring_circle", StringComparison.OrdinalIgnoreCase);
         main.startSize3D = true;
-        ApplyStartSizeAxes(ps, birthScale, size, uniformScale, qReadability, skin67NoxianAirflow, primitive, name);
+        ApplyStartSizeAxes(ps, birthScale, size, uniformScale, qReadability,
+            skin67NoxianAirflow, skin67WindupDisc, skin67WindupTeamRing, Skin67NoxianAirflowSpatialScale,
+            primitive, name);
 
         JObject birthRotation = e["birthRotation"] as JObject;
         Vector3 rot = ReadConstantVector3(birthRotation, Vector3.zero) * Mathf.Deg2Rad;
