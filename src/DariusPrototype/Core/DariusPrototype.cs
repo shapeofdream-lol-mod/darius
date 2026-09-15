@@ -25,8 +25,6 @@ public sealed class DariusPrototypeMod : ModBehaviour
     private static bool _shutdownCompleted;
     private DariusDiagnostics _diagnostics;
 
-    private void LateUpdate() { DariusAudioSettingsRuntime.Bind(skillAudioVolume); }
-
     private void Awake()
     {
         // Workshop ModBehaviour instances can exist a frame before Start(). Resolve the loader-provided
