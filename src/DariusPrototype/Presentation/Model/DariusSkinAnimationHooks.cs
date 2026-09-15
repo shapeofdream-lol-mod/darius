@@ -1,12 +1,12 @@
 using UnityEngine;
 
-// Animation entry point. Native Unity models use Shape of Dreams EntityAnimation as the
-// animation authority. Legacy GLB animation remains a fallback until native assets are ready.
+// Animation entry point. Native Unity models use the native presentation bridge while the
+// legacy GLB animation path remains a fallback until native assets are ready.
 public static class DariusSkinAnimationHooks
 {
     public static void PlayQ(Hero hero, bool instant = false)
     {
-        if (DariusNativeAnimationRouter.PlayAbility(hero, "Spell1", instant)) return;
+        if (DariusNativeAnimationAdapter.PlayAbility(hero, "Spell1", instant)) return;
         DariusTravelerModelInstance traveler = FindTraveler(hero);
         if (traveler != null) { traveler.PlayQ(instant); return; }
         DariusModelAnimationRuntime.DariusRetargetApi.Play(hero, "Spell1", false, 1f);
@@ -19,7 +19,7 @@ public static class DariusSkinAnimationHooks
 
     public static void PlayW(Hero hero, Vector3 direction)
     {
-        if (DariusNativeAnimationRouter.PlayAbility(hero, "Spell2")) return;
+        if (DariusNativeAnimationAdapter.PlayAbility(hero, "Spell2")) return;
         DariusTravelerModelInstance traveler = FindTraveler(hero);
         if (traveler != null) { traveler.PlayWAttack(direction); return; }
         DariusModelAnimationRuntime.DariusRetargetApi.Play(hero, "Spell2", false, 1f);
@@ -27,8 +27,8 @@ public static class DariusSkinAnimationHooks
 
     public static void SetWArmed(Hero hero, bool armed)
     {
-        if (!armed && DariusNativeAnimationRouter.StopAbility(hero)) return;
-        if (armed && DariusNativeAnimationRouter.PlayAbility(hero, "Spell2_Idle", true)) return;
+        if (!armed && DariusNativeAnimationAdapter.StopAbility(hero)) return;
+        if (armed && DariusNativeAnimationAdapter.PlayAbility(hero, "Spell2_Idle", true)) return;
         DariusTravelerModelInstance traveler = FindTraveler(hero);
         if (traveler != null) { traveler.SetWArmed(armed); return; }
         if (armed) DariusModelAnimationRuntime.DariusRetargetApi.Play(hero, "Spell2_Idle", true, 1f);
@@ -37,7 +37,7 @@ public static class DariusSkinAnimationHooks
 
     public static void PlayE(Hero hero)
     {
-        if (DariusNativeAnimationRouter.PlayAbility(hero, "Spell3")) return;
+        if (DariusNativeAnimationAdapter.PlayAbility(hero, "Spell3")) return;
         DariusTravelerModelInstance traveler = FindTraveler(hero);
         if (traveler != null) { traveler.PlayOneShot("Spell3"); return; }
         DariusModelAnimationRuntime.DariusRetargetApi.Play(hero, "Spell3", false, 1f);
@@ -45,7 +45,7 @@ public static class DariusSkinAnimationHooks
 
     public static void PlayR(Hero hero)
     {
-        if (DariusNativeAnimationRouter.PlayAbility(hero, "Spell4")) return;
+        if (DariusNativeAnimationAdapter.PlayAbility(hero, "Spell4")) return;
         DariusTravelerModelInstance traveler = FindTraveler(hero);
         if (traveler != null) { traveler.PlayOneShot("Spell4"); return; }
         DariusModelAnimationRuntime.DariusRetargetApi.Play(hero, "Spell4", false, 1f);
@@ -59,7 +59,7 @@ public static class DariusSkinAnimationHooks
     public static void PlayAttack(Hero hero, bool alternate, bool critical, Vector3 direction)
     {
         string clip = critical ? "Crit" : (alternate ? "Attack2" : "Attack1");
-        if (DariusNativeAnimationRouter.PlayAbility(hero, clip)) return;
+        if (DariusNativeAnimationAdapter.PlayAbility(hero, clip)) return;
         DariusTravelerModelInstance traveler = FindTraveler(hero);
         if (traveler != null) { traveler.PlayAttack(alternate, critical, direction); return; }
         DariusModelAnimationRuntime.DariusRetargetApi.Play(hero, clip, false, 1f);
