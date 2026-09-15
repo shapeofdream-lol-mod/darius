@@ -67,9 +67,7 @@ public sealed class DariusAudioVolumeConfig : ModConfig
             case DariusAudioChannel.Voice: percent = voiceVolume; break;
             default: return 1f;
         }
-        float multiplier = Mathf.Clamp(percent, 0f, 200f) * 0.01f;
-        Debug.Log("[DariusAudio] resolve channel=" + channel + " configuredPercent=" + percent.ToString("0.##") + " multiplier=" + multiplier.ToString("0.###"));
-        return multiplier;
+        return Mathf.Clamp(percent, 0f, 200f) * 0.01f;
     }
 }
 
