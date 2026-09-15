@@ -54,9 +54,11 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         ConfigureEntityModel();
         DariusRuntimePerformance.OptimizeSkinnedRenderers(modelRoot, true);
 
-        Hero hostHero = GetComponentInParent<Hero>();
-        if (hostHero != null) BindHero(hostHero);
-        else PlayState(IdleClipName, 0f, 1f);
+        // Gameplay binding belongs to Hero.OnModelLoaded so EntityAnimation.SetupModel runs at the
+        // game's normal model lifecycle boundary. Lobby previews have no Hero parent and can idle
+        // directly on the prefab Animator.
+        if (GetComponentInParent<Hero>() == null)
+            PlayState(IdleClipName, 0f, 1f);
     }
 
     public void BindHero(Hero hero)
