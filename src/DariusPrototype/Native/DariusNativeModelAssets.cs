@@ -27,16 +27,24 @@ internal static class DariusNativeModelAssets
         GameObject prefab = GetPrefab(binding.variantKey);
         if (prefab == null) return false;
 
+        GameObject instance = null;
+        DariusNativeModelBridge bridge = existing;
+        bool bridgeAdded = false;
         try
         {
             RemoveStaleNativeRoots(legacy.transform);
-            GameObject instance = UnityEngine.Object.Instantiate(prefab, legacy.transform, false);
+            instance = UnityEngine.Object.Instantiate(prefab, legacy.transform, false);
             instance.name = "Darius_Native_Model";
             instance.transform.localPosition = Vector3.zero;
             instance.transform.localRotation = Quaternion.identity;
             instance.transform.localScale = Vector3.one;
 
-            DariusNativeModelBridge bridge = existing != null ? existing : legacy.gameObject.AddComponent<DariusNativeModelBridge>();
+            if (bridge == null)
+            {
+                bridge = legacy.gameObject.AddComponent<DariusNativeModelBridge>();
+                bridgeAdded = true;
+            }
+
             bridge.Initialize(instance, binding);
             legacy.enabled = false;
             DariusLog.Info("NATIVE-MODEL", "Activated Unity AssetBundle model skin=" + binding.variantKey +
@@ -45,6 +53,18 @@ internal static class DariusNativeModelAssets
         }
         catch (Exception e)
         {
+            // Activation is all-or-nothing. A half-initialized native root must never remain active
+            // while the legacy GLB fallback continues loading underneath it.
+            if (instance != null)
+            {
+                try { instance.SetActive(false); } catch { }
+                try { UnityEngine.Object.Destroy(instance); } catch { }
+            }
+            if (bridgeAdded && bridge != null)
+            {
+                try { UnityEngine.Object.Destroy(bridge); } catch { }
+            }
+
             DariusLog.Exception("NATIVE-MODEL", e, "Native model activation failed for skin=" + binding.variantKey + "; legacy GLB fallback remains available");
             return false;
         }
@@ -132,11 +152,12 @@ internal static class DariusNativeModelAssets
         for (int i = parent.childCount - 1; i >= 0; i--)
         {
             Transform child = parent.GetChild(i);
-            if (child != null && string.Equals(child.name, "Darius_Native_Model", StringComparison.Ordinal))
-            {
-                try { UnityEngine.Object.DestroyImmediate(child.gameObject); }
-                catch { UnityEngine.Object.Destroy(child.gameObject); }
-            }
+            if (child == null || !string.Equals(child.name, "Darius_Native_Model", StringComparison.Ordinal)) continue;
+
+            // Disable immediately so a stale renderer cannot overlap the replacement for one frame;
+            // destruction itself stays on Unity's normal runtime lifecycle instead of DestroyImmediate.
+            try { child.gameObject.SetActive(false); } catch { }
+            try { UnityEngine.Object.Destroy(child.gameObject); } catch { }
         }
     }
 }
