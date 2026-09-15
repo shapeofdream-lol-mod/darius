@@ -47,7 +47,7 @@ public sealed class DariusHemorrhageHud : MonoBehaviour
         if ((_healthBar == null || _healthBar.target != _owner) && Time.unscaledTime >= _nextHealthBarLookupAt)
         {
             _nextHealthBarLookupAt = Time.unscaledTime + 0.5f; _healthBar = null;
-            UI_HealthBar_Simple[] bars = Object.FindObjectsOfType<UI_HealthBar_Simple>();
+            UI_HealthBar_Simple[] bars = Object.FindObjectsByType<UI_HealthBar_Simple>(FindObjectsSortMode.None);
             for (int i = 0; i < bars.Length; i++) if (bars[i] != null && bars[i].target == _owner) { _healthBar = bars[i]; break; }
         }
         if (_healthBar != null && _healthBar.hpBgTransform != null)
