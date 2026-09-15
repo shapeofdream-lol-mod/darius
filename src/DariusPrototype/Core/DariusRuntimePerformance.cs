@@ -9,18 +9,34 @@ internal static class DariusRuntimePerformance
     public static void OptimizeSkinnedRenderers(GameObject root, bool disableAuthoredHidden)
     {
         if (root == null) return;
+
+        Animator[] animators = root.GetComponentsInChildren<Animator>(true);
+        int alwaysAnimate = 0;
+        for (int i = 0; i < animators.Length; i++)
+        {
+            Animator animator = animators[i];
+            if (animator == null || animator.cullingMode == AnimatorCullingMode.AlwaysAnimate) continue;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            alwaysAnimate++;
+        }
+
         SkinnedMeshRenderer[] renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-        int offscreenDisabled = 0;
+        int offscreenEnabled = 0;
         int hiddenDisabled = 0;
         int cullDisabled = 0;
         for (int i = 0; i < renderers.Length; i++)
         {
             SkinnedMeshRenderer renderer = renderers[i];
             if (renderer == null) continue;
-            if (renderer.updateWhenOffscreen)
+
+            // Riot-derived rigs can arrive through Blender/FBX with skinned bounds that are not
+            // reliable enough for Unity's visibility-driven Animator/SMR culling. The legacy GLB
+            // path always evaluated these meshes offscreen, so keep the same correctness contract
+            // until the native bundle owns validated per-skin bounds.
+            if (!renderer.updateWhenOffscreen)
             {
-                renderer.updateWhenOffscreen = false;
-                offscreenDisabled++;
+                renderer.updateWhenOffscreen = true;
+                offscreenEnabled++;
             }
 
             if (disableAuthoredHidden && IsAuthoredHiddenRenderer(renderer) && renderer.enabled)
@@ -56,12 +72,25 @@ internal static class DariusRuntimePerformance
                 }
                 if (changed) cullDisabled++;
             }
+
+            Mesh mesh = renderer.sharedMesh;
+            Bounds local = renderer.localBounds;
+            Bounds world = renderer.bounds;
+            DariusLog.DebugInfo("NATIVE-RENDER", "root=" + root.name + " index=" + i +
+                " renderer=" + renderer.name + " enabled=" + renderer.enabled +
+                " active=" + renderer.gameObject.activeInHierarchy +
+                " mesh=" + (mesh != null ? mesh.name : "<null>") +
+                " verts=" + (mesh != null ? mesh.vertexCount.ToString() : "0") +
+                " localCenter=" + local.center + " localSize=" + local.size +
+                " worldCenter=" + world.center + " worldSize=" + world.size +
+                " lossyScale=" + renderer.transform.lossyScale +
+                " materials=" + materials.Length);
         }
 
-        if (offscreenDisabled > 0 || hiddenDisabled > 0 || cullDisabled > 0)
-            DariusLog.DebugInfo("PERF-MODEL", "Optimized native skinned renderers root=" + root.name +
-                " renderers=" + renderers.Length + " offscreenDisabled=" + offscreenDisabled +
-                " authoredHiddenDisabled=" + hiddenDisabled + " doubleSidedMaterials=" + cullDisabled);
+        DariusLog.DebugInfo("PERF-MODEL", "Prepared native skinned renderers root=" + root.name +
+            " renderers=" + renderers.Length + " animators=" + animators.Length +
+            " alwaysAnimate=" + alwaysAnimate + " offscreenEnabled=" + offscreenEnabled +
+            " authoredHiddenDisabled=" + hiddenDisabled + " doubleSidedMaterials=" + cullDisabled);
     }
 
     private static bool IsAuthoredHiddenRenderer(SkinnedMeshRenderer renderer)
