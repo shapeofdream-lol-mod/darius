@@ -58,7 +58,7 @@ internal static class DariusNativeAnimationMode
         return hero != null && hero.NativeModelBridge != null;
     }
 
-    private static Hero_Darius FindHero(UnityEngine.Component component)
+    internal static Hero_Darius FindHero(UnityEngine.Component component)
     {
         if (component == null) return null;
         try
@@ -88,20 +88,13 @@ internal static class DariusEntityVisualLoadModelFinalizerPatch
     {
         if (__exception == null || __instance == null) return __exception;
         if (!(__exception is NullReferenceException)) return __exception;
-        if (DariusNativeAnimationMode.IsNative(__instance)) return __exception;
-        try
-        {
-            Hero_Darius hero = __instance.GetComponent<Hero_Darius>();
-            if (hero == null) hero = __instance.GetComponentInParent<Hero_Darius>();
-            if (hero == null) return __exception;
-            DariusLog.DebugInfoThrottled("MODEL-NATIVE-GUARD", "legacy-load-model-tail",
-                "Suppressed stock EntityVisual.LoadModelLocal tail NullReference for legacy GLB fallback.", 20.0);
-            return null;
-        }
-        catch
-        {
-            return __exception;
-        }
+
+        Hero_Darius hero = DariusNativeAnimationMode.FindHero(__instance);
+        if (hero == null || hero.NativeModelBridge != null) return __exception;
+
+        DariusLog.DebugInfoThrottled("MODEL-NATIVE-GUARD", "legacy-load-model-tail",
+            "Suppressed stock EntityVisual.LoadModelLocal tail NullReference for legacy GLB fallback.", 20.0);
+        return null;
     }
 }
 
@@ -119,18 +112,12 @@ internal static class DariusEntityAnimationReplaceAnimationLocalPatch
 
     private static bool Prefix(EntityAnimation __instance)
     {
-        if (__instance == null) return true;
-        if (DariusNativeAnimationMode.IsNative(__instance)) return true;
-        try
-        {
-            Hero_Darius hero = __instance.GetComponent<Hero_Darius>();
-            if (hero == null) hero = __instance.GetComponentInParent<Hero_Darius>();
-            if (hero == null) return true;
-            DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "legacy-replace-local",
-                "Skipped stock ReplaceAnimationLocal only because Hero_Darius is using the legacy GLB fallback.", 20.0);
-            return false;
-        }
-        catch { return true; }
+        Hero_Darius hero = DariusNativeAnimationMode.FindHero(__instance);
+        if (hero == null || hero.NativeModelBridge != null) return true;
+
+        DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "legacy-replace-local",
+            "Skipped stock ReplaceAnimationLocal only because Hero_Darius is using the legacy GLB fallback.", 20.0);
+        return false;
     }
 }
 
@@ -146,17 +133,11 @@ internal static class DariusEntityAnimationAbilityRpcPatch
 
     private static bool Prefix(EntityAnimation __instance)
     {
-        if (__instance == null) return true;
-        if (DariusNativeAnimationMode.IsNative(__instance)) return true;
-        try
-        {
-            Hero_Darius hero = __instance.GetComponent<Hero_Darius>();
-            if (hero == null) hero = __instance.GetComponentInParent<Hero_Darius>();
-            if (hero == null) return true;
-            DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "legacy-ability-rpc",
-                "Skipped stock ability-animation RPC only because Hero_Darius is using the legacy GLB fallback.", 20.0);
-            return false;
-        }
-        catch { return true; }
+        Hero_Darius hero = DariusNativeAnimationMode.FindHero(__instance);
+        if (hero == null || hero.NativeModelBridge != null) return true;
+
+        DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "legacy-ability-rpc",
+            "Skipped stock ability-animation RPC only because Hero_Darius is using the legacy GLB fallback.", 20.0);
+        return false;
     }
 }
