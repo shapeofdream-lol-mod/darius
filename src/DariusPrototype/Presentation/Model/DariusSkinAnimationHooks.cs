@@ -6,7 +6,7 @@ public static class DariusSkinAnimationHooks
 {
     public static void PlayQ(Hero hero, bool instant = false)
     {
-        if (DariusNativeAnimationRouter.PlayAbility(hero, "Spell1")) return;
+        if (DariusNativeAnimationRouter.PlayAbility(hero, "Spell1", instant)) return;
         DariusTravelerModelInstance traveler = FindTraveler(hero);
         if (traveler != null) { traveler.PlayQ(instant); return; }
         DariusModelAnimationRuntime.DariusRetargetApi.Play(hero, "Spell1", false, 1f);
