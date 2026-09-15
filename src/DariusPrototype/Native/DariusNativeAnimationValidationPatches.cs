@@ -18,7 +18,7 @@ namespace DariusPrototype
 
                 if (!__instance.IsReady)
                 {
-                    DariusLog.Warning("Native animation bridge rejected after BindHero validation.");
+                    DariusLog.Warn("NATIVE-ANIM", "Native animation bridge rejected after BindHero validation.");
                 }
             }
         }
