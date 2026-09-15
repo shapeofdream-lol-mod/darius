@@ -29,12 +29,40 @@ function Format-ProcessArgument {
     return '"' + ($Value.Replace('"', '\"')) + '"'
 }
 
-function Show-LogTail {
-    param([string]$Path, [int]$Lines = 120)
+function Write-UnityLogDelta {
+    param(
+        [string]$Path,
+        [ref]$Offset
+    )
+
     if (-not (Test-Path $Path -PathType Leaf)) { return }
-    Write-Host "----- Unity log tail: $Path -----" -ForegroundColor Yellow
-    Get-Content $Path -Tail $Lines | ForEach-Object { Write-Host $_ }
-    Write-Host "----- end Unity log tail -----" -ForegroundColor Yellow
+
+    $stream = $null
+    try {
+        $stream = [System.IO.File]::Open(
+            $Path,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read,
+            [System.IO.FileShare]::ReadWrite
+        )
+        if ($Offset.Value -gt $stream.Length) { $Offset.Value = [int64]0 }
+        $remaining = $stream.Length - $Offset.Value
+        if ($remaining -le 0) { return }
+
+        [void]$stream.Seek($Offset.Value, [System.IO.SeekOrigin]::Begin)
+        $buffer = New-Object byte[] ([int]$remaining)
+        $read = $stream.Read($buffer, 0, $buffer.Length)
+        if ($read -gt 0) {
+            $Offset.Value += $read
+            Write-Host -NoNewline ([System.Text.Encoding]::UTF8.GetString($buffer, 0, $read))
+        }
+    }
+    catch {
+        # The live tail is diagnostic only. The Unity process exit code remains authoritative.
+    }
+    finally {
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
 }
 
 function Invoke-UnityChecked {
@@ -47,13 +75,21 @@ function Invoke-UnityChecked {
     $allArguments = @($Arguments) + @("-logFile", $LogPath)
     Write-Host "> $Exe $($allArguments -join ' ')"
 
-    # Unity.exe is a Windows GUI-subsystem process. PowerShell's direct invocation is not a
-    # reliable synchronization boundary for it, so explicitly wait for the editor process.
-    # This also gives Agent/CI callers the real Unity exit code instead of racing the bundle check.
+    # Unity.exe is a Windows GUI-subsystem process. Start it explicitly, then tail its log with
+    # FileShare.ReadWrite while it runs. This gives PowerShell/Agent callers a real wait boundary
+    # and visible progress even though Unity keeps the log file open.
     $argumentLine = ($allArguments | ForEach-Object { Format-ProcessArgument $_ }) -join ' '
-    $process = Start-Process -FilePath $Exe -ArgumentList $argumentLine -Wait -PassThru
+    $process = Start-Process -FilePath $Exe -ArgumentList $argumentLine -PassThru
+    [int64]$offset = 0
+    while (-not $process.HasExited) {
+        Write-UnityLogDelta $LogPath ([ref]$offset)
+        Start-Sleep -Milliseconds 500
+        $process.Refresh()
+    }
+    $process.WaitForExit()
+    Write-UnityLogDelta $LogPath ([ref]$offset)
+
     if ($process.ExitCode -ne 0) {
-        Show-LogTail $LogPath
         throw "Unity command failed with exit code $($process.ExitCode). See: $LogPath"
     }
 }
@@ -69,13 +105,16 @@ if (-not (Test-Path $modelRoot -PathType Container)) { throw "Model asset direct
 if (-not (Test-Path $converter -PathType Leaf)) { throw "Converter missing: $converter" }
 if (-not (Test-Path $editorBuilder -PathType Leaf)) { throw "Unity builder missing: $editorBuilder" }
 
-$workRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("DariusNativeAssets_" + [Guid]::NewGuid().ToString("N"))
+$workBase = Join-Path $RepoRoot "build\native-assets-work"
+$workName = (Get-Date -Format "yyyyMMdd-HHmmss") + "_" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
+$workRoot = Join-Path $workBase $workName
 $fbxRoot = Join-Path $workRoot "fbx"
 $unityProject = Join-Path $workRoot "UnityProject"
 $createLog = Join-Path $workRoot "unity-create-project.log"
 $buildLog = Join-Path $workRoot "unity-build-native-models.log"
 $preserveWorkspace = [bool]$KeepTemp
 New-Item -ItemType Directory -Path $fbxRoot -Force | Out-Null
+Write-Host "Native asset workspace: $workRoot"
 
 $models = @(
     @{ Input = "darius.glb"; Output = "darius.fbx" },
@@ -98,8 +137,8 @@ try {
         )
     }
 
-    # Create a clean throwaway Unity project so the repository never acquires Library/Temp/editor
-    # state and the mod runtime never gains a glTF importer dependency.
+    # Create a clean throwaway Unity project under repository build/ so all generated state and
+    # diagnostic logs are easy to inspect and remain covered by the repository build ignore rule.
     Invoke-UnityChecked $UnityExe @(
         "-batchmode",
         "-quit",
@@ -113,31 +152,30 @@ try {
 
     $oldRepo = $env:DARIUS_REPO_ROOT
     $oldFbx = $env:DARIUS_MODEL_FBX_DIR
+    $oldWork = $env:DARIUS_NATIVE_WORK_ROOT
     try {
         $env:DARIUS_REPO_ROOT = $RepoRoot
         $env:DARIUS_MODEL_FBX_DIR = $fbxRoot
+        $env:DARIUS_NATIVE_WORK_ROOT = $workRoot
         Invoke-UnityChecked $UnityExe @(
             "-batchmode",
-            "-quit",
             "-projectPath", $unityProject,
             "-buildTarget", "StandaloneWindows64",
-            "-executeMethod", "DariusModelBundleBuilder.BuildAll"
+            "-executeMethod", "DariusModelBundleBuilder.BuildAllBatch"
         ) $buildLog
     }
     finally {
         $env:DARIUS_REPO_ROOT = $oldRepo
         $env:DARIUS_MODEL_FBX_DIR = $oldFbx
+        $env:DARIUS_NATIVE_WORK_ROOT = $oldWork
     }
 
     $bundle = Join-Path $modelRoot "darius_models.bundle"
     if (-not (Test-Path $bundle -PathType Leaf)) {
         $preserveWorkspace = $true
-        Show-LogTail $buildLog
         throw "Unity exited successfully without producing bundle: $bundle. Workspace preserved: $workRoot"
     }
 
-    $builderMessages = @(Select-String -Path $buildLog -SimpleMatch -Pattern "[DariusNativeAssets]" -ErrorAction SilentlyContinue)
-    foreach ($message in $builderMessages) { Write-Host $message.Line }
     Write-Host "Native model bundle ready: $bundle"
     Write-Host "Size: $((Get-Item $bundle).Length) bytes"
 }
@@ -147,7 +185,7 @@ catch {
 }
 finally {
     if ($preserveWorkspace) {
-        Write-Host "Keeping temporary build workspace: $workRoot"
+        Write-Host "Keeping native asset workspace: $workRoot"
         if (Test-Path $createLog -PathType Leaf) { Write-Host "Unity project log: $createLog" }
         if (Test-Path $buildLog -PathType Leaf) { Write-Host "Unity build log: $buildLog" }
     }
