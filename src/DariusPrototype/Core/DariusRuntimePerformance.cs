@@ -20,10 +20,16 @@ internal static class DariusRuntimePerformance
             alwaysAnimate++;
         }
 
+        Shader nativeBodyShader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (nativeBodyShader == null) nativeBodyShader = Shader.Find("Unlit/Texture");
+        if (nativeBodyShader == null) nativeBodyShader = Shader.Find("Sprites/Default");
+        if (nativeBodyShader == null)
+            DariusLog.Error("NATIVE-MATERIAL", "No runtime body shader found; imported FBX materials cannot be rebound safely.");
+
         SkinnedMeshRenderer[] renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
         int offscreenEnabled = 0;
         int hiddenDisabled = 0;
-        int cullDisabled = 0;
+        int reboundMaterials = 0;
         for (int i = 0; i < renderers.Length; i++)
         {
             SkinnedMeshRenderer renderer = renderers[i];
@@ -45,32 +51,16 @@ internal static class DariusRuntimePerformance
                 hiddenDisabled++;
             }
 
-            // The source LoL meshes use mirrored transforms/winding. The legacy GLB renderer
-            // compensated by reversing triangle winding and disabling material culling. The FBX
-            // path preserves the authored transform, so keep the equivalent native rendering
-            // contract here without rewriting skinned mesh topology or bind poses.
+            // FBX materials are authored in the throwaway Unity build project, but the bundle is
+            // consumed by Shape of Dreams' URP player. Keep the imported textures/material names,
+            // then bind them to a shader resolved from the actual running game. This avoids the
+            // "correct shadow, invisible body" failure caused by an incompatible imported shader.
             Material[] materials = renderer.sharedMaterials;
             for (int mi = 0; mi < materials.Length; mi++)
             {
                 Material material = materials[mi];
-                if (material == null) continue;
-                bool changed = false;
-                if (material.HasProperty("_Cull") && material.GetFloat("_Cull") != 0f)
-                {
-                    material.SetFloat("_Cull", 0f);
-                    changed = true;
-                }
-                if (material.HasProperty("_CullMode") && material.GetFloat("_CullMode") != 0f)
-                {
-                    material.SetFloat("_CullMode", 0f);
-                    changed = true;
-                }
-                if (material.HasProperty("_CullModeForward") && material.GetFloat("_CullModeForward") != 0f)
-                {
-                    material.SetFloat("_CullModeForward", 0f);
-                    changed = true;
-                }
-                if (changed) cullDisabled++;
+                if (material == null || nativeBodyShader == null) continue;
+                if (RebindNativeBodyMaterial(material, nativeBodyShader)) reboundMaterials++;
             }
 
             Mesh mesh = renderer.sharedMesh;
@@ -90,7 +80,85 @@ internal static class DariusRuntimePerformance
         DariusLog.DebugInfo("PERF-MODEL", "Prepared native skinned renderers root=" + root.name +
             " renderers=" + renderers.Length + " animators=" + animators.Length +
             " alwaysAnimate=" + alwaysAnimate + " offscreenEnabled=" + offscreenEnabled +
-            " authoredHiddenDisabled=" + hiddenDisabled + " doubleSidedMaterials=" + cullDisabled);
+            " authoredHiddenDisabled=" + hiddenDisabled + " reboundMaterials=" + reboundMaterials);
+    }
+
+    private static bool RebindNativeBodyMaterial(Material material, Shader shader)
+    {
+        if (material == null || shader == null) return false;
+
+        string previousShader = material.shader != null ? material.shader.name : "<null>";
+        Texture texture = null;
+        Vector2 textureScale = Vector2.one;
+        Vector2 textureOffset = Vector2.zero;
+        string[] textureProperties = { "_BaseMap", "_BaseColorMap", "_MainTex", "_Albedo" };
+        for (int i = 0; i < textureProperties.Length; i++)
+        {
+            string property = textureProperties[i];
+            if (!material.HasProperty(property)) continue;
+            Texture candidate = material.GetTexture(property);
+            if (candidate == null) continue;
+            texture = candidate;
+            textureScale = material.GetTextureScale(property);
+            textureOffset = material.GetTextureOffset(property);
+            break;
+        }
+        if (texture == null)
+        {
+            try
+            {
+                texture = material.mainTexture;
+                textureScale = material.mainTextureScale;
+                textureOffset = material.mainTextureOffset;
+            }
+            catch { }
+        }
+
+        Color tint = Color.white;
+        if (material.HasProperty("_BaseColor")) tint = material.GetColor("_BaseColor");
+        else if (material.HasProperty("_Color")) tint = material.GetColor("_Color");
+        tint.a = 1f;
+
+        material.shader = shader;
+        if (texture != null)
+        {
+            if (material.HasProperty("_BaseMap"))
+            {
+                material.SetTexture("_BaseMap", texture);
+                material.SetTextureScale("_BaseMap", textureScale);
+                material.SetTextureOffset("_BaseMap", textureOffset);
+            }
+            if (material.HasProperty("_MainTex"))
+            {
+                material.SetTexture("_MainTex", texture);
+                material.SetTextureScale("_MainTex", textureScale);
+                material.SetTextureOffset("_MainTex", textureOffset);
+            }
+        }
+        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", tint);
+        if (material.HasProperty("_Color")) material.SetColor("_Color", tint);
+
+        // Character body materials are opaque. Authored hidden God-King geometry is controlled by
+        // its separate renderer, so it does not need transparent body materials either.
+        material.SetOverrideTag("RenderType", "Opaque");
+        if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 0f);
+        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 1f);
+        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", 1f);
+        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", 0f);
+        if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip", 0f);
+        if (material.HasProperty("_Cull")) material.SetFloat("_Cull", 0f);
+        if (material.HasProperty("_CullMode")) material.SetFloat("_CullMode", 0f);
+        if (material.HasProperty("_CullModeForward")) material.SetFloat("_CullModeForward", 0f);
+        material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        material.renderQueue = 2000;
+
+        DariusLog.DebugInfo("NATIVE-MATERIAL", "material=" + material.name +
+            " shader=" + previousShader + " -> " + shader.name +
+            " texture=" + (texture != null ? texture.name : "<null>") +
+            " tint=" + tint);
+        return !string.Equals(previousShader, shader.name, StringComparison.Ordinal);
     }
 
     private static bool IsAuthoredHiddenRenderer(SkinnedMeshRenderer renderer)
