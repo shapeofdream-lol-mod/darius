@@ -1,22 +1,23 @@
-namespace DariusPrototype;
-
-/// <summary>
-/// Keeps native animation routing conservative while the EntityAnimation migration is in progress.
-/// A native bridge that is not fully initialized must not become the animation authority.
-/// </summary>
-internal static class DariusNativeAnimationValidationPatches
+namespace DariusPrototype
 {
-    [HarmonyPatch(typeof(DariusNativeModelBridge), nameof(DariusNativeModelBridge.BindHero))]
-    private static class BindHeroValidationPatch
+    /// <summary>
+    /// Keeps native animation routing conservative while the EntityAnimation migration is in progress.
+    /// A native bridge that is not fully initialized must not become the animation authority.
+    /// </summary>
+    internal static class DariusNativeAnimationValidationPatches
     {
-        private static void Postfix(DariusNativeModelBridge __instance)
+        [HarmonyPatch(typeof(DariusNativeModelBridge), nameof(DariusNativeModelBridge.BindHero))]
+        private static class BindHeroValidationPatch
         {
-            if (__instance == null)
-                return;
-
-            if (!__instance.IsReady)
+            private static void Postfix(DariusNativeModelBridge __instance)
             {
-                DariusLog.Warning("Native animation bridge rejected after BindHero validation.");
+                if (__instance == null)
+                    return;
+
+                if (!__instance.IsReady)
+                {
+                    DariusLog.Warning("Native animation bridge rejected after BindHero validation.");
+                }
             }
         }
     }
