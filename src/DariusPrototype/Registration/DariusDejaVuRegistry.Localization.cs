@@ -37,7 +37,7 @@ public static partial class DariusDejaVuRegistry
         if (string.IsNullOrEmpty(key) || __originalMethod == null) return;
         string value;
         string starValue;
-        bool wantsName = LooksLikeNameRequest(__originalMethod, key);
+        bool wantsName = string.Equals(__originalMethod.Name, "GetUIValue", StringComparison.Ordinal) || LooksLikeNameRequest(__originalMethod, key);
         bool wantsDescription = LooksLikeDescriptionRequest(__originalMethod, key);
         if (DariusLanguage.IsJapanese && DariusJapaneseLocalization.TryGet(key, wantsDescription, out value)) { __result = value; return; }
 
