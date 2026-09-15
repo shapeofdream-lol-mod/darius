@@ -30,6 +30,16 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private Coroutine _sequence;
 
+    private Vector3 _lastLocomotionPosition;
+
+    private float _lastLocomotionSample;
+
+    private string _locomotionState;
+
+    private float _actionUntil;
+
+    private bool _wArmed;
+
     public bool IsReady { get { return _modelRoot != null && _animator != null; } }
 
     public bool IsGodKingSkin { get { return _binding != null && _binding.isGodKingSkin; } }
@@ -44,6 +54,10 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         _hero = null;
         _entityAnimation = null;
         _entityAnimationModelSetup = false;
+        _lastLocomotionSample = 0f;
+        _locomotionState = null;
+        _actionUntil = 0f;
+        _wArmed = false;
         _animator = modelRoot != null ? modelRoot.GetComponentInChildren<Animator>(true) : null;
         if (_animator == null) throw new InvalidDataException("Native Darius prefab has no Animator: " + VariantKey);
 
@@ -68,6 +82,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _hero = null;
             _entityAnimation = null;
             _entityAnimationModelSetup = false;
+            _lastLocomotionSample = 0f;
+            _locomotionState = null;
             return;
         }
 
@@ -76,6 +92,11 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _hero = hero;
             _entityAnimation = null;
             _entityAnimationModelSetup = false;
+            _lastLocomotionPosition = hero.transform.position;
+            _lastLocomotionSample = Time.time;
+            _locomotionState = null;
+            _actionUntil = 0f;
+            _wArmed = false;
         }
 
         DariusVoiceRuntime.Ensure(_hero);
@@ -100,6 +121,44 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         {
             DariusLog.Exception("NATIVE-MODEL", e, "EntityAnimation.SetupModel failed skin=" + VariantKey + "; Unity Animator remains usable");
         }
+    }
+
+    private void Update()
+    {
+        UpdateLocomotionState();
+    }
+
+    private void UpdateLocomotionState()
+    {
+        if (_hero == null || _animator == null) return;
+
+        float now = Time.time;
+        Vector3 position = _hero.transform.position;
+        if (_lastLocomotionSample <= 0f)
+        {
+            _lastLocomotionPosition = position;
+            _lastLocomotionSample = now;
+            return;
+        }
+
+        float dt = Mathf.Max(0.001f, now - _lastLocomotionSample);
+        Vector3 delta = position - _lastLocomotionPosition;
+        delta.y = 0f;
+        float speed = delta.magnitude / dt;
+        _lastLocomotionPosition = position;
+        _lastLocomotionSample = now;
+
+        try { if (_hero.IsNullInactiveDeadOrKnockedOut()) return; } catch { }
+        try { if (_hero.currentHealth <= 0.011f) return; } catch { }
+        if (_sequence != null || _wArmed || now < _actionUntil) return;
+
+        string desired = speed > 0.12f ? RunClipName : IdleClipName;
+        if (string.Equals(_locomotionState, desired, StringComparison.Ordinal)) return;
+        if (!PlayState(desired, 0.12f, 1f)) return;
+
+        _locomotionState = desired;
+        DariusLog.DebugInfo("NATIVE-LOCOMOTION", "skin=" + VariantKey + " state=" + desired +
+            " speed=" + speed.ToString("0.###"));
     }
 
     private string IdleClipName { get { return FirstExisting(_binding != null ? _binding.idleClip : null, "Idle1_Base", "Idle1"); } }
