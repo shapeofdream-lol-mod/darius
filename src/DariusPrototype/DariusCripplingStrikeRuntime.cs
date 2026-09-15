@@ -105,7 +105,6 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
             StatBonus bonus = new StatBonus();
             bonus.attackRangeFlat = BonusAttackRange;
             _attackRangeBonus = _owner.Status.AddStatBonus(bonus);
-            _owner.Status.UpdateStats();
             DariusLog.Info("W-RANGE", "cast#" + _castId + " applied native attackRangeFlat +" +
                 BonusAttackRange.ToString("0.##") + " targetRange=" +
                 (At_DariusAxe.AttackRange + BonusAttackRange).ToString("0.##"));
@@ -125,10 +124,7 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
         try
         {
             if (_owner != null && _owner.Status != null)
-            {
                 _owner.Status.RemoveStatBonus(bonus);
-                _owner.Status.UpdateStats();
-            }
             DariusLog.DebugInfo("W-RANGE", "cast#" + _castId + " removed temporary attack range bonus reason=" + reason);
         }
         catch (Exception e)
