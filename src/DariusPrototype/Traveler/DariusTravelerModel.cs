@@ -51,8 +51,6 @@ public sealed partial class DariusTravelerModelInstance : MonoBehaviour
 
     private bool _godKing;
 
-    private bool _homeguard;
-
     private bool _wIdleInAlt;
 
     private bool _wDeactivateAlt;
