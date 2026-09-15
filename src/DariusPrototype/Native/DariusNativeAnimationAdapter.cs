@@ -10,8 +10,8 @@ internal static class DariusNativeAnimationAdapter
     public static bool PlayAbility(Hero hero, string animationName, bool instant = false)
     {
         if (hero == null || string.IsNullOrEmpty(animationName)) return false;
-        DariusNativeModelBridge bridge = hero.GetComponentInChildren<DariusNativeModelBridge>(true);
-        if (bridge == null || !bridge.IsReady) return false;
+        DariusNativeModelBridge bridge = GetBridge(hero);
+        if (bridge == null) return false;
 
         try
         {
@@ -54,8 +54,8 @@ internal static class DariusNativeAnimationAdapter
     public static bool StopAbility(Hero hero)
     {
         if (hero == null) return false;
-        DariusNativeModelBridge bridge = hero.GetComponentInChildren<DariusNativeModelBridge>(true);
-        if (bridge == null || !bridge.IsReady) return false;
+        DariusNativeModelBridge bridge = GetBridge(hero);
+        if (bridge == null) return false;
 
         try
         {
@@ -88,5 +88,14 @@ internal static class DariusNativeAnimationAdapter
             DariusLog.Exception("NATIVE-ANIM", e, "EntityAnimation.ReplaceAnimation failed: " + key);
             return false;
         }
+    }
+
+    private static DariusNativeModelBridge GetBridge(Hero hero)
+    {
+        Hero_Darius darius = hero as Hero_Darius;
+        if (darius != null) return darius.NativeModelBridge;
+
+        DariusNativeModelBridge bridge = hero.GetComponentInChildren<DariusNativeModelBridge>(true);
+        return bridge != null && bridge.IsReady ? bridge : null;
     }
 }
