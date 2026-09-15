@@ -118,6 +118,7 @@
   <Target Name="VerifyPackageAssets" DependsOnTargets="VerifyVoiceAssets">
     <Error Condition="!Exists('$(ModRootDir)\about\metadata.json')" Text="about/metadata.json is missing; the loader requires it in the package." />
     <Error Condition="!Exists('$(ModRootDir)\assets\models\darius.glb')" Text="assets/models is missing. Prepare the asset pack first; see docs/assets.md." />
+    <Error Condition="!Exists('$(ModRootDir)\assets\models\darius_models.bundle')" Text="assets/models/darius_models.bundle is missing. Build the native model bundle with tools/DariusUnityAssets/Build-NativeModels.ps1 before packaging or deploying this branch." />
     <Error Condition="!Exists('$(ModRootDir)\assets\lol_vfx\darius_lol_vfx.json')" Text="assets/lol_vfx/darius_lol_vfx.json is missing. See docs/assets.md." />
     <Error Condition="!Exists('$(ModRootDir)\assets\audio\flash.ogg')" Text="assets/audio is missing. See docs/assets.md." />
     <Error Condition="!Exists('$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json')" Text="assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json is missing; the runtime needs it to route Pass2 audio." />
