@@ -146,6 +146,17 @@ try {
         "-buildTarget", "StandaloneWindows64"
     ) $createLog
 
+    # FBX texture references are relative. Put Blender's exported PNG sidecars beside the FBX
+    # destination before Unity imports the models so ModelImporter can bind them normally.
+    $textureFiles = @(Get-ChildItem -Path $fbxRoot -Filter "*.png" -File)
+    if ($textureFiles.Count -eq 0) { throw "Blender produced no native model texture sidecars in: $fbxRoot" }
+    $unitySourceDir = Join-Path $unityProject "Assets\DariusSource"
+    New-Item -ItemType Directory -Path $unitySourceDir -Force | Out-Null
+    foreach ($texture in $textureFiles) {
+        Copy-Item $texture.FullName (Join-Path $unitySourceDir $texture.Name) -Force
+    }
+    Write-Host "Native model texture sidecars staged for Unity: $($textureFiles.Count)"
+
     $editorDir = Join-Path $unityProject "Assets\Editor"
     New-Item -ItemType Directory -Path $editorDir -Force | Out-Null
     Copy-Item $editorBuilder (Join-Path $editorDir "DariusModelBundleBuilder.cs") -Force
