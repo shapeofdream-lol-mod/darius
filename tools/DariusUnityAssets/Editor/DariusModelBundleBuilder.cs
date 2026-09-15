@@ -85,7 +85,7 @@ public static class DariusModelBundleBuilder
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
 
             Debug.Log("[DariusNativeAssets] skin=" + skin.Variant + " stage=configure-importer");
-            ConfigureModelImporter(assetPath);
+            ConfigureModelImporter(assetPath, skin.Variant);
 
             Debug.Log("[DariusNativeAssets] skin=" + skin.Variant + " stage=build-prefab");
             string prefabPath = BuildSkinPrefab(skin, assetPath);
@@ -111,7 +111,7 @@ public static class DariusModelBundleBuilder
         AssetBundleManifest manifest = BuildPipeline.BuildAssetBundles(
             bundleOutput,
             new[] { build },
-            BuildAssetBundleOptions.ChunkBasedCompression | BuildAssetBundleOptions.DeterministicAssetBundle,
+            BuildAssetBundleOptions.ChunkBasedCompression,
             BuildTarget.StandaloneWindows64);
         if (manifest == null) throw new InvalidOperationException("BuildPipeline.BuildAssetBundles returned null manifest.");
 
@@ -127,7 +127,7 @@ public static class DariusModelBundleBuilder
                   " prefabs=" + prefabPaths.Count + " compression=LZ4");
     }
 
-    private static void ConfigureModelImporter(string assetPath)
+    private static void ConfigureModelImporter(string assetPath, string variant)
     {
         ModelImporter importer = AssetImporter.GetAtPath(assetPath) as ModelImporter;
         if (importer == null) throw new InvalidOperationException("Not a ModelImporter: " + assetPath);
@@ -141,9 +141,20 @@ public static class DariusModelBundleBuilder
         ModelImporterClipAnimation[] clips = importer.defaultClipAnimations;
         if (clips != null && clips.Length > 0)
         {
+            HashSet<string> names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < clips.Length; i++)
             {
-                string name = clips[i].name ?? string.Empty;
+                string sourceName = clips[i].name ?? string.Empty;
+                string name = NormalizeImportedClipName(sourceName);
+                if (string.IsNullOrEmpty(name))
+                    throw new InvalidDataException("Imported FBX animation has an empty name: " + assetPath);
+                if (!names.Add(name))
+                    throw new InvalidDataException("Imported FBX animation names collide after normalization for " + variant + ": " + name);
+
+                if (!string.Equals(sourceName, name, StringComparison.Ordinal))
+                    Debug.Log("[DariusNativeAssets] skin=" + variant + " clip=" + sourceName + " -> " + name);
+
+                clips[i].name = name;
                 bool loop = IsLoopingClip(name);
                 clips[i].loopTime = loop;
                 clips[i].loopPose = loop;
@@ -164,19 +175,27 @@ public static class DariusModelBundleBuilder
             .ToArray();
         if (clips.Length == 0) throw new InvalidDataException("FBX has no animation clips: " + fbxPath);
 
-        Debug.Log("[DariusNativeAssets] skin=" + skin.Variant + " clips=" + clips.Length);
+        Debug.Log("[DariusNativeAssets] skin=" + skin.Variant + " clips=" + clips.Length +
+                  " names=" + string.Join(",", clips.Select(c => c.name).ToArray()));
         string controllerPath = GeneratedRoot + "/darius_" + skin.Variant.ToLowerInvariant() + ".controller";
         AnimatorController controller = AnimatorController.CreateAnimatorControllerAtPath(controllerPath);
         AnimatorStateMachine stateMachine = controller.layers[0].stateMachine;
         AnimatorState defaultState = null;
+        HashSet<string> stateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (AnimationClip clip in clips)
         {
-            AnimatorState state = stateMachine.AddState(clip.name);
+            string stateName = ToAnimatorStateName(clip.name);
+            if (!stateNames.Add(stateName))
+                throw new InvalidDataException("Animator state names collide after sanitization for " + skin.Variant + ": " + stateName);
+
+            AnimatorState state = stateMachine.AddState(stateName);
             state.motion = clip;
             state.speed = 1f;
             if (string.Equals(clip.name, skin.Idle, StringComparison.OrdinalIgnoreCase)) defaultState = state;
         }
-        if (defaultState == null) throw new InvalidDataException("Required idle clip missing for " + skin.Variant + ": " + skin.Idle);
+        if (defaultState == null)
+            throw new InvalidDataException("Required idle clip missing for " + skin.Variant + ": " + skin.Idle +
+                                           "; imported=" + string.Join(",", clips.Select(c => c.name).ToArray()));
         stateMachine.defaultState = defaultState;
 
         GameObject imported = AssetDatabase.LoadAssetAtPath<GameObject>(fbxPath);
@@ -216,6 +235,31 @@ public static class DariusModelBundleBuilder
         {
             UnityEngine.Object.DestroyImmediate(container);
         }
+    }
+
+    private static string NormalizeImportedClipName(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        string name = value.Trim();
+
+        // Blender's FBX exporter/Unity importer can qualify an action with an object/take prefix.
+        // Runtime Darius bindings use the original LoL action name, so keep only the final segment.
+        int separator = Math.Max(name.LastIndexOf('|'), name.LastIndexOf(':'));
+        if (separator >= 0 && separator + 1 < name.Length) name = name.Substring(separator + 1).Trim();
+
+        // Blender may append .001/.002 when names collide internally. Strip only that numeric suffix;
+        // legitimate LoL names such as Darius_Skin04_Run.anm must remain intact.
+        if (name.Length > 4 && name[name.Length - 4] == '.' &&
+            char.IsDigit(name[name.Length - 3]) && char.IsDigit(name[name.Length - 2]) && char.IsDigit(name[name.Length - 1]))
+            name = name.Substring(0, name.Length - 4);
+
+        return name;
+    }
+
+    private static string ToAnimatorStateName(string clipName)
+    {
+        if (string.IsNullOrEmpty(clipName)) return clipName;
+        return clipName.Replace('.', '_').Replace('/', '_').Replace('\\', '_');
     }
 
     private static void SplitAuthoredHiddenSubmeshes(GameObject model, SkinnedMeshRenderer[] renderers, string variant)
