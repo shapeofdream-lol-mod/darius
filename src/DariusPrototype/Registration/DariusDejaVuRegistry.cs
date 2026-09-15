@@ -115,6 +115,21 @@ public static partial class DariusDejaVuRegistry
                 }
             }
 
+            // Skin/Hero labels in the current SoD UI use the generic UI table directly rather than
+            // dedicated GetSkin*/GetHero* methods. Missing runtime keys surface as "ui!<key>".
+            MethodInfo uiValue = typeof(DewLocalization).GetMethod(
+                "GetUIValue",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+                null,
+                new[] { typeof(string) },
+                null);
+            if (uiValue != null)
+            {
+                harmony.Patch(uiValue, postfix: new HarmonyMethod(stringPostfix));
+                patched++;
+                DariusLog.DebugInfo("DEJAVU-I18N", "Patched UI localization method " + MethodLabel(uiValue));
+            }
+
             int converterPatched = 0;
 
             // The stock tooltip converts LocaleNodes using DescriptionSettings after GetSkillDescription.
