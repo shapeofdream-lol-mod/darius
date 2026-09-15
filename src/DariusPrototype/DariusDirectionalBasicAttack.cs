@@ -5,9 +5,10 @@ public sealed class DariusDirectionalBasicAttackState : MonoBehaviour
     public Vector3 Direction { get; private set; }
     public float CapturedAt { get; private set; }
     public int ConfigIndex { get; private set; }
+    public float EffectiveRange { get; private set; }
     public int Serial { get; private set; }
 
-    public void Capture(Vector3 direction, int configIndex)
+    public void Capture(Vector3 direction, int configIndex, float effectiveRange)
     {
         direction.y = 0f;
         if (direction.sqrMagnitude < 0.0001f) direction = transform.forward;
@@ -15,17 +16,22 @@ public sealed class DariusDirectionalBasicAttackState : MonoBehaviour
         if (direction.sqrMagnitude < 0.0001f) direction = Vector3.forward;
         Direction = direction.normalized;
         ConfigIndex = configIndex;
+        EffectiveRange = effectiveRange > 0.05f ? effectiveRange : At_DariusAxe.AttackRange;
         CapturedAt = Time.time;
         Serial++;
     }
 
     public Vector3 GetDirection(Vector3 fallback)
     {
-        // A native melee instance resolves very shortly after the swing starts. If some unrelated
-        // Actor.DoBasicAttackHit path fires much later, do not reuse a stale attack direction.
         if (Time.time - CapturedAt <= 1.25f && Direction.sqrMagnitude > 0.0001f) return Direction;
         fallback.y = 0f;
         return fallback.sqrMagnitude > 0.0001f ? fallback.normalized : Vector3.forward;
+    }
+
+    public float GetEffectiveRange(float fallback)
+    {
+        if (Time.time - CapturedAt <= 1.25f && EffectiveRange > 0.05f) return EffectiveRange;
+        return fallback > 0.05f ? fallback : At_DariusAxe.AttackRange;
     }
 
     public bool HasFreshCapture => Serial > 0 && Time.time - CapturedAt <= 1.25f;
@@ -39,12 +45,7 @@ public static class DariusDirectionalBasicAttackGeometry
         try { Entity target = info.target; if (target != null && target != hero) { direction = target.transform.position - hero.transform.position; direction.y = 0f; } } catch { direction = Vector3.zero; }
         if (direction.sqrMagnitude <= 0.001f)
         {
-            try
-            {
-                direction = info.point - hero.transform.position;
-                direction.y = 0f;
-            }
-            catch { direction = Vector3.zero; }
+            try { direction = info.point - hero.transform.position; direction.y = 0f; } catch { direction = Vector3.zero; }
         }
         if (direction.sqrMagnitude <= 0.001f)
         {
@@ -71,10 +72,10 @@ public static class DariusDirectionalBasicAttackGeometry
             DariusDirectionalBasicAttackState state = owner.GetComponent<DariusDirectionalBasicAttackState>();
             if (state != null) direction = state.GetDirection(direction);
             instance.transform.position = owner.transform.position;
-            if (direction.sqrMagnitude > 0.0001f)
-                instance.transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+            if (direction.sqrMagnitude > 0.0001f) instance.transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
             DariusLog.DebugInfo("ATK-INSTANCE", "Anchored " + instance.name + " to caster=" + DariusLog.EntityLabel(owner) +
                 " pos=" + DariusLog.Vec(instance.transform.position) + " dir=" + DariusLog.Vec(direction) +
+                " effectiveRange=" + (state != null ? state.GetEffectiveRange(At_DariusAxe.AttackRange).ToString("0.###") : At_DariusAxe.AttackRange.ToString("0.###")) +
                 " crit=" + critical);
         }
         catch (System.Exception e) { DariusLog.Exception("ATK-INSTANCE", e, "Failed to anchor directional native melee instance"); }
@@ -93,10 +94,12 @@ public static class DariusDirectionalBasicAttackGeometry
         delta.y = 0f;
         contactDistance = delta.magnitude;
         if (contactDistance <= 0.001f) { angle = 0f; return true; }
-        if (contactDistance > At_DariusAxe.AttackRange + At_DariusAxe.ContactTolerance) return false;
 
         Vector3 fallback = hero.transform.forward;
         DariusDirectionalBasicAttackState state = hero.GetComponent<DariusDirectionalBasicAttackState>();
+        float effectiveRange = state != null ? state.GetEffectiveRange(At_DariusAxe.AttackRange) : At_DariusAxe.AttackRange;
+        if (contactDistance > effectiveRange + At_DariusAxe.ContactTolerance) return false;
+
         Vector3 direction = state != null ? state.GetDirection(fallback) : fallback;
         direction.y = 0f;
         if (direction.sqrMagnitude <= 0.0001f) direction = Vector3.forward;

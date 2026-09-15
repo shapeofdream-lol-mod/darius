@@ -5,6 +5,7 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
 {
     public const float ArmDuration = 4.0f;
     public const float BonusAdRatio = 1.00f;
+    public const float BonusAttackRange = 0.40f;
     public const float SlowStrength = 0.90f;
     public const float SlowDuration = 1.25f;
     public const float DamageGrowthPerAdditionalLevel = 0.20f;
@@ -28,6 +29,7 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
     private int _memoryLevel = 1;
     private AbilityTrigger _sourceTrigger;
     private GameObject _armVfx;
+    private StatBonus _attackRangeBonus;
 
     public bool IsArmed { get { return _armed; } }
 
@@ -44,13 +46,16 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
         _memoryLevel = DariusMemoryScaling.NormalizeLevel(memoryLevel);
         _sourceTrigger = sourceTrigger;
         _armed = true;
+        ApplyAttackRangeBonus();
         DariusSkinAnimationHooks.SetWArmed(owner, true);
         _expiresAt = Time.time + ArmDuration;
         ClearArmVfx();
         try { _armVfx = DariusPrototypeVfx.CreateWArm(owner); }
         catch (Exception e) { DariusLog.Exception("W-VFX", e, "cast#" + castId + " persistent arm VFX failed"); }
         DariusLog.Info("W", "cast#" + castId + " armed for " + ArmDuration + "s; memoryLevel=" + _memoryLevel +
-            " coreScale=" + DariusMemoryScaling.Multiplier(_memoryLevel).ToString("0.###") + " expiresAt=" + _expiresAt.ToString("0.000"));
+            " coreScale=" + DariusMemoryScaling.Multiplier(_memoryLevel).ToString("0.###") +
+            " attackRange=" + At_DariusAxe.AttackRange.ToString("0.##") + "+" + BonusAttackRange.ToString("0.##") +
+            " expiresAt=" + _expiresAt.ToString("0.000"));
     }
 
     private void Update()
@@ -59,6 +64,7 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
         {
             _armed = false;
             _sourceTrigger = null;
+            RemoveAttackRangeBonus("expired");
             DariusSkinAnimationHooks.SetWArmed(_owner, false);
             ClearArmVfx();
             DariusLog.Info("W", "cast#" + _castId + " expired without consuming an attack.");
@@ -70,6 +76,7 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
         DariusLog.DebugInfo("W", "runtime destroyed.");
         DariusSkinAnimationHooks.SetWArmed(_owner, false);
         _sourceTrigger = null;
+        RemoveAttackRangeBonus("runtime destroyed");
         ClearArmVfx();
         Unsubscribe();
     }
@@ -78,6 +85,7 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
     {
         if (_owner != null)
         {
+            RemoveAttackRangeBonus("owner changed/unsubscribe");
             try
             {
                 _owner.ActorEvent_OnAttackHit -= OnAttackHit;
@@ -86,6 +94,43 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
             catch (Exception e) { DariusLog.Exception("W", e, "unsubscribe attack event failed"); }
         }
         _owner = null;
+    }
+
+    private void ApplyAttackRangeBonus()
+    {
+        RemoveAttackRangeBonus("refresh");
+        if (_owner == null || _owner.Status == null) return;
+        try
+        {
+            StatBonus bonus = new StatBonus();
+            bonus.attackRangeFlat = BonusAttackRange;
+            _attackRangeBonus = _owner.Status.AddStatBonus(bonus);
+            DariusLog.Info("W-RANGE", "cast#" + _castId + " applied native attackRangeFlat +" +
+                BonusAttackRange.ToString("0.##") + " targetRange=" +
+                (At_DariusAxe.AttackRange + BonusAttackRange).ToString("0.##"));
+        }
+        catch (Exception e)
+        {
+            _attackRangeBonus = null;
+            DariusLog.Exception("W-RANGE", e, "cast#" + _castId + " failed to apply temporary attack range bonus");
+        }
+    }
+
+    private void RemoveAttackRangeBonus(string reason)
+    {
+        StatBonus bonus = _attackRangeBonus;
+        if (bonus == null) return;
+        _attackRangeBonus = null;
+        try
+        {
+            if (_owner != null && _owner.Status != null)
+                _owner.Status.RemoveStatBonus(bonus);
+            DariusLog.DebugInfo("W-RANGE", "cast#" + _castId + " removed temporary attack range bonus reason=" + reason);
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("W-RANGE", e, "cast#" + _castId + " failed to remove temporary attack range bonus reason=" + reason);
+        }
     }
 
     private void ClearArmVfx()
@@ -137,6 +182,10 @@ public sealed class DariusCripplingStrikeRuntime : MonoBehaviour
             AbilityTrigger sourceTrigger = _sourceTrigger;
             _armed = false;
             _sourceTrigger = null;
+            // At_DariusAxe captures the live effective range when the swing starts. Removing the
+            // transient StatBonus here cannot shrink the attack that already reached this hit event,
+            // but guarantees the very next basic attack returns to the normal 2.60 range.
+            RemoveAttackRangeBonus("empowered attack consumed");
             DariusSkinAnimationHooks.SetWArmed(_owner, false);
             ClearArmVfx();
             float ad = _owner.Status.finalStats.attackDamage;

@@ -3,18 +3,66 @@ using System.Reflection;
 using UnityEngine;
 
 // v0.21.0 directional basic-attack pipeline.
-// AttackTrigger still owns cadence/crit/attack lifecycle. Target selection no longer owns the swing:
-// the cast intent is a direction, the native melee instance is anchored to the caster, and the final
-// authoritative hit shape is a caster-centred sector. Every enemy inside that sector may be hit.
+// AttackTrigger still owns cadence/crit/attack lifecycle. Darius follows the stock Vesper input
+// contract (Target + allowNonTargetedCast) while final damage geometry remains a Darius-owned
+// forward sector. Every enemy inside that sector may be hit.
 public sealed class At_DariusAxe : AttackTrigger
 {
-    public const float AttackRange = 1.75f;
-    public const float AttackArcDegrees = 110f;
+    public const float AttackRange = 2.60f;
+    public const float AttackArcDegrees = 90f;
     public const float AttackHalfAngle = AttackArcDegrees * 0.5f;
     public const float ContactTolerance = 0.10f;
 
+    public static float ResolveEffectiveRange(TriggerConfig cfg)
+    {
+        if (cfg == null) return AttackRange;
+        try
+        {
+            if (cfg.effectiveRange > 0.05f) return cfg.effectiveRange;
+            if (cfg.castMethod != null && cfg.castMethod._range > 0.05f) return cfg.castMethod._range;
+        }
+        catch { }
+        return AttackRange;
+    }
+
+    // Stock Vesper/Mist/Husk melee attacks use Target cast semantics while still permitting an
+    // empty-space swing through allowNonTargetedCast. Keep Darius on that native input path instead
+    // of using an ability-style Cone indicator. The Darius sector patch remains the final authority
+    // for the 90-degree cleave, while the inherited melee instance stays a fixed broad phase.
+    public static void ApplyVesperStyleTriggerSemantics(At_DariusAxe attack)
+    {
+        if (attack == null) return;
+        try
+        {
+            attack.allowNonTargetedCast = true;
+            attack.ignoreRangeCheck = false;
+
+            TriggerConfig[] attackConfigs = attack.configs;
+            if (attackConfigs == null) return;
+            for (int i = 0; i < attackConfigs.Length; i++)
+            {
+                TriggerConfig cfg = attackConfigs[i];
+                if (cfg == null || cfg.castMethod == null) continue;
+                cfg.castMethod.type = CastMethodType.Target;
+                cfg.castMethod._range = AttackRange;
+                cfg.castMethod._radius = 0f;
+                cfg.castMethod._angle = 0f;
+                cfg.castMethod._isClamping = false;
+                cfg.faceForward = true;
+            }
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("ATK-NATIVE-CONFIG", e, "Could not apply Vesper-style Darius attack semantics");
+        }
+    }
+
     public override void OnCastStart(int configIndex, CastInfo info)
     {
+        // The prefab binder applies this before input/indicator use. Reassert here as protection for
+        // hot-reload and runtime self-heal paths before the current swing captures its live range.
+        ApplyVesperStyleTriggerSemantics(this);
+
         Hero hero = null;
         try { hero = info.caster as Hero; }
         catch (Exception e)
@@ -36,29 +84,28 @@ public sealed class At_DariusAxe : AttackTrigger
             direction.y = 0f; direction.Normalize();
             try { info.angle = CastInfo.GetAngle(direction); } catch { }
         }
-        DariusDirectionalBasicAttackState state = hero.GetComponent<DariusDirectionalBasicAttackState>();
-        if (state == null) state = hero.gameObject.AddComponent<DariusDirectionalBasicAttackState>();
-        state.Capture(direction, configIndex);
 
-        // IMPORTANT: no target/range rejection here. A basic attack is always allowed to swing into
-        // empty space. Whether anything is hit is decided only by the directional sector at impact.
-        base.OnCastStart(configIndex, info);
-
-        float effective = AttackRange;
+        TriggerConfig activeConfig = null;
         try
         {
-            if (configs != null && configIndex >= 0 && configIndex < configs.Length && configs[configIndex] != null)
-            {
-                TriggerConfig cfg = configs[configIndex];
-                effective = cfg.effectiveRange > 0.05f ? cfg.effectiveRange : AttackRange;
-            }
+            if (configs != null && configIndex >= 0 && configIndex < configs.Length)
+                activeConfig = configs[configIndex];
         }
         catch { }
+        float effective = ResolveEffectiveRange(activeConfig);
+
+        DariusDirectionalBasicAttackState state = hero.GetComponent<DariusDirectionalBasicAttackState>();
+        if (state == null) state = hero.gameObject.AddComponent<DariusDirectionalBasicAttackState>();
+        state.Capture(direction, configIndex, effective);
+
+        // Match stock melee behaviour: a target is useful for acquisition/aiming, but an empty-space
+        // attack remains legal because allowNonTargetedCast=true. Final damage is decided at impact.
+        base.OnCastStart(configIndex, info);
 
         DariusLog.DebugInfo("ATK-DIR", "At_DariusAxe.OnCastStart configIndex=" + configIndex +
             " caster=" + DariusLog.EntityLabel(hero) + " dir=" + DariusLog.Vec(direction) +
-            " range=" + AttackRange.ToString("0.###") + " arc=" + AttackArcDegrees.ToString("0.#") +
-            " effectiveRange=" + effective.ToString("0.###") + " targetIgnoredForAim=true");
+            " fallbackRange=" + AttackRange.ToString("0.###") + " arc=" + AttackArcDegrees.ToString("0.#") +
+            " effectiveRange=" + effective.ToString("0.###") + " castMethod=Target allowNonTargeted=true");
 
         try
         {
@@ -119,6 +166,8 @@ public sealed class Ai_DariusAxe : MeleeAttackInstance
 {
     protected override void OnCreate()
     {
+        // Vesper keeps scaleRangeWithTriggerRange=false. Darius intentionally keeps the same fixed
+        // broad-phase contract; final range and cleave angle are enforced by the sector hit patch.
         base.OnCreate();
         DariusDirectionalBasicAttackGeometry.AnchorNativeMeleeInstance(this, info, false);
     }
@@ -145,8 +194,11 @@ public sealed class DariusNativeAttackBinder : MonoBehaviour
         if (hero == null || ability == null || attack == null) return;
         try
         {
+            At_DariusAxe.ApplyVesperStyleTriggerSemantics(attack);
             ability.attackAbilityPreset = new AssetRef<AttackTrigger>(attack);
-            DariusLog.DebugInfo("ATK-NATIVE-BIND", "Bound EntityAbility.attackAbilityPreset -> At_DariusAxe owner=" + hero.name + " reason=" + reason);
+            DariusLog.DebugInfo("ATK-NATIVE-BIND", "Bound EntityAbility.attackAbilityPreset -> At_DariusAxe owner=" + hero.name +
+                " reason=" + reason + " method=Target range=" + At_DariusAxe.AttackRange.ToString("0.###") +
+                " arc=" + At_DariusAxe.AttackArcDegrees.ToString("0.#") + " broadPhase=fixed");
         }
         catch (Exception e)
         {
