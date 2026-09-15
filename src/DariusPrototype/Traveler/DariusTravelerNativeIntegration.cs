@@ -9,21 +9,33 @@ using HarmonyLib;
 // prefers Unity-native assets and Shape of Dreams' EntityAnimation contract.
 public sealed class Hero_Darius : Hero
 {
+    private DariusNativeModelBridge _nativeModelBridge;
+
+    internal DariusNativeModelBridge NativeModelBridge
+    {
+        get
+        {
+            if (_nativeModelBridge == null || !_nativeModelBridge.IsReady)
+                _nativeModelBridge = GetComponentInChildren<DariusNativeModelBridge>(true);
+            return _nativeModelBridge != null && _nativeModelBridge.IsReady ? _nativeModelBridge : null;
+        }
+    }
+
     public override void OnModelLoaded()
     {
         base.OnModelLoaded();
         try
         {
-            DariusNativeModelBridge native = GetComponentInChildren<DariusNativeModelBridge>(true);
-            DariusTravelerModelInstance legacy = GetComponentInChildren<DariusTravelerModelInstance>(true);
-            if (native != null && native.IsReady) native.BindHero(this);
+            DariusNativeModelBridge native = NativeModelBridge;
+            DariusTravelerModelInstance legacy = native == null ? GetComponentInChildren<DariusTravelerModelInstance>(true) : null;
+            if (native != null) native.BindHero(this);
             else if (legacy != null) legacy.BindHero(this);
 
             DariusBasicAttackVisualRuntime attackVisual = GetComponent<DariusBasicAttackVisualRuntime>();
             if (attackVisual == null) attackVisual = gameObject.AddComponent<DariusBasicAttackVisualRuntime>();
             attackVisual.Bind(this);
-            DariusLog.Info("TRAVELER-MODEL", "Hero_Darius.OnModelLoaded native=" + (native != null && native.IsReady) +
-                " legacy=" + (legacy != null && (native == null || !native.IsReady)) + " attackVisual=" + (attackVisual != null));
+            DariusLog.Info("TRAVELER-MODEL", "Hero_Darius.OnModelLoaded native=" + (native != null) +
+                " legacy=" + (legacy != null) + " attackVisual=" + (attackVisual != null));
         }
         catch (Exception e)
         {
@@ -36,30 +48,28 @@ internal static class DariusNativeAnimationMode
 {
     public static bool IsNative(EntityAnimation animation)
     {
-        if (animation == null) return false;
-        try
-        {
-            Hero_Darius hero = animation.GetComponent<Hero_Darius>();
-            if (hero == null) hero = animation.GetComponentInParent<Hero_Darius>();
-            if (hero == null) return false;
-            DariusNativeModelBridge bridge = hero.GetComponentInChildren<DariusNativeModelBridge>(true);
-            return bridge != null && bridge.IsReady;
-        }
-        catch { return false; }
+        Hero_Darius hero = FindHero(animation);
+        return hero != null && hero.NativeModelBridge != null;
     }
 
     public static bool IsNative(EntityVisual visual)
     {
-        if (visual == null) return false;
+        Hero_Darius hero = FindHero(visual);
+        return hero != null && hero.NativeModelBridge != null;
+    }
+
+    private static Hero_Darius FindHero(UnityEngine.Component component)
+    {
+        if (component == null) return null;
         try
         {
-            Hero_Darius hero = visual.GetComponent<Hero_Darius>();
-            if (hero == null) hero = visual.GetComponentInParent<Hero_Darius>();
-            if (hero == null) return false;
-            DariusNativeModelBridge bridge = hero.GetComponentInChildren<DariusNativeModelBridge>(true);
-            return bridge != null && bridge.IsReady;
+            Hero_Darius hero = component.GetComponent<Hero_Darius>();
+            return hero != null ? hero : component.GetComponentInParent<Hero_Darius>();
         }
-        catch { return false; }
+        catch
+        {
+            return null;
+        }
     }
 }
 
