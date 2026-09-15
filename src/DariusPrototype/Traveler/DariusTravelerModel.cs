@@ -15,10 +15,6 @@ public sealed partial class DariusTravelerModelInstance : MonoBehaviour
 
     private const float NativeModelYOffset = 0.04f;
 
-    private const float FastRunThreshold = 6.0f;
-
-    private const float HomeguardThreshold = 7.6f;
-
     private DariusGlbRuntimeModel _model;
 
     private DariusSkinModelBinding _binding;
