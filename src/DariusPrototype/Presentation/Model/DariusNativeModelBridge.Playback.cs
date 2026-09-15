@@ -43,6 +43,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     public void PlayQ(bool instant)
     {
         StopSequence();
+        _locomotionState = null;
+        _actionUntil = 0f;
         _sequence = StartCoroutine(PlayQSequence(instant));
     }
 
@@ -65,11 +67,15 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     public void PlayWAttack(Vector3 direction)
     {
+        _wArmed = false;
         PlayAction(FirstExisting(_binding != null ? _binding.wClip : null, "Spell2"));
     }
 
     public void SetWArmed(bool armed)
     {
+        _wArmed = armed;
+        _locomotionState = null;
+        _actionUntil = 0f;
         if (!armed)
         {
             if (_entityAnimation != null) try { _entityAnimation.StopAbilityAnimation(); } catch { }
@@ -95,6 +101,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     private void PlayAction(string state)
     {
         StopSequence();
+        _locomotionState = null;
+        _actionUntil = Time.time + ClipLength(state, 0.65f);
         if (IsGodKingSkin && string.Equals(state, FirstExisting(_binding != null ? _binding.rClip : null, "Spell4"), StringComparison.Ordinal))
             _sequence = StartCoroutine(PlayGodKingR(state));
         else
