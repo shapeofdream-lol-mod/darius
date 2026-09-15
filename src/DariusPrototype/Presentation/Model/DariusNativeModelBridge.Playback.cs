@@ -22,16 +22,22 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     private bool PlayState(string name, float fade, float speed)
     {
         if (_animator == null || string.IsNullOrEmpty(name)) return false;
-        int hash = Animator.StringToHash(name);
+        string stateName = ToAnimatorStateName(name);
+        int hash = Animator.StringToHash(stateName);
         if (!_animator.HasState(0, hash))
         {
-            DariusLog.Warn("NATIVE-ANIM", "Animator state missing skin=" + VariantKey + " state=" + name);
+            DariusLog.Warn("NATIVE-ANIM", "Animator state missing skin=" + VariantKey + " state=" + stateName + " clip=" + name);
             return false;
         }
         _animator.speed = Mathf.Max(0.05f, speed);
         if (fade > 0.001f) _animator.CrossFadeInFixedTime(hash, fade, 0, 0f);
         else _animator.Play(hash, 0, 0f);
         return true;
+    }
+
+    private static string ToAnimatorStateName(string clipName)
+    {
+        return clipName.Replace('.', '_').Replace('/', '_').Replace('\\', '_');
     }
 
     public void PlayQ(bool instant)
