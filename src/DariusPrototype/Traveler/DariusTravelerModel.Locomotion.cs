@@ -60,7 +60,6 @@ public sealed partial class DariusTravelerModelInstance : MonoBehaviour
 
         _wasMoving = _isMoving;
         _isMoving = SampleMovement();
-        _homeguard = false;
         UpdateActionLocomotionLayer();
         if (_model.isPlayingFullBodyOneShot || _animationSequence != null) return;
 
