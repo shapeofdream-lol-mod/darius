@@ -114,6 +114,7 @@ public static partial class DariusLolVfxRuntime
         if (links != null) links.Add(overlayMaterial);
         float attachedLife = EstimateEmitterLife(e, persistent, authoredTimeOffset);
         float authoredParticleLife = ReadConstantFloat(e["particleLifetime"] as JObject, -1f);
+        bool single = ReadBoolToken(e["single"], false);
         bool driveFiniteAttachedColor = skin67Attached
             ? authoredParticleLife > 0f && (!persistent || single)
             : (!persistent && authoredParticleLife > 0f);
