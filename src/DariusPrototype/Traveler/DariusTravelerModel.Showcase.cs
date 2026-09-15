@@ -27,14 +27,6 @@ public sealed partial class DariusTravelerModelInstance : MonoBehaviour
         _animationSequence = null;
     }
 
-    private IEnumerator PlayHomeguardTransition(string transition)
-    {
-        _model.Play(transition, false, true);
-        yield return new WaitForSeconds(_model.GetClipLength(transition, 0.3f));
-        if (_model != null && !_deathLatched) _model.PlayBase("Run_Homeguard", true, true);
-        _animationSequence = null;
-    }
-
     private IEnumerator PlayIdleVariant()
     {
         _model.Play(IdleVariantClip, false, true);
