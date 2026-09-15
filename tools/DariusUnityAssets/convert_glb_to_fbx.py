@@ -5,6 +5,7 @@
 # runtime importer; Unity receives a normal FBX and packages it into an AssetBundle.
 
 import os
+import re
 import sys
 import bpy
 
@@ -13,6 +14,28 @@ def args_after_double_dash():
     if "--" not in sys.argv:
         return []
     return sys.argv[sys.argv.index("--") + 1 :]
+
+
+def safe_name(value):
+    value = re.sub(r"[^A-Za-z0-9_.-]+", "_", value or "texture").strip("._")
+    return value or "texture"
+
+
+def export_textures(dst):
+    output_dir = os.path.dirname(dst)
+    stem = os.path.splitext(os.path.basename(dst))[0]
+    exported = 0
+    for index, image in enumerate(bpy.data.images):
+        if image is None or image.name in {"Render Result", "Viewer Node"} or image.size[0] <= 0 or image.size[1] <= 0:
+            continue
+        texture_path = os.path.join(output_dir, f"{stem}__tex_{index:02d}_{safe_name(image.name)}.png")
+        image.filepath_raw = texture_path
+        image.file_format = "PNG"
+        image.save()
+        exported += 1
+    if exported == 0:
+        raise RuntimeError(f"GLB contains no exportable textures: {dst}")
+    print(f"Darius native texture export complete: {dst} textures={exported}")
 
 
 def main():
@@ -28,6 +51,10 @@ def main():
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=src, import_pack_images=True, merge_vertices=False)
+
+    # Unity's FBX importer did not recover Blender-embedded media from these generated files.
+    # Externalize every imported GLB image beside the FBX and let the FBX reference it relatively.
+    export_textures(dst)
 
     # Preserve all imported actions. Unity will decide which clips loop when creating the bundle.
     for action in bpy.data.actions:
@@ -46,8 +73,8 @@ def main():
         bake_anim_use_all_actions=True,
         bake_anim_force_startend_keying=True,
         bake_anim_simplify_factor=0.0,
-        path_mode="COPY",
-        embed_textures=True,
+        path_mode="RELATIVE",
+        embed_textures=False,
     )
     print(f"Darius native model conversion complete: {src} -> {dst}")
 
