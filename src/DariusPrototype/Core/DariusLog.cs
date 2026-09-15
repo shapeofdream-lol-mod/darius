@@ -80,7 +80,7 @@ public static partial class DariusLog
             _pendingLines = 0;
             _nextFlushTicks = DateTime.UtcNow.Ticks + TimeSpan.TicksPerSecond * 2;
         }
-        catch (Exception e)
+        catch (Exception)
         {
             try { if (_writer != null) _writer.Dispose(); } catch { }
             _writer = null;
