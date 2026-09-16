@@ -59,7 +59,9 @@ internal static class DariusModelImportUtility
         if (string.IsNullOrEmpty(name) || profile == null) return false;
         return string.Equals(name, profile.Idle, StringComparison.OrdinalIgnoreCase) ||
                string.Equals(name, profile.IdleVariant, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(name, profile.Run, StringComparison.OrdinalIgnoreCase);
+               string.Equals(name, profile.Run, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(name, profile.WIdle, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(name, profile.WRun, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeImportedClipName(string name)
