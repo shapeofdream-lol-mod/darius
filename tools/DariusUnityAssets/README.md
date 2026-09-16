@@ -29,6 +29,7 @@ and `EntityAnimation.SetupModel()`. Blender and the importer are not runtime dep
 
 Requirements:
 
+- PowerShell 7 (`pwsh`); packaging runs the native-bundle freshness check from `Directory.Build.targets`;
 - the four existing local GLBs under `assets/models/`;
 - Blender with the built-in glTF importer and FBX exporter;
 - a Unity 6000.0.x editor compatible with the current Shape of Dreams build.
