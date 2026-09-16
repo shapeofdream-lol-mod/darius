@@ -8,15 +8,18 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         GameObject root = CreateOverlayRoot("Submesh");
         DariusLolVfxLinkedObjects links = root.GetComponent<DariusLolVfxLinkedObjects>();
         int created = 0;
+        int sourceIndex = 0;
         SkinnedMeshRenderer[] renderers = _modelRoot.GetComponentsInChildren<SkinnedMeshRenderer>(true);
         for (int r = 0; r < renderers.Length; r++)
         {
             SkinnedMeshRenderer source = renderers[r];
-            if (!IsVisibleOverlaySource(source) || !RendererContainsMaterialHash(source, sourceMaterialHash)) continue;
-            Mesh filtered = DariusNativeModelAssets.GetOverlayMesh(VariantKey, r, sourceMaterialHash);
+            if (!IsVisibleOverlaySource(source)) continue;
+            int stableIndex = sourceIndex++;
+            if (!RendererContainsMaterialHash(source, sourceMaterialHash)) continue;
+            Mesh filtered = DariusNativeModelAssets.GetOverlayMesh(VariantKey, stableIndex, sourceMaterialHash);
             if (filtered == null) continue;
             GameObject overlay = CreateOverlayRenderer(
-                source, filtered, overlayMaterial, sourceMaterialHash, false, "Submesh_" + r);
+                source, filtered, overlayMaterial, sourceMaterialHash, false, "Submesh_" + stableIndex);
             links.Add(overlay);
             created++;
         }
