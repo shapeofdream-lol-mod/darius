@@ -27,7 +27,7 @@ internal static class DariusModelOverlayMeshBuilder
             {
                 Material material = materials[i];
                 if (material == null) continue;
-                uint hash = RiotStringHash(material.name);
+                uint hash = RiotStringHash(StripRuntimeSuffix(material.name));
                 if (!emitted.Add(hash)) continue;
                 string path = CreateFilteredMesh(source.sharedMesh, materials, hash, profile, stableIndex, generatedRoot);
                 bundleAssets.Add(path);
@@ -55,7 +55,7 @@ internal static class DariusModelOverlayMeshBuilder
         for (int i = 0; i < copy.subMeshCount; i++)
         {
             Material material = i < materials.Length ? materials[i] : null;
-            if (material == null || RiotStringHash(material.name) != materialHash)
+            if (material == null || RiotStringHash(StripRuntimeSuffix(material.name)) != materialHash)
                 copy.SetTriangles(Array.Empty<int>(), i, false);
         }
         string variant = profile.Variant.Replace(" ", string.Empty).ToLowerInvariant();
@@ -63,6 +63,15 @@ internal static class DariusModelOverlayMeshBuilder
             materialHash.ToString("x8") + ".asset";
         AssetDatabase.CreateAsset(copy, path);
         return path;
+    }
+
+    private static string StripRuntimeSuffix(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return string.Empty;
+        const string runtime = "_Runtime";
+        return name.EndsWith(runtime, StringComparison.OrdinalIgnoreCase)
+            ? name.Substring(0, name.Length - runtime.Length)
+            : name;
     }
 
     private static uint RiotStringHash(string text)
