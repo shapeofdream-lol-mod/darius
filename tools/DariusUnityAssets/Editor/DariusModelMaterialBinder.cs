@@ -20,12 +20,9 @@ public static class DariusModelMaterialBinder
             Material material = asset as Material;
             if (material == null) continue;
             materialCount++;
-
             Texture2D texture = FindTexture(folder, modelStem, material.name);
             if (texture == null)
-                throw new InvalidOperationException(
-                    "No color texture match model=" + modelStem + " material=" + material.name);
-
+                throw new InvalidOperationException("No color texture match model=" + modelStem + " material=" + material.name);
             material.mainTexture = texture;
             EditorUtility.SetDirty(material);
             boundCount++;
@@ -33,8 +30,7 @@ public static class DariusModelMaterialBinder
                 " material=" + material.name + " texture=" + texture.name);
         }
 
-        if (materialCount == 0)
-            throw new InvalidOperationException("Imported model has no materials: " + assetPath);
+        if (materialCount == 0) throw new InvalidOperationException("Imported model has no materials: " + assetPath);
         if (boundCount != materialCount)
             throw new InvalidOperationException("Material binding incomplete model=" + modelStem +
                 " materials=" + materialCount + " bound=" + boundCount);
@@ -49,27 +45,34 @@ public static class DariusModelMaterialBinder
         string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folder });
         Texture2D best = null;
         string bestPath = null;
-        int bestScore = -1;
+        int bestScore = 0;
+        int bestCount = 0;
         string requiredPrefix = modelStem + "__tex_";
 
         for (int i = 0; i < guids.Length; i++)
         {
             string path = AssetDatabase.GUIDToAssetPath(guids[i]);
             string stem = Path.GetFileNameWithoutExtension(path);
-            if (string.IsNullOrEmpty(stem) ||
-                !stem.StartsWith(requiredPrefix, StringComparison.OrdinalIgnoreCase)) continue;
-
+            if (string.IsNullOrEmpty(stem) || !stem.StartsWith(requiredPrefix, StringComparison.OrdinalIgnoreCase)) continue;
             Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
             if (texture == null) continue;
             int score = ScoreTexture(materialKey, texture.name);
-            if (score < bestScore) continue;
-            if (score == bestScore && bestPath != null && string.CompareOrdinal(path, bestPath) >= 0) continue;
-            best = texture;
-            bestPath = path;
-            bestScore = score;
+            if (score <= 0 || score < bestScore) continue;
+            if (score > bestScore)
+            {
+                best = texture;
+                bestPath = path;
+                bestScore = score;
+                bestCount = 1;
+                continue;
+            }
+            if (!string.Equals(path, bestPath, StringComparison.OrdinalIgnoreCase)) bestCount++;
         }
 
-        return bestScore > 0 ? best : null;
+        if (bestCount > 1)
+            throw new InvalidOperationException("Ambiguous color texture model=" + modelStem +
+                " material=" + materialName + " score=" + bestScore + " candidates=" + bestCount);
+        return best;
     }
 
     private static int ScoreTexture(string materialKey, string textureName)
@@ -77,7 +80,6 @@ public static class DariusModelMaterialBinder
         string sourceName = StripExportPrefix(textureName);
         string rawKey = NormalizeToken(sourceName);
         if (rawKey == materialKey) return 100;
-
         string colorKey = NormalizeToken(StripColorSuffix(sourceName));
         if (colorKey == materialKey) return 90;
         if (IsNonColorTexture(sourceName)) return -1;
