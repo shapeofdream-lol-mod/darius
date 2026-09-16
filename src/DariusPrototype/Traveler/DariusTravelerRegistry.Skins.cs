@@ -106,12 +106,13 @@ public static partial class DariusTravelerRegistry
         Skin godKingSkin; SkinsByName.TryGetValue(GodKingSkinName, out godKingSkin); GodKingSkin = godKingSkin;
         Skin dunkmasterSkin; SkinsByName.TryGetValue(DunkmasterSkinName, out dunkmasterSkin); DunkmasterSkin = dunkmasterSkin;
         Skin mechaSkin; SkinsByName.TryGetValue(MechaSkinName, out mechaSkin); MechaSkin = mechaSkin;
-
-        DariusLog.Info("TRAVELER-SKIN", "Darius skins ready count=" + SkinsByName.Count + ". Every skin owns an explicit GLB/animation profile.");
+        DariusLog.Info("TRAVELER-SKIN", "Darius skins ready count=" + SkinsByName.Count + ". Shared native profiles are authoritative.");
     }
 
     private static Skin CreateAndRegisterSkinResource(EntityModel sourceModel, DariusSkinSpec spec)
     {
+        DariusNativeSkinProfile profile = spec.native;
+        if (profile == null) throw new InvalidOperationException("Darius skin has no native profile: " + spec.name);
         GameObject go = new GameObject(spec.name);
         go.transform.SetParent(_resourceRoot.transform, false);
         go.SetActive(true);
@@ -124,40 +125,37 @@ public static partial class DariusTravelerRegistry
         skin.requiredLevel = 0;
         skin.generatedFromServer = false;
         ClearArrayMember(skin, "skillVisuals");
-        // Native wardrobe contract: UI_SkinList_Item.Setup reads Skin.previewImage directly.
-        // Do not scan/patch arbitrary UI Image or portrait-like members; each Skin owns its
-        // authentic League selection portrait as a normal resource field.
         Sprite skinPreview = DariusPrototypeIcons.Get(spec.previewIconKey);
         if (skinPreview != null) TryAssignIfCompatible(skin, "previewImage", skinPreview);
         bool previewAssigned = skinPreview != null && object.ReferenceEquals(ReadMemberValue(skin, "previewImage"), skinPreview);
-        if (!previewAssigned)
-            DariusLog.Error("SKIN-ICON", "Failed assigning native Skin.previewImage skin=" + spec.name + " key=" + spec.previewIconKey);
-        else
-            DariusLog.Info("SKIN-ICON", "Assigned native Skin.previewImage skin=" + spec.name + " key=" + spec.previewIconKey + " sprite=" + skinPreview.name);
+        if (!previewAssigned) DariusLog.Error("SKIN-ICON", "Failed assigning native Skin.previewImage skin=" + spec.name + " key=" + spec.previewIconKey);
+        else DariusLog.Info("SKIN-ICON", "Assigned native Skin.previewImage skin=" + spec.name + " key=" + spec.previewIconKey + " sprite=" + skinPreview.name);
 
         DariusSkinModelBinding binding = go.AddComponent<DariusSkinModelBinding>();
-        binding.skinResourceName = spec.name; binding.modelFile = spec.modelFile; binding.displayName = spec.displayName;
-        binding.variantKey = spec.variantKey; binding.isGodKingSkin = spec.godKing; binding.modelScale = spec.modelScale; binding.modelYOffset = spec.modelYOffset; binding.modelYaw = spec.modelYaw;
-        binding.expectedPrimitives = spec.expectedPrimitives; binding.expectedBones = spec.expectedBones; binding.expectedAnimations = spec.expectedAnimations;
-        binding.idleClip = spec.idle; binding.idleVariantClip = spec.idleVariant; binding.runClip = spec.run; binding.deathClip = spec.death;
-        binding.attack1Clip = spec.attack1; binding.attack2Clip = spec.attack2; binding.critClip = spec.crit;
-        binding.qIntroClip = spec.qIntro; binding.qClip = spec.q; binding.wClip = spec.w; binding.eClip = spec.e; binding.rClip = spec.r;
-        binding.attack1ToIdleClip = spec.attack1ToIdle; binding.attack2ToIdleClip = spec.attack2ToIdle; binding.critToIdleClip = spec.critToIdle;
-        binding.eToRunClip = spec.eToRun; binding.eToIdleClip = spec.eToIdle; binding.rToRunClip = spec.rToRun;
+        binding.skinResourceName = spec.name; binding.modelFile = profile.GlbFile; binding.displayName = spec.displayName;
+        binding.variantKey = profile.Variant; binding.isGodKingSkin = profile.GodKing;
+        binding.modelScale = profile.Scale; binding.modelYOffset = profile.YOffset; binding.modelYaw = profile.Yaw;
+        binding.expectedPrimitives = profile.ExpectedPrimitives; binding.expectedBones = profile.ExpectedBones;
+        binding.expectedAnimations = profile.ExpectedAnimations;
+        binding.idleClip = profile.Idle; binding.idleVariantClip = profile.IdleVariant; binding.runClip = profile.Run; binding.deathClip = profile.Death;
+        binding.attack1Clip = profile.Attack1; binding.attack2Clip = profile.Attack2; binding.critClip = profile.Crit;
+        binding.qIntroClip = profile.QIntro; binding.qClip = profile.Q; binding.wClip = profile.W; binding.eClip = profile.E; binding.rClip = profile.R;
+        binding.attack1ToIdleClip = profile.Attack1ToIdle; binding.attack2ToIdleClip = profile.Attack2ToIdle; binding.critToIdleClip = profile.CritToIdle;
+        binding.eToRunClip = profile.EToRun; binding.eToIdleClip = profile.EToIdle; binding.rToRunClip = profile.RToRun;
 
         EntityModel model = go.AddComponent<EntityModel>();
         RestoreUnitySerializedFields(model, CaptureUnitySerializedFields(sourceModel, typeof(EntityModel)));
         model.name = spec.name; model.bodyRenderers = new Renderer[0]; model.fxLoop = null; model.fxDeath = null; model.fxTakeDamage = null;
         model.customMappings = new List<EntityModelCustomMapping>();
-        Transform healthAnchor = CreateSkinAnchor(go.transform, spec.name + "_HealthBarAnchor", new Vector3(0f, 2.75f, 0f));
-        Transform weaponAnchor = CreateSkinAnchor(go.transform, spec.name + "_WeaponAnchor", new Vector3(0f, 1.25f, 0.45f));
-        Transform holsteredAnchor = CreateSkinAnchor(go.transform, spec.name + "_HolsteredWeaponAnchor", new Vector3(0f, 1.2f, -0.25f));
-        model.healthBarPosition = healthAnchor; model.weapon = weaponAnchor; model.holsteredWeapon = holsteredAnchor;
+        model.healthBarPosition = CreateSkinAnchor(go.transform, spec.name + "_HealthBarAnchor", new Vector3(0f, 2.75f, 0f));
+        model.weapon = CreateSkinAnchor(go.transform, spec.name + "_WeaponAnchor", new Vector3(0f, 1.25f, 0.45f));
+        model.holsteredWeapon = CreateSkinAnchor(go.transform, spec.name + "_HolsteredWeaponAnchor", new Vector3(0f, 1.2f, -0.25f));
 
         if (go.GetComponent<DariusTravelerModelInstance>() == null) go.AddComponent<DariusTravelerModelInstance>();
         OwnedObjects.Add(go);
         RegisterNamedResource(skin, go, spec.name, spec.guid);
-        DariusLog.Info("TRAVELER-SKIN", "Created runtime skin=" + spec.name + " guid=" + spec.guid + " model=" + spec.modelFile + " profile=" + spec.variantKey + " display=" + spec.displayName);
+        DariusLog.Info("TRAVELER-SKIN", "Created runtime skin=" + spec.name + " guid=" + spec.guid +
+            " model=" + profile.GlbFile + " profile=" + profile.Variant + " display=" + spec.displayName);
         return skin;
     }
 
