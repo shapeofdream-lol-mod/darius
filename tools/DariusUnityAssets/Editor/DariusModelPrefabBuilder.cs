@@ -16,15 +16,15 @@ internal static class DariusModelPrefabBuilder
         string prefabPath,
         string variant,
         float yaw,
-        string idleClip)
+        string idleClip,
+        string[] requiredClips)
     {
         GameObject source = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
         if (source == null)
             throw new InvalidOperationException("Missing imported model: " + assetPath);
 
         AnimationClip[] clips = LoadAnimationClips(assetPath);
-        if (clips.Length == 0)
-            throw new InvalidOperationException("Imported model has no animation clips: " + assetPath);
+        ValidateRequiredClips(clips, requiredClips, variant);
 
         string generatedRoot = (Path.GetDirectoryName(prefabPath) ?? "Assets").Replace('\\', '/');
         string controllerPath = generatedRoot + "/darius_" + variant.ToLowerInvariant() + ".controller";
@@ -59,7 +59,25 @@ internal static class DariusModelPrefabBuilder
             if (clip.name.StartsWith("__preview__", StringComparison.OrdinalIgnoreCase)) continue;
             clips.Add(clip);
         }
+        if (clips.Count == 0)
+            throw new InvalidOperationException("Imported model has no animation clips: " + assetPath);
         return clips.ToArray();
+    }
+
+    private static void ValidateRequiredClips(AnimationClip[] clips, string[] requiredClips, string variant)
+    {
+        HashSet<string> names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < clips.Length; i++)
+            if (clips[i] != null && !string.IsNullOrEmpty(clips[i].name)) names.Add(clips[i].name);
+
+        if (requiredClips == null) return;
+        for (int i = 0; i < requiredClips.Length; i++)
+        {
+            string required = requiredClips[i];
+            if (!string.IsNullOrEmpty(required) && !names.Contains(required))
+                throw new InvalidOperationException(
+                    "Required animation missing skin=" + variant + " clip=" + required);
+        }
     }
 
     private static AnimatorController BuildController(
