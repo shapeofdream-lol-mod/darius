@@ -23,7 +23,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         int hash = Animator.StringToHash(stateName);
         if (!_animator.HasState(0, hash))
         {
-            DariusLog.Warn("NATIVE-ANIM", "Animator state missing skin=" + VariantKey +
+            DariusLog.Warn("NATIVE-ANIM", "Animator state missing skin=" + VariantKey+
                 " state=" + stateName + " clip=" + name);
             return false;
         }
@@ -36,6 +36,32 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     private static string ToAnimatorStateName(string clipName)
     {
         return clipName.Replace('.', '_').Replace('/', '_').Replace('\\', '_');
+    }
+
+    private bool IsRunningState()
+    {
+        if (_animator == null) return false;
+        AnimatorStateInfo state = _animator.GetCurrentAnimatorStateInfo(0);
+        return state.IsName(ToAnimatorStateName(RunClipName));
+    }
+
+    private void ApplyActionFacing(Vector3 direction)
+    {
+        if (_modelRoot == null) return;
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.001f && _hero != null) direction = _hero.transform.forward;
+        if (direction.sqrMagnitude < 0.001f) return;
+        direction.Normalize();
+        Transform parent = _modelRoot.transform.parent;
+        Vector3 localDirection = parent != null ? parent.InverseTransformDirection(direction) : direction;
+        localDirection.y = 0f;
+        if (localDirection.sqrMagnitude < 0.001f) return;
+        _modelRoot.transform.localRotation = Quaternion.LookRotation(localDirection.normalized, Vector3.up);
+    }
+
+    private void ResetActionFacing()
+    {
+        if (_modelRoot != null) _modelRoot.transform.localRotation = Quaternion.identity;
     }
 
     public void PlayQ(bool instant)
@@ -64,61 +90,86 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     public void PlayWAttack(Vector3 direction)
     {
-        PlayAction(FirstExisting(_binding != null ? _binding.wClip : null, "Spell2"));
+        StopSequence();
+        ApplyActionFacing(direction);
+        _sequence = StartCoroutine(PlayTimedAction(
+            FirstExisting(_binding != null ? _binding.wClip : null, "Spell2"), null));
     }
 
     public void PlayOneShot(string name)
     {
+        bool moving = IsRunningState();
         string resolved = name;
+        string tail = null;
         if (string.Equals(name, "Spell3", StringComparison.Ordinal))
+        {
             resolved = FirstExisting(_binding != null ? _binding.eClip : null, "Spell3");
+            tail = moving ? (_binding != null ? _binding.eToRunClip : null) : (_binding != null ? _binding.eToIdleClip : null);
+        }
         else if (string.Equals(name, "Spell4", StringComparison.Ordinal))
+        {
             resolved = FirstExisting(_binding != null ? _binding.rClip : null, "Spell4");
-        PlayAction(resolved);
+            if (moving) tail = _binding != null ? _binding.rToRunClip : null;
+        }
+        PlayAction(resolved, tail);
     }
 
     public void PlayAttack(bool alternate, bool critical, Vector3 direction)
     {
-        PlayAction(critical ? CritClipName : (alternate ? Attack2ClipName : Attack1ClipName));
+        bool moving = IsRunningState();
+        string action = critical ? CritClipName : (alternate ? Attack2ClipName : Attack1ClipName);
+        string tail = null;
+        if (!moving && _binding != null)
+            tail = critical ? _binding.critToIdleClip : (alternate ? _binding.attack2ToIdleClip : _binding.attack1ToIdleClip);
+        StopSequence();
+        ApplyActionFacing(direction);
+        _sequence = StartCoroutine(PlayTimedAction(action, tail));
     }
 
-    private void PlayAction(string state)
+    private void PlayAction(string state, string tail)
     {
         StopSequence();
         if (IsGodKingSkin && string.Equals(
                 state, FirstExisting(_binding != null ? _binding.rClip : null, "Spell4"), StringComparison.Ordinal))
-            _sequence = StartCoroutine(PlayGodKingR(state));
+            _sequence = StartCoroutine(PlayGodKingR(state, tail));
         else
-            _sequence = StartCoroutine(PlayTimedAction(state));
+            _sequence = StartCoroutine(PlayTimedAction(state, tail));
     }
 
-    private IEnumerator PlayTimedAction(string state)
+    private IEnumerator PlayTimedAction(string state, string tail)
     {
         BeginAnimatorAction();
         if (!PlayState(state, 0.05f, 1f))
         {
-            EndAnimatorAction();
-            _sequence = null;
+            FinishAction();
             yield break;
         }
         yield return new WaitForSeconds(ClipLength(state, 0.65f));
-        EndAnimatorAction();
-        _sequence = null;
+        if (!string.IsNullOrEmpty(tail) && FindClip(tail) != null && PlayState(tail, 0.05f, 1f))
+            yield return new WaitForSeconds(ClipLength(tail, 0.22f));
+        FinishAction();
     }
 
-    private IEnumerator PlayGodKingR(string state)
+    private IEnumerator PlayGodKingR(string state, string tail)
     {
         BeginAnimatorAction();
         SetGodKingWolfVisible(true);
         if (!PlayState(state, 0.05f, 1f))
         {
             SetGodKingWolfVisible(false);
-            EndAnimatorAction();
-            _sequence = null;
+            FinishAction();
             yield break;
         }
         yield return new WaitForSeconds(ClipLength(state, 0.6f));
         SetGodKingWolfVisible(false);
+        if (!string.IsNullOrEmpty(tail) && FindClip(tail) != null && PlayState(tail, 0.05f, 1f))
+            yield return new WaitForSeconds(ClipLength(tail, 0.2f));
+        FinishAction();
+    }
+
+    private void FinishAction()
+    {
+        ResetActionFacing();
         EndAnimatorAction();
         _sequence = null;
     }
@@ -137,6 +188,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _sequence = null;
         }
         if (IsGodKingSkin) SetGodKingWolfVisible(false);
+        ResetActionFacing();
         EndAnimatorAction();
     }
 
