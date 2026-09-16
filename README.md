@@ -15,7 +15,7 @@
 | 模块 | 说明 |
 | --- | --- |
 | 角色与技能 | Q 大杀四方 / W 致残打击 / E 无情铁手 / R 诺克萨斯断头台 + 被动「出血」；独立 `AbilityInstance`、`SkillTrigger`、`Gem` 实现 |
-| 皮肤 | 经典 / 神王 / 灌篮高手 / 机神，四套 GLB 各自绑定独立动画映射，无共享模板 |
+| 皮肤 | 经典 / 神王 / 灌篮高手 / 机神；模型源经 Blender → FBX → Unity AssetBundle 构建，运行时优先使用 Unity prefab / Animator，GLB 保留为构建源与兼容 fallback |
 | 星座（星效） | 38 个 `Se_Star_Darius_*` 定义，接入原生星座界面与存档；见 [docs/PROGRESSION_PASS_2026-08-30.md](docs/PROGRESSION_PASS_2026-08-30.md) |
 | 召唤师技能 | 以 League 风格替换原版位移槽：Flash + Ghost |
 | VFX | Riot `VfxSystemDefinitionData` 运行时解释器，164 个系统 / 114 张贴图 / 51 个网格 |
@@ -32,7 +32,7 @@
 | 游戏 | Steam 版 Shape of Dreams，Mod 目录位于 `<游戏目录>\Mods\` |
 | 构建工具 | .NET SDK **8.0+**（`dotnet build`，MSBuild） |
 | CI | GitHub Actions `windows-latest`；使用 GitHub Packages 中由真实游戏程序集生成的 metadata-only reference pack 编译主 DLL |
-| 可选 | 任意 C# IDE；Python 3（仅在重新生成 Riot VFX 载荷时需要） |
+| 可选 | 任意 C# IDE；重建 native model bundle 需要 Blender + Unity Editor；其他离线生成工具按脚本需要使用 Python 3 |
 | 资产 | **本仓库不含任何二进制资产**，见 [docs/assets.md](docs/assets.md) |
 
 ## 3. 构建与安装
@@ -109,7 +109,7 @@ PR、`main` push 和手动 `workflow_dispatch` 会运行 `.github/workflows/dotn
 - 解析 `about/metadata.json`，检查必需字段、`DariusPrototype.dll` assembly entry 与当前 CHANGELOG 版本；
 - 检查 Workshop ID 仅含数字、Workshop 描述不超过 8000 bytes；
 - 拒绝被 Git 跟踪的二进制资产与构建产物；
-- 解析 reference-pack 生成脚本，防止 PowerShell 语法回归；
+- 解析 reference-pack 与 native model PowerShell，编译检查 Blender Python，并强制 native pipeline 相关文件不超过 200 行；
 - 执行主 csproj 的 `CheckPackageConfiguration`，确认 Release 通过、Debug 被拒绝；
 - 使用 GitHub Packages 中的 `ShapeOfDreams.ReferenceAssemblies` 执行真正的 `dotnet build -c Release -p:UseSodReferencePack=true`。
 
