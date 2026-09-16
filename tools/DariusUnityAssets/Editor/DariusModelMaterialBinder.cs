@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -8,135 +9,78 @@ public static class DariusModelMaterialBinder
 {
     public static void BindImportedTextures(string assetPath)
     {
-        string folder = Path.GetDirectoryName(assetPath);
+        string folder = (Path.GetDirectoryName(assetPath) ?? string.Empty).Replace('\\', '/');
         string modelStem = Path.GetFileNameWithoutExtension(assetPath);
         if (string.IsNullOrEmpty(folder) || string.IsNullOrEmpty(modelStem))
             throw new InvalidOperationException("Invalid imported model path: " + assetPath);
 
+        Dictionary<string, string> bindings = LoadBindings(folder, modelStem);
+        HashSet<string> consumed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         int materialCount = 0;
-        int boundCount = 0;
         foreach (UnityEngine.Object asset in AssetDatabase.LoadAllAssetsAtPath(assetPath))
         {
             Material material = asset as Material;
             if (material == null) continue;
             materialCount++;
-            Texture2D texture = FindTexture(folder, modelStem, material.name);
+            string textureFile;
+            if (!bindings.TryGetValue(material.name, out textureFile))
+                throw new InvalidOperationException("No Blender material binding model=" + modelStem + " material=" + material.name);
+
+            string texturePath = folder + "/" + textureFile;
+            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
             if (texture == null)
-                throw new InvalidOperationException("No color texture match model=" + modelStem + " material=" + material.name);
+                throw new InvalidOperationException("Mapped color texture missing model=" + modelStem +
+                    " material=" + material.name + " asset=" + texturePath);
             material.mainTexture = texture;
             EditorUtility.SetDirty(material);
-            boundCount++;
+            consumed.Add(material.name);
             Debug.Log("[DariusNativeAssets] bound model=" + modelStem +
                 " material=" + material.name + " texture=" + texture.name);
         }
 
         if (materialCount == 0) throw new InvalidOperationException("Imported model has no materials: " + assetPath);
-        if (boundCount != materialCount)
-            throw new InvalidOperationException("Material binding incomplete model=" + modelStem +
-                " materials=" + materialCount + " bound=" + boundCount);
+        if (consumed.Count != bindings.Count)
+            throw new InvalidOperationException("Blender/Unity material count mismatch model=" + modelStem +
+                " blender=" + bindings.Count + " unity=" + consumed.Count);
         AssetDatabase.SaveAssets();
     }
 
-    private static Texture2D FindTexture(string folder, string modelStem, string materialName)
+    private static Dictionary<string, string> LoadBindings(string folder, string modelStem)
     {
-        string materialKey = NormalizeMaterialKey(materialName);
-        if (string.IsNullOrEmpty(materialKey)) return null;
+        string manifestAsset = folder + "/" + modelStem + "__materials.tsv";
+        string manifestPath = ToProjectAbsolute(manifestAsset);
+        if (!File.Exists(manifestPath))
+            throw new FileNotFoundException("Native material manifest missing", manifestPath);
 
-        string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folder });
-        Texture2D best = null;
-        string bestPath = null;
-        int bestScore = 0;
-        int bestCount = 0;
-        string requiredPrefix = modelStem + "__tex_";
-
-        for (int i = 0; i < guids.Length; i++)
+        Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        string[] lines = File.ReadAllLines(manifestPath);
+        for (int i = 0; i < lines.Length; i++)
         {
-            string path = AssetDatabase.GUIDToAssetPath(guids[i]);
-            string stem = Path.GetFileNameWithoutExtension(path);
-            if (string.IsNullOrEmpty(stem) || !stem.StartsWith(requiredPrefix, StringComparison.OrdinalIgnoreCase)) continue;
-            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-            if (texture == null) continue;
-            int score = ScoreTexture(materialKey, texture.name);
-            if (score <= 0 || score < bestScore) continue;
-            if (score > bestScore)
-            {
-                best = texture;
-                bestPath = path;
-                bestScore = score;
-                bestCount = 1;
-                continue;
-            }
-            if (!string.Equals(path, bestPath, StringComparison.OrdinalIgnoreCase)) bestCount++;
+            string line = lines[i];
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            string[] parts = line.Split(new[] { '\t' }, 2);
+            if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[1]))
+                throw new InvalidDataException("Malformed native material manifest line=" + (i + 1) + " file=" + manifestPath);
+            string textureFile = parts[1].Trim();
+            if (!string.Equals(Path.GetFileName(textureFile), textureFile, StringComparison.Ordinal) ||
+                !textureFile.StartsWith(modelStem + "__tex_", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Invalid native texture mapping model=" + modelStem + " texture=" + textureFile);
+            string material = parts[0].Trim();
+            if (result.ContainsKey(material))
+                throw new InvalidDataException("Duplicate native material mapping model=" + modelStem + " material=" + material);
+            result.Add(material, textureFile);
         }
-
-        if (bestCount > 1)
-            throw new InvalidOperationException("Ambiguous color texture model=" + modelStem +
-                " material=" + materialName + " score=" + bestScore + " candidates=" + bestCount);
-        return best;
+        if (result.Count == 0) throw new InvalidDataException("Native material manifest is empty: " + manifestPath);
+        return result;
     }
 
-    private static int ScoreTexture(string materialKey, string textureName)
+    private static string ToProjectAbsolute(string assetPath)
     {
-        string sourceName = StripExportPrefix(textureName);
-        string rawKey = NormalizeToken(sourceName);
-        if (rawKey == materialKey) return 100;
-        string colorKey = NormalizeToken(StripColorSuffix(sourceName));
-        if (colorKey == materialKey) return 90;
-        if (IsNonColorTexture(sourceName)) return -1;
-        if (colorKey.EndsWith(materialKey, StringComparison.Ordinal)) return 70;
-        if (colorKey.Contains(materialKey)) return 60;
-        if (materialKey.Contains(colorKey) && colorKey.Length >= 5) return 40;
-        return 0;
-    }
-
-    private static string StripExportPrefix(string value)
-    {
-        if (string.IsNullOrEmpty(value)) return string.Empty;
-        int marker = value.IndexOf("__tex_", StringComparison.OrdinalIgnoreCase);
-        if (marker < 0) return value;
-        int numberStart = marker + "__tex_".Length;
-        int separator = value.IndexOf('_', numberStart);
-        return separator >= 0 && separator + 1 < value.Length ? value.Substring(separator + 1) : value;
-    }
-
-    private static string StripColorSuffix(string value)
-    {
-        string[] suffixes = { "_basecolor", "_base_color", "_diffuse", "_albedo", "_color" };
-        for (int i = 0; i < suffixes.Length; i++)
-            if (value.EndsWith(suffixes[i], StringComparison.OrdinalIgnoreCase))
-                return value.Substring(0, value.Length - suffixes[i].Length);
-        return value;
-    }
-
-    private static bool IsNonColorTexture(string value)
-    {
-        if (string.IsNullOrEmpty(value)) return false;
-        string lower = value.ToLowerInvariant();
-        return lower.Contains("normal") || lower.Contains("_nrm") || lower.Contains("emiss") ||
-               lower.Contains("specular") || lower.Contains("roughness") || lower.Contains("metallic") ||
-               lower.Contains("_mask");
-    }
-
-    private static string NormalizeMaterialKey(string value)
-    {
-        string key = NormalizeToken(value);
-        if (key.EndsWith("material", StringComparison.Ordinal)) key = key.Substring(0, key.Length - 8);
-        else if (key.EndsWith("mat", StringComparison.Ordinal)) key = key.Substring(0, key.Length - 3);
-        return key;
-    }
-
-    private static string NormalizeToken(string value)
-    {
-        if (string.IsNullOrEmpty(value)) return string.Empty;
-        char[] buffer = new char[value.Length];
-        int count = 0;
-        for (int i = 0; i < value.Length; i++)
-        {
-            char c = value[i];
-            if (!char.IsLetterOrDigit(c)) continue;
-            buffer[count++] = char.ToLowerInvariant(c);
-        }
-        return new string(buffer, 0, count);
+        const string prefix = "Assets/";
+        if (!assetPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Expected Unity Assets path: " + assetPath);
+        string relative = assetPath.Substring(prefix.Length).Replace('/', Path.DirectorySeparatorChar);
+        return Path.Combine(Application.dataPath, relative);
     }
 }
 #endif
