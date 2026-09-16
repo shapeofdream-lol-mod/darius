@@ -6,33 +6,64 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     public GameObject CreateSubmeshOverlay(uint sourceMaterialHash, Material overlayMaterial)
     {
         if (_modelRoot == null || overlayMaterial == null) return null;
+        GameObject root = CreateOverlayRoot("Submesh");
+        DariusLolVfxLinkedObjects links = root.GetComponent<DariusLolVfxLinkedObjects>();
+        int created = 0;
         SkinnedMeshRenderer[] renderers = _modelRoot.GetComponentsInChildren<SkinnedMeshRenderer>(true);
         for (int r = 0; r < renderers.Length; r++)
         {
             SkinnedMeshRenderer source = renderers[r];
-            if (source == null || source.sharedMesh == null || IsHiddenPresentationRenderer(source)) continue;
-            Material[] sourceMaterials = source.sharedMaterials;
-            for (int i = 0; i < sourceMaterials.Length && i < source.sharedMesh.subMeshCount; i++)
+            if (!IsVisibleOverlaySource(source)) continue;
+            Material[] materials = source.sharedMaterials;
+            for (int i = 0; i < materials.Length && i < source.sharedMesh.subMeshCount; i++)
             {
-                Material material = sourceMaterials[i];
+                Material material = materials[i];
                 if (material == null || RiotStringHash(StripRuntimeSuffix(material.name)) != sourceMaterialHash) continue;
-                return CreateOverlayRenderer(source, overlayMaterial, i, "Submesh_" + i);
+                GameObject overlay = CreateOverlayRenderer(source, overlayMaterial, i, "Submesh_" + r + "_" + i);
+                links.Add(overlay);
+                created++;
             }
         }
-        return null;
+        return FinishOverlayRoot(root, created);
     }
 
     public GameObject CreateFullMeshOverlay(Material overlayMaterial, string label)
     {
         if (_modelRoot == null || overlayMaterial == null) return null;
+        string resolvedLabel = string.IsNullOrEmpty(label) ? "Full" : label;
+        GameObject root = CreateOverlayRoot(resolvedLabel);
+        DariusLolVfxLinkedObjects links = root.GetComponent<DariusLolVfxLinkedObjects>();
+        int created = 0;
         SkinnedMeshRenderer[] renderers = _modelRoot.GetComponentsInChildren<SkinnedMeshRenderer>(true);
         for (int i = 0; i < renderers.Length; i++)
         {
             SkinnedMeshRenderer source = renderers[i];
-            if (source == null || source.sharedMesh == null || IsHiddenPresentationRenderer(source)) continue;
-            return CreateOverlayRenderer(source, overlayMaterial, -1, string.IsNullOrEmpty(label) ? "Full" : label);
+            if (!IsVisibleOverlaySource(source)) continue;
+            GameObject overlay = CreateOverlayRenderer(source, overlayMaterial, -1, resolvedLabel + "_" + i);
+            links.Add(overlay);
+            created++;
         }
+        return FinishOverlayRoot(root, created);
+    }
+
+    private GameObject CreateOverlayRoot(string label)
+    {
+        GameObject root = new GameObject("Darius_NativeOverlayGroup_" + label);
+        root.transform.SetParent(_modelRoot.transform, false);
+        root.AddComponent<DariusLolVfxLinkedObjects>();
+        return root;
+    }
+
+    private static GameObject FinishOverlayRoot(GameObject root, int created)
+    {
+        if (created > 0) return root;
+        if (root != null) UnityEngine.Object.Destroy(root);
         return null;
+    }
+
+    private static bool IsVisibleOverlaySource(SkinnedMeshRenderer source)
+    {
+        return source != null && source.sharedMesh != null && !IsHiddenPresentationRenderer(source);
     }
 
     private static GameObject CreateOverlayRenderer(SkinnedMeshRenderer source, Material material, int selectedSubmesh, string label)
@@ -92,9 +123,23 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         if (renderer == null) return false;
         if (IsHiddenPresentationObject(renderer.gameObject)) return true;
         SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
+        string name = skinned != null && skinned.sharedMesh != null ? skinned.sharedMesh.name : null;
+        return !string.IsNullOrEmpty(name) &&
+            (name.EndsWith("_Hidden", StringComparison.OrdinalIgnoreCase) ||
+             name.EndsWith("_WolfHidden", StringComparison.OrdinalIgnoreCase) ||
+             name.EndsWith("_StaticHidden", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsGodKingWolfRenderer(Renderer renderer)
+    {
+        if (renderer == null) return false;
+        string objectName = renderer.gameObject != null ? renderer.gameObject.name : string.Empty;
+        if (objectName.StartsWith("DariusHidden_Wolf_", StringComparison.OrdinalIgnoreCase)) return true;
+        SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
         string meshName = skinned != null && skinned.sharedMesh != null ? skinned.sharedMesh.name : null;
-        if (!string.IsNullOrEmpty(meshName) && meshName.EndsWith("_Hidden", StringComparison.OrdinalIgnoreCase)) return true;
-        return RendererContainsMaterial(renderer, "Wolf_Mat") || RendererContainsMaterial(renderer, "Throne");
+        if (!string.IsNullOrEmpty(meshName) && meshName.EndsWith("_WolfHidden", StringComparison.OrdinalIgnoreCase)) return true;
+        return IsHiddenPresentationRenderer(renderer) && RendererContainsMaterial(renderer, "Wolf_Mat") &&
+               !RendererContainsMaterial(renderer, "Throne");
     }
 
     private static bool RendererContainsMaterial(Renderer renderer, string sourceName)
@@ -111,11 +156,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private static bool IsHiddenPresentationObject(GameObject go)
     {
-        if (go == null) return false;
-        string name = go.name ?? string.Empty;
-        return name.IndexOf("hidden", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("wolf", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("throne", StringComparison.OrdinalIgnoreCase) >= 0;
+        string name = go != null ? go.name : string.Empty;
+        return name.StartsWith("DariusHidden_", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string StripRuntimeSuffix(string name)
@@ -134,8 +176,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         if (text == null) return h;
         for (int i = 0; i < text.Length; i++)
         {
-            char c = char.ToLowerInvariant(text[i]);
-            h ^= (byte)c;
+            h ^= (byte)char.ToLowerInvariant(text[i]);
             h *= 16777619u;
         }
         return h;
