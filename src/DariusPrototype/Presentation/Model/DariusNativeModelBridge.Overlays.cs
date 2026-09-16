@@ -1,8 +1,4 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
 using UnityEngine;
 
 public sealed partial class DariusNativeModelBridge : MonoBehaviour
@@ -14,7 +10,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         for (int r = 0; r < renderers.Length; r++)
         {
             SkinnedMeshRenderer source = renderers[r];
-            if (source == null || source.sharedMesh == null || IsHiddenPresentationObject(source.gameObject)) continue;
+            if (source == null || source.sharedMesh == null || IsHiddenPresentationRenderer(source)) continue;
             Material[] sourceMaterials = source.sharedMaterials;
             for (int i = 0; i < sourceMaterials.Length && i < source.sharedMesh.subMeshCount; i++)
             {
@@ -33,7 +29,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         for (int i = 0; i < renderers.Length; i++)
         {
             SkinnedMeshRenderer source = renderers[i];
-            if (source == null || source.sharedMesh == null || IsHiddenPresentationObject(source.gameObject)) continue;
+            if (source == null || source.sharedMesh == null || IsHiddenPresentationRenderer(source)) continue;
             return CreateOverlayRenderer(source, overlayMaterial, -1, string.IsNullOrEmpty(label) ? "Full" : label);
         }
         return null;
@@ -89,6 +85,16 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             changed = true;
         }
         return changed;
+    }
+
+    private static bool IsHiddenPresentationRenderer(Renderer renderer)
+    {
+        if (renderer == null) return false;
+        if (IsHiddenPresentationObject(renderer.gameObject)) return true;
+        SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
+        string meshName = skinned != null && skinned.sharedMesh != null ? skinned.sharedMesh.name : null;
+        if (!string.IsNullOrEmpty(meshName) && meshName.EndsWith("_Hidden", StringComparison.OrdinalIgnoreCase)) return true;
+        return RendererContainsMaterial(renderer, "Wolf_Mat") || RendererContainsMaterial(renderer, "Throne");
     }
 
     private static bool RendererContainsMaterial(Renderer renderer, string sourceName)
