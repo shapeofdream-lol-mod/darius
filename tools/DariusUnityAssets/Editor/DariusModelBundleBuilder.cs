@@ -38,6 +38,7 @@ public static class DariusModelBundleBuilder
         EnsureAssetFolder(GeneratedRoot);
 
         List<string> prefabs = new List<string>();
+        List<string> bundleAssets = new List<string>();
         DariusNativeSkinProfile[] profiles = DariusNativeSkinProfiles.All;
         for (int i = 0; i < profiles.Length; i++)
         {
@@ -48,24 +49,27 @@ public static class DariusModelBundleBuilder
             string assetPath = SourceRoot + "/" + profile.FbxFile;
             File.Copy(source, ToProjectAbsolute(assetPath), true);
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
-            DariusModelImportUtility.ConfigureModelImporter(assetPath, profile.Variant);
+            DariusModelImportUtility.ConfigureModelImporter(assetPath, profile);
             DariusModelMaterialBinder.BindImportedTextures(assetPath);
 
             string prefabPath = GeneratedRoot + "/darius_" + profile.Variant.ToLowerInvariant() + ".prefab";
-            GameObject prefab = DariusModelPrefabBuilder.Build(assetPath, prefabPath, profile);
+            GameObject prefab = DariusModelPrefabBuilder.Build(assetPath, prefabPath, profile, bundleAssets);
             if (prefab == null || AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath) == null)
                 throw new InvalidOperationException("Generated prefab missing skin=" + profile.Variant);
             prefabs.Add(prefabPath);
+            bundleAssets.Add(prefabPath);
         }
 
         if (prefabs.Count != profiles.Length)
             throw new InvalidOperationException("Native prefab count mismatch expected=" + profiles.Length + " actual=" + prefabs.Count);
+        if (bundleAssets.Count <= prefabs.Count)
+            throw new InvalidOperationException("Native overlay mesh assets were not generated.");
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         string output = Path.Combine(workRoot, "bundle-output");
         Directory.CreateDirectory(output);
-        AssetBundleBuild build = new AssetBundleBuild { assetBundleName = BundleName, assetNames = prefabs.ToArray() };
+        AssetBundleBuild build = new AssetBundleBuild { assetBundleName = BundleName, assetNames = bundleAssets.ToArray() };
         AssetBundleManifest manifest = BuildPipeline.BuildAssetBundles(
             output, new[] { build }, BuildAssetBundleOptions.ChunkBasedCompression, BuildTarget.StandaloneWindows64);
         if (manifest == null) throw new InvalidOperationException("Unity returned no AssetBundle manifest.");
