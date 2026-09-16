@@ -63,7 +63,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private static bool IsVisibleOverlaySource(SkinnedMeshRenderer source)
     {
-        return source != null && source.sharedMesh != null && !IsHiddenPresentationRenderer(source);
+        return source != null && source.enabled && source.sharedMesh != null && !IsHiddenPresentationRenderer(source);
     }
 
     private static GameObject CreateOverlayRenderer(SkinnedMeshRenderer source, Material material, int selectedSubmesh, string label)
@@ -75,6 +75,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         renderer.bones = source.bones;
         renderer.rootBone = source.rootBone;
         renderer.quality = source.quality;
+        renderer.localBounds = source.localBounds;
         renderer.updateWhenOffscreen = false;
         int count = Mathf.Max(1, source.sharedMesh.subMeshCount);
         Material[] materials = new Material[count];
