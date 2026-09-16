@@ -28,6 +28,8 @@ public static partial class DariusTravelerRegistry
     {
         public string name, guid, displayName, previewIconKey;
         public DariusNativeSkinProfile native;
+        public string modelFile { get { return native != null ? native.GlbFile : null; } }
+        public string variantKey { get { return native != null ? native.Variant : null; } }
     }
 
     private static readonly DariusSkinSpec[] SkinSpecs =
