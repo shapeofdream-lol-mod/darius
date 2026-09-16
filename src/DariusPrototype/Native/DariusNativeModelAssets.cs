@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
-internal static class DariusNativeModelAssets
+internal static partial class DariusNativeModelAssets
 {
     public const string BundleFileName = "darius_models.bundle";
 
@@ -141,6 +141,7 @@ internal static class DariusNativeModelAssets
     {
         DariusNativeEntityAnimationLease.Clear();
         Prefabs.Clear();
+        ClearOverlayMeshes();
         _assetNames = null;
         _loadAttempted = false;
         if (_bundle != null)
