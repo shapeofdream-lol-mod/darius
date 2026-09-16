@@ -8,11 +8,6 @@ public static class DariusModelMaterialBinder
 {
     public static void BindImportedTextures(string assetPath)
     {
-        Bind(assetPath);
-    }
-
-    public static void Bind(string assetPath)
-    {
         string folder = Path.GetDirectoryName(assetPath);
         if (string.IsNullOrEmpty(folder)) return;
 
@@ -22,10 +17,15 @@ public static class DariusModelMaterialBinder
             if (material == null) continue;
 
             Texture2D texture = FindTexture(folder, material.name);
-            if (texture == null) continue;
+            if (texture == null)
+            {
+                Debug.LogWarning("[DariusNativeAssets] no texture match material=" + material.name + " asset=" + assetPath);
+                continue;
+            }
 
             material.mainTexture = texture;
             EditorUtility.SetDirty(material);
+            Debug.Log("[DariusNativeAssets] bound material=" + material.name + " texture=" + texture.name);
         }
 
         AssetDatabase.SaveAssets();
@@ -33,36 +33,94 @@ public static class DariusModelMaterialBinder
 
     private static Texture2D FindTexture(string folder, string materialName)
     {
-        string exact = Normalize(materialName);
-        string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folder });
-        Texture2D fallback = null;
+        string materialKey = NormalizeMaterialKey(materialName);
+        if (string.IsNullOrEmpty(materialKey)) return null;
 
-        foreach (string guid in guids)
+        string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folder });
+        Texture2D best = null;
+        string bestPath = null;
+        int bestScore = -1;
+
+        for (int i = 0; i < guids.Length; i++)
         {
-            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(guid));
+            string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
             if (texture == null) continue;
 
-            string candidate = Normalize(texture.name);
-            if (candidate == exact) return texture;
-
-            if (candidate == exact + "basecolor" || candidate == exact + "diffuse")
-                fallback = texture;
-            else if (candidate.Contains(exact) || exact.Contains(candidate))
-                fallback ??= texture;
+            int score = ScoreTexture(materialKey, texture.name);
+            if (score < bestScore) continue;
+            if (score == bestScore && bestPath != null && string.CompareOrdinal(path, bestPath) >= 0) continue;
+            best = texture;
+            bestPath = path;
+            bestScore = score;
         }
 
-        return fallback;
+        return bestScore > 0 ? best : null;
     }
 
-    private static string Normalize(string value)
+    private static int ScoreTexture(string materialKey, string textureName)
+    {
+        string sourceName = StripExportPrefix(textureName);
+        string rawKey = NormalizeToken(sourceName);
+        if (rawKey == materialKey) return 100;
+
+        string colorKey = NormalizeToken(StripColorSuffix(sourceName));
+        if (colorKey == materialKey) return 90;
+        if (IsNonColorTexture(sourceName)) return -1;
+        if (colorKey.EndsWith(materialKey, StringComparison.Ordinal)) return 70;
+        if (colorKey.Contains(materialKey)) return 60;
+        if (materialKey.Contains(colorKey) && colorKey.Length >= 5) return 40;
+        return 0;
+    }
+
+    private static string StripExportPrefix(string value)
     {
         if (string.IsNullOrEmpty(value)) return string.Empty;
-        return value.Replace("_mat", string.Empty)
-            .Replace("_material", string.Empty)
-            .Replace("_basecolor", string.Empty)
-            .Replace("_diffuse", string.Empty)
-            .Replace("_", string.Empty)
-            .ToLowerInvariant();
+        int marker = value.IndexOf("__tex_", StringComparison.OrdinalIgnoreCase);
+        if (marker < 0) return value;
+        int numberStart = marker + "__tex_".Length;
+        int separator = value.IndexOf('_', numberStart);
+        return separator >= 0 && separator + 1 < value.Length ? value.Substring(separator + 1) : value;
+    }
+
+    private static string StripColorSuffix(string value)
+    {
+        string[] suffixes = { "_basecolor", "_base_color", "_diffuse", "_albedo", "_color" };
+        for (int i = 0; i < suffixes.Length; i++)
+            if (value.EndsWith(suffixes[i], StringComparison.OrdinalIgnoreCase))
+                return value.Substring(0, value.Length - suffixes[i].Length);
+        return value;
+    }
+
+    private static bool IsNonColorTexture(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return false;
+        string lower = value.ToLowerInvariant();
+        return lower.Contains("normal") || lower.Contains("_nrm") || lower.Contains("emiss") ||
+               lower.Contains("specular") || lower.Contains("roughness") || lower.Contains("metallic") ||
+               lower.Contains("_mask");
+    }
+
+    private static string NormalizeMaterialKey(string value)
+    {
+        string key = NormalizeToken(value);
+        if (key.EndsWith("material", StringComparison.Ordinal)) key = key.Substring(0, key.Length - 8);
+        else if (key.EndsWith("mat", StringComparison.Ordinal)) key = key.Substring(0, key.Length - 3);
+        return key;
+    }
+
+    private static string NormalizeToken(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        char[] buffer = new char[value.Length];
+        int count = 0;
+        for (int i = 0; i < value.Length; i++)
+        {
+            char c = value[i];
+            if (!char.IsLetterOrDigit(c)) continue;
+            buffer[count++] = char.ToLowerInvariant(c);
+        }
+        return new string(buffer, 0, count);
     }
 }
 #endif
