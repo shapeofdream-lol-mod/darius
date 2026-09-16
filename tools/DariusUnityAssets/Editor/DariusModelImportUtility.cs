@@ -5,8 +5,9 @@ using UnityEditor;
 
 internal static class DariusModelImportUtility
 {
-    public static void ConfigureModelImporter(string assetPath, string variant)
+    public static void ConfigureModelImporter(string assetPath, DariusNativeSkinProfile profile)
     {
+        if (profile == null) throw new ArgumentNullException(nameof(profile));
         ModelImporter importer = AssetImporter.GetAtPath(assetPath) as ModelImporter;
         if (importer == null)
             throw new InvalidOperationException("Expected ModelImporter: " + assetPath);
@@ -22,13 +23,13 @@ internal static class DariusModelImportUtility
         importer.importCameras = false;
         importer.importLights = false;
         importer.isReadable = false;
-        importer.clipAnimations = NormalizeClips(importer.defaultClipAnimations, variant);
+        importer.clipAnimations = NormalizeClips(importer.defaultClipAnimations, profile);
         importer.SaveAndReimport();
     }
 
     private static ModelImporterClipAnimation[] NormalizeClips(
         ModelImporterClipAnimation[] clips,
-        string variant)
+        DariusNativeSkinProfile profile)
     {
         if (clips == null) return Array.Empty<ModelImporterClipAnimation>();
 
@@ -38,12 +39,12 @@ internal static class DariusModelImportUtility
             ModelImporterClipAnimation clip = clips[i];
             string normalized = NormalizeImportedClipName(clip.name);
             if (string.IsNullOrEmpty(normalized))
-                throw new InvalidOperationException("Empty imported animation clip skin=" + variant);
+                throw new InvalidOperationException("Empty imported animation clip skin=" + profile.Variant);
             if (!names.Add(normalized))
-                throw new InvalidOperationException("Duplicate imported animation clip skin=" + variant + " clip=" + normalized);
+                throw new InvalidOperationException("Duplicate imported animation clip skin=" + profile.Variant + " clip=" + normalized);
 
             clip.name = normalized;
-            clip.loopTime = IsLoopClip(normalized);
+            clip.loopTime = IsLoopClip(normalized, profile);
             clip.loopPose = clip.loopTime;
             clip.keepOriginalOrientation = true;
             clip.keepOriginalPositionY = true;
@@ -53,14 +54,12 @@ internal static class DariusModelImportUtility
         return clips;
     }
 
-    private static bool IsLoopClip(string name)
+    private static bool IsLoopClip(string name, DariusNativeSkinProfile profile)
     {
-        if (string.IsNullOrEmpty(name)) return false;
-        return name.IndexOf("idle", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("run", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("walk", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("dance", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("channel", StringComparison.OrdinalIgnoreCase) >= 0;
+        if (string.IsNullOrEmpty(name) || profile == null) return false;
+        return string.Equals(name, profile.Idle, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(name, profile.IdleVariant, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(name, profile.Run, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeImportedClipName(string name)
