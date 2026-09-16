@@ -24,6 +24,8 @@ internal sealed class DariusNativeSkinProfile
     public string QIntro;
     public string Q;
     public string W;
+    public string WIdle;
+    public string WRun;
     public string E;
     public string R;
     public string Attack1ToIdle;
@@ -44,7 +46,7 @@ internal sealed class DariusNativeSkinProfile
         get
         {
             return new[] {
-                Idle, IdleVariant, Run, Death, Attack1, Attack2, Crit, QIntro, Q, W, E, R,
+                Idle, IdleVariant, Run, Death, Attack1, Attack2, Crit, QIntro, Q, W, WIdle, WRun, E, R,
                 Attack1ToIdle, Attack2ToIdle, CritToIdle, EToRun, EToIdle, RToRun,
                 WActivateIdle, WActivateRun, WIdleIn, WIdleInAlt, WDeactivate, WDeactivateAlt
             };
@@ -71,7 +73,8 @@ internal static class DariusNativeSkinProfiles
         YOffset=RuntimeYOffset, Yaw=180f, GodKing=true, ExpectedPrimitives=5, ExpectedBones=179, ExpectedAnimations=48,
         ToggleHiddenMaterial="Wolf_Mat", PermanentHiddenMaterial="Throne",
         Idle="Idle1_Base", IdleVariant="Idle2_Base", Run="Run_Normal", Death="Death", Attack1="Attack1",
-        Attack2="Attack2", Crit="Crit", QIntro="Darius_Skin15_Spell1_IN.anm", Q="Spell1", W="Spell2", E="Spell3", R="Spell4",
+        Attack2="Attack2", Crit="Crit", QIntro="Darius_Skin15_Spell1_IN.anm", Q="Spell1", W="Spell2",
+        WIdle="Spell2_Idle", WRun="Spell2_Run", E="Spell3", R="Spell4",
         Attack1ToIdle="Attack1_ToIdle", Attack2ToIdle="Attack2_ToIdle", CritToIdle="Crit_ToIdle",
         EToRun="Spell3_ToRun", EToIdle="Spell3_ToIdle", RToRun="Spell4_ToRun",
         WActivateIdle="Spell2_ActivateIdle", WActivateRun="Spell2_ActivateRun",
