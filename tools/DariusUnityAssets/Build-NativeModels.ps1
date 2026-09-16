@@ -25,7 +25,8 @@ $editorSourceDir = Join-Path $PSScriptRoot 'Editor'
 $sharedProfile = Join-Path $RepoRoot 'src\DariusPrototype\Native\DariusNativeSkinProfiles.cs'
 $editorFiles = @(
     'DariusModelBundleBuilder.cs', 'DariusModelImportUtility.cs', 'DariusModelMaterialBinder.cs',
-    'DariusModelMeshProcessor.cs', 'DariusModelPrefabBuilder.cs', 'DariusModelContractValidator.cs'
+    'DariusModelMeshProcessor.cs', 'DariusModelOverlayMeshBuilder.cs', 'DariusModelPrefabBuilder.cs',
+    'DariusModelContractValidator.cs'
 )
 
 foreach ($required in @($modelRoot, $converter, $sharedProfile)) {
