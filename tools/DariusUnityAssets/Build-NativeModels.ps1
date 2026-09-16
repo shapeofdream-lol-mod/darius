@@ -58,6 +58,24 @@ function Invoke-UnityChecked {
     if ($process.ExitCode -ne 0) { throw "Unity command failed with exit code $($process.ExitCode). See: $LogPath" }
 }
 
+function Get-NativeModelsFromProfile {
+    param([string]$Path)
+    $text = Get-Content $Path -Raw
+    $blocks = [regex]::Matches($text, 'new\s+DariusNativeSkinProfile\s*\{(?<body>.*?)\};', 'Singleline')
+    $models = @()
+    foreach ($block in $blocks) {
+        $body = $block.Groups['body'].Value
+        $glb = [regex]::Match($body, 'GlbFile\s*=\s*"(?<v>[^"]+)"')
+        $fbx = [regex]::Match($body, 'FbxFile\s*=\s*"(?<v>[^"]+)"')
+        if (-not $glb.Success -or -not $fbx.Success) { throw "Native skin profile block is missing GlbFile/FbxFile: $body" }
+        $models += [pscustomobject]@{ Input = $glb.Groups['v'].Value; Output = $fbx.Groups['v'].Value }
+    }
+    if ($models.Count -eq 0) { throw "No native model pairs found in shared profile: $Path" }
+    if (($models.Input | Select-Object -Unique).Count -ne $models.Count) { throw "Duplicate GlbFile entries in shared native profile" }
+    if (($models.Output | Select-Object -Unique).Count -ne $models.Count) { throw "Duplicate FbxFile entries in shared native profile" }
+    return $models
+}
+
 $UnityExe = (Resolve-Path $UnityExe).Path
 $BlenderExe = (Resolve-Path $BlenderExe).Path
 $RepoRoot = (Resolve-Path $RepoRoot).Path
@@ -77,6 +95,7 @@ foreach ($name in $editorFiles) {
     $path = Join-Path $editorSourceDir $name
     if (-not (Test-Path $path -PathType Leaf)) { throw "Unity editor pipeline file missing: $path" }
 }
+$models = @(Get-NativeModelsFromProfile $sharedProfile)
 
 $workBase = Join-Path $RepoRoot "build\native-assets-work"
 $workName = (Get-Date -Format "yyyyMMdd-HHmmss") + "_" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -89,13 +108,6 @@ $preserveWorkspace = [bool]$KeepTemp
 New-Item -ItemType Directory -Path $fbxRoot -Force | Out-Null
 Write-Host "Native asset workspace: $workRoot"
 
-$models = @(
-    @{ Input = "darius.glb"; Output = "darius.fbx" },
-    @{ Input = "darius_godking.glb"; Output = "darius_godking.fbx" },
-    @{ Input = "darius_dunkmaster.glb"; Output = "darius_dunkmaster.fbx" },
-    @{ Input = "darius_mecha.glb"; Output = "darius_mecha.fbx" }
-)
-
 try {
     foreach ($model in $models) {
         $src = Join-Path $modelRoot $model.Input
@@ -106,11 +118,13 @@ try {
 
     Invoke-UnityChecked $UnityExe @("-batchmode", "-quit", "-createProject", $unityProject, "-buildTarget", "StandaloneWindows64") $createLog
     $textureFiles = @(Get-ChildItem -Path $fbxRoot -Filter "*.png" -File)
+    $materialMaps = @(Get-ChildItem -Path $fbxRoot -Filter "*__materials.tsv" -File)
     if ($textureFiles.Count -eq 0) { throw "Blender produced no native model texture sidecars in: $fbxRoot" }
+    if ($materialMaps.Count -ne $models.Count) { throw "Material map count mismatch expected=$($models.Count) actual=$($materialMaps.Count)" }
     $unitySourceDir = Join-Path $unityProject "Assets\DariusSource"
     New-Item -ItemType Directory -Path $unitySourceDir -Force | Out-Null
-    foreach ($texture in $textureFiles) { Copy-Item $texture.FullName (Join-Path $unitySourceDir $texture.Name) -Force }
-    Write-Host "Native model texture sidecars staged for Unity: $($textureFiles.Count)"
+    foreach ($sidecar in @($textureFiles) + @($materialMaps)) { Copy-Item $sidecar.FullName (Join-Path $unitySourceDir $sidecar.Name) -Force }
+    Write-Host "Native model sidecars staged: textures=$($textureFiles.Count) materialMaps=$($materialMaps.Count)"
 
     $editorDir = Join-Path $unityProject "Assets\Editor"
     New-Item -ItemType Directory -Path $editorDir -Force | Out-Null
