@@ -53,16 +53,16 @@ internal static class DariusModelMeshProcessor
             string stem = SanitizeAssetName(source.name + "_" + r);
             Mesh visibleMesh = CreateFilteredMesh(mesh, kinds, SubmeshKind.Visible,
                 generatedRoot, stem + "_visible", mesh.name + "_Visible");
+            if (hasWolf)
+                CreateHiddenRenderer(source, mesh, materials, kinds, SubmeshKind.Wolf, generatedRoot,
+                    stem + "_wolf", mesh.name + "_WolfHidden", "DariusHidden_Wolf_" + source.name);
+            if (hasStatic)
+                CreateHiddenRenderer(source, mesh, materials, kinds, SubmeshKind.StaticHidden, generatedRoot,
+                    stem + "_static", mesh.name + "_StaticHidden", "DariusHidden_Static_" + source.name);
+
             source.sharedMesh = visibleMesh;
             source.sharedMaterials = FilterMaterials(materials, kinds, SubmeshKind.Visible);
             source.enabled = hasVisible;
-
-            if (hasWolf)
-                CreateHiddenRenderer(source, materials, kinds, SubmeshKind.Wolf, generatedRoot,
-                    stem + "_wolf", mesh.name + "_WolfHidden", "DariusHidden_Wolf_" + source.name);
-            if (hasStatic)
-                CreateHiddenRenderer(source, materials, kinds, SubmeshKind.StaticHidden, generatedRoot,
-                    stem + "_static", mesh.name + "_StaticHidden", "DariusHidden_Static_" + source.name);
         }
     }
 
@@ -88,6 +88,7 @@ internal static class DariusModelMeshProcessor
 
     private static void CreateHiddenRenderer(
         SkinnedMeshRenderer source,
+        Mesh sourceMesh,
         Material[] materials,
         SubmeshKind[] kinds,
         SubmeshKind keep,
@@ -96,7 +97,7 @@ internal static class DariusModelMeshProcessor
         string meshName,
         string objectName)
     {
-        Mesh hiddenMesh = CreateFilteredMesh(source.sharedMesh, kinds, keep, generatedRoot, stem, meshName);
+        Mesh hiddenMesh = CreateFilteredMesh(sourceMesh, kinds, keep, generatedRoot, stem, meshName);
         GameObject hiddenObject = new GameObject(objectName);
         hiddenObject.transform.SetParent(source.transform, false);
         SkinnedMeshRenderer renderer = hiddenObject.AddComponent<SkinnedMeshRenderer>();
