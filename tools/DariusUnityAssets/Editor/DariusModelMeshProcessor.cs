@@ -5,6 +5,8 @@ using UnityEngine;
 
 internal static class DariusModelMeshProcessor
 {
+    private enum SubmeshKind { Visible, Wolf, StaticHidden }
+
     public static void ProcessPrefab(GameObject root, string variant, string generatedRoot)
     {
         if (root == null) return;
@@ -37,79 +39,84 @@ internal static class DariusModelMeshProcessor
             Mesh mesh = source != null ? source.sharedMesh : null;
             if (mesh == null) continue;
             Material[] materials = source.sharedMaterials;
-            bool[] hidden = new bool[mesh.subMeshCount];
-            bool hasHidden = false;
-            bool hasVisible = false;
-            for (int i = 0; i < hidden.Length; i++)
+            SubmeshKind[] kinds = new SubmeshKind[mesh.subMeshCount];
+            bool hasVisible = false, hasWolf = false, hasStatic = false;
+            for (int i = 0; i < kinds.Length; i++)
             {
-                Material material = i < materials.Length ? materials[i] : null;
-                hidden[i] = IsAuthoredHiddenMaterial(material);
-                hasHidden |= hidden[i];
-                hasVisible |= !hidden[i];
+                kinds[i] = ClassifyMaterial(i < materials.Length ? materials[i] : null);
+                hasVisible |= kinds[i] == SubmeshKind.Visible;
+                hasWolf |= kinds[i] == SubmeshKind.Wolf;
+                hasStatic |= kinds[i] == SubmeshKind.StaticHidden;
             }
-            if (!hasHidden) continue;
+            if (!hasWolf && !hasStatic) continue;
 
             string stem = SanitizeAssetName(source.name + "_" + r);
-            if (!hasVisible)
-            {
-                Mesh hiddenOnly = SaveMeshCopy(mesh, generatedRoot, stem + "_hidden");
-                hiddenOnly.name = mesh.name + "_Hidden";
-                EditorUtility.SetDirty(hiddenOnly);
-                source.sharedMesh = hiddenOnly;
-                source.enabled = false;
-                continue;
-            }
-
-            Mesh visibleMesh = UnityEngine.Object.Instantiate(mesh);
-            Mesh hiddenMesh = UnityEngine.Object.Instantiate(mesh);
-            visibleMesh.name = mesh.name + "_Visible";
-            hiddenMesh.name = mesh.name + "_Hidden";
-            for (int i = 0; i < hidden.Length; i++)
-            {
-                if (hidden[i]) visibleMesh.SetTriangles(Array.Empty<int>(), i, false);
-                else hiddenMesh.SetTriangles(Array.Empty<int>(), i, false);
-            }
-            SaveMesh(visibleMesh, generatedRoot, stem + "_visible");
-            SaveMesh(hiddenMesh, generatedRoot, stem + "_hidden");
+            Mesh visibleMesh = CreateFilteredMesh(mesh, kinds, SubmeshKind.Visible,
+                generatedRoot, stem + "_visible", mesh.name + "_Visible");
             source.sharedMesh = visibleMesh;
+            source.sharedMaterials = FilterMaterials(materials, kinds, SubmeshKind.Visible);
+            source.enabled = hasVisible;
 
-            Material[] visibleMaterials = (Material[])materials.Clone();
-            for (int i = 0; i < hidden.Length && i < visibleMaterials.Length; i++)
-                if (hidden[i]) visibleMaterials[i] = null;
-            source.sharedMaterials = visibleMaterials;
-
-            GameObject hiddenObject = new GameObject("DariusHidden_" + source.name);
-            hiddenObject.transform.SetParent(source.transform, false);
-            SkinnedMeshRenderer hiddenRenderer = hiddenObject.AddComponent<SkinnedMeshRenderer>();
-            hiddenRenderer.sharedMesh = hiddenMesh;
-            hiddenRenderer.sharedMaterials = materials;
-            hiddenRenderer.bones = source.bones;
-            hiddenRenderer.rootBone = source.rootBone;
-            hiddenRenderer.quality = source.quality;
-            hiddenRenderer.localBounds = source.localBounds;
-            hiddenRenderer.updateWhenOffscreen = false;
-            hiddenRenderer.enabled = false;
+            if (hasWolf)
+                CreateHiddenRenderer(source, materials, kinds, SubmeshKind.Wolf, generatedRoot,
+                    stem + "_wolf", mesh.name + "_WolfHidden", "DariusHidden_Wolf_" + source.name);
+            if (hasStatic)
+                CreateHiddenRenderer(source, materials, kinds, SubmeshKind.StaticHidden, generatedRoot,
+                    stem + "_static", mesh.name + "_StaticHidden", "DariusHidden_Static_" + source.name);
         }
     }
 
-    private static Mesh SaveMeshCopy(Mesh source, string root, string stem)
+    private static Mesh CreateFilteredMesh(
+        Mesh source, SubmeshKind[] kinds, SubmeshKind keep, string root, string stem, string name)
     {
         Mesh copy = UnityEngine.Object.Instantiate(source);
-        SaveMesh(copy, root, stem);
+        copy.name = name;
+        for (int i = 0; i < kinds.Length; i++)
+            if (kinds[i] != keep) copy.SetTriangles(Array.Empty<int>(), i, false);
+        string path = AssetDatabase.GenerateUniqueAssetPath(root + "/" + stem + ".asset");
+        AssetDatabase.CreateAsset(copy, path);
         return copy;
     }
 
-    private static void SaveMesh(Mesh mesh, string root, string stem)
+    private static Material[] FilterMaterials(Material[] source, SubmeshKind[] kinds, SubmeshKind keep)
     {
-        string path = AssetDatabase.GenerateUniqueAssetPath(root + "/" + stem + ".asset");
-        AssetDatabase.CreateAsset(mesh, path);
+        Material[] result = (Material[])source.Clone();
+        for (int i = 0; i < result.Length; i++)
+            if (i >= kinds.Length || kinds[i] != keep) result[i] = null;
+        return result;
     }
 
-    private static bool IsAuthoredHiddenMaterial(Material material)
+    private static void CreateHiddenRenderer(
+        SkinnedMeshRenderer source,
+        Material[] materials,
+        SubmeshKind[] kinds,
+        SubmeshKind keep,
+        string generatedRoot,
+        string stem,
+        string meshName,
+        string objectName)
     {
-        if (material == null || string.IsNullOrEmpty(material.name)) return false;
-        return material.name.IndexOf("Wolf_Mat", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               material.name.IndexOf("Throne", StringComparison.OrdinalIgnoreCase) >= 0;
+        Mesh hiddenMesh = CreateFilteredMesh(source.sharedMesh, kinds, keep, generatedRoot, stem, meshName);
+        GameObject hiddenObject = new GameObject(objectName);
+        hiddenObject.transform.SetParent(source.transform, false);
+        SkinnedMeshRenderer renderer = hiddenObject.AddComponent<SkinnedMeshRenderer>();
+        renderer.sharedMesh = hiddenMesh;
+        renderer.sharedMaterials = FilterMaterials(materials, kinds, keep);
+        renderer.bones = source.bones;
+        renderer.rootBone = source.rootBone;
+        renderer.quality = source.quality;
+        renderer.localBounds = source.localBounds;
+        renderer.updateWhenOffscreen = false;
+        renderer.enabled = false;
+    }
+
+    private static SubmeshKind ClassifyMaterial(Material material)
+    {
+        string name = material != null ? material.name : null;
+        if (string.IsNullOrEmpty(name)) return SubmeshKind.Visible;
+        if (name.IndexOf("Wolf_Mat", StringComparison.OrdinalIgnoreCase) >= 0) return SubmeshKind.Wolf;
+        if (name.IndexOf("Throne", StringComparison.OrdinalIgnoreCase) >= 0) return SubmeshKind.StaticHidden;
+        return SubmeshKind.Visible;
     }
 
     private static string SanitizeAssetName(string value)
