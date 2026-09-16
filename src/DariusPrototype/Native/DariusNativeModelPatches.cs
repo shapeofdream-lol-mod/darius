@@ -1,21 +1,25 @@
 using HarmonyLib;
+using UnityEngine;
 
-// Prefer the Unity-native AssetBundle model before the legacy runtime GLB parser gets a chance to
-// allocate meshes, decode textures, or start its C# animation interpreter. Returning false skips
-// DariusTravelerModelInstance.OnEnable only when the native model was activated successfully.
+// Native activation is owned by DariusNativeModelHost. The legacy component only runs when an
+// actual local GLB source exists, which keeps a developer fallback without pretending it ships.
 [HarmonyPatch(typeof(DariusTravelerModelInstance), "OnEnable")]
-internal static class DariusNativeModelActivationPatch
+internal static class DariusLegacyModelFallbackGuardPatch
 {
     [HarmonyPrefix]
     private static bool Prefix(DariusTravelerModelInstance __instance)
     {
-        return !DariusNativeModelAssets.TryActivate(__instance);
+        if (__instance == null) return false;
+        GameObject owner = __instance.gameObject;
+        if (DariusNativeModelAssets.IsActive(owner)) return false;
+        if (DariusNativeModelAssets.CanUseLegacyFallback(owner)) return true;
+
+        DariusLog.Error("NATIVE-MODEL",
+            "Skipped legacy GLB loader because no local GLB source exists; published runtime requires the native bundle.");
+        return false;
     }
 }
 
-// Keep AssetBundle lifetime owned by the native-model feature rather than DariusPrototypeMod. This
-// avoids overlapping the lifecycle-audit branch while still releasing bundle state during the
-// registry's established runtime teardown transaction.
 [HarmonyPatch(typeof(DariusTravelerRegistry), nameof(DariusTravelerRegistry.UnregisterRuntimeOnly))]
 internal static class DariusNativeModelUnloadPatch
 {
