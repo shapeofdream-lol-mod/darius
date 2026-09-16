@@ -17,14 +17,31 @@ public static class DariusModelBundleBuilder
         public string File;
         public float Yaw;
         public string Idle;
+        public string[] RequiredClips;
     }
 
     private static readonly SkinSpec[] Skins =
     {
-        new SkinSpec { Variant = "Classic", File = "darius.fbx", Yaw = 0f, Idle = "Idle1" },
-        new SkinSpec { Variant = "GodKing", File = "darius_godking.fbx", Yaw = 180f, Idle = "Idle1_Base" },
-        new SkinSpec { Variant = "Dunkmaster", File = "darius_dunkmaster.fbx", Yaw = 0f, Idle = "Idle1_Base" },
-        new SkinSpec { Variant = "Mecha", File = "darius_mecha.fbx", Yaw = 180f, Idle = "Idle1_Base" },
+        new SkinSpec {
+            Variant = "Classic", File = "darius.fbx", Yaw = 0f, Idle = "Idle1",
+            RequiredClips = new[] { "Idle1", "Run", "Death", "Attack1", "Attack2", "Crit",
+                "Darius_Spell1_IN.anm", "Spell1", "Spell2", "Spell3", "Spell4" }
+        },
+        new SkinSpec {
+            Variant = "GodKing", File = "darius_godking.fbx", Yaw = 180f, Idle = "Idle1_Base",
+            RequiredClips = new[] { "Idle1_Base", "Run_Normal", "Death", "Attack1", "Attack2", "Crit",
+                "Darius_Skin15_Spell1_IN.anm", "Spell1", "Spell2", "Spell3", "Spell4" }
+        },
+        new SkinSpec {
+            Variant = "Dunkmaster", File = "darius_dunkmaster.fbx", Yaw = 0f, Idle = "Idle1_Base",
+            RequiredClips = new[] { "Idle1_Base", "Darius_Skin04_Run.anm", "Death", "Attack1", "Attack2", "Crit",
+                "Darius_Skin04_Spell1_IN.anm", "Spell1", "Spell2", "Spell3", "Darius_Skin04_Spell4_A.anm" }
+        },
+        new SkinSpec {
+            Variant = "Mecha", File = "darius_mecha.fbx", Yaw = 180f, Idle = "Idle1_Base",
+            RequiredClips = new[] { "Idle1_Base", "Run_Normal", "Death", "Attack1", "Attack2", "Crit",
+                "Spell1_IN_Stand.SKINS_Darius_Skin67.anm", "Spell1", "Spell2", "Spell3", "Spell4" }
+        },
     };
 
     public static void BuildAllBatch()
@@ -62,25 +79,32 @@ public static class DariusModelBundleBuilder
 
             string assetPath = SourceRoot + "/" + skin.File;
             File.Copy(source, ToProjectAbsolute(assetPath), true);
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(
+                assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
             DariusModelImportUtility.ConfigureModelImporter(assetPath, skin.Variant);
             DariusModelMaterialBinder.BindImportedTextures(assetPath);
 
             string prefabPath = GeneratedRoot + "/darius_" + skin.Variant.ToLowerInvariant() + ".prefab";
-            GameObject prefab = DariusModelPrefabBuilder.Build(assetPath, prefabPath, skin.Variant, skin.Yaw, skin.Idle);
+            GameObject prefab = DariusModelPrefabBuilder.Build(
+                assetPath, prefabPath, skin.Variant, skin.Yaw, skin.Idle, skin.RequiredClips);
             if (prefab == null || AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath) == null)
                 throw new InvalidOperationException("Generated prefab missing skin=" + skin.Variant);
             prefabs.Add(prefabPath);
         }
 
         if (prefabs.Count != Skins.Length)
-            throw new InvalidOperationException("Native prefab count mismatch expected=" + Skins.Length + " actual=" + prefabs.Count);
+            throw new InvalidOperationException(
+                "Native prefab count mismatch expected=" + Skins.Length + " actual=" + prefabs.Count);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         string output = Path.Combine(workRoot, "bundle-output");
         Directory.CreateDirectory(output);
-        AssetBundleBuild build = new AssetBundleBuild { assetBundleName = BundleName, assetNames = prefabs.ToArray() };
+        AssetBundleBuild build = new AssetBundleBuild
+        {
+            assetBundleName = BundleName,
+            assetNames = prefabs.ToArray()
+        };
         AssetBundleManifest manifest = BuildPipeline.BuildAssetBundles(
             output,
             new[] { build },
