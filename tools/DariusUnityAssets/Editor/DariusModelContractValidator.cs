@@ -59,15 +59,29 @@ internal static class DariusModelContractValidator
     private static void ValidateAnchors(GameObject source, DariusNativeSkinProfile profile)
     {
         Transform[] transforms = source.GetComponentsInChildren<Transform>(true);
-        bool health = HasAny(transforms, "C_BuffBone_Glb_Chest_Loc", "Chest", "Spine");
-        bool weapon = HasAny(transforms, "BuffBone_Glb_Weapon_1", "Weapon", "R_Hand");
-        if (!health) throw new InvalidOperationException("Health anchor missing skin=" + profile.Variant);
-        if (!weapon) throw new InvalidOperationException("Weapon anchor missing skin=" + profile.Variant);
+        if (!HasAny(transforms, "C_BuffBone_Glb_Chest_Loc", "Chest", "Spine"))
+            throw new InvalidOperationException("Health anchor missing skin=" + profile.Variant);
+        if (!HasAny(transforms, "BuffBone_Glb_Weapon_1", "Weapon", "R_Hand"))
+            throw new InvalidOperationException("Weapon anchor missing skin=" + profile.Variant);
     }
 
     private static void ValidateGodKingMaterials(GameObject source, DariusNativeSkinProfile profile)
     {
+        if (string.IsNullOrEmpty(profile.ToggleHiddenMaterial) ||
+            string.IsNullOrEmpty(profile.PermanentHiddenMaterial))
+            throw new InvalidOperationException("God-King hidden material contract is incomplete.");
+
         Renderer[] renderers = source.GetComponentsInChildren<Renderer>(true);
+        bool toggle = HasMaterial(renderers, profile.ToggleHiddenMaterial);
+        bool permanent = HasMaterial(renderers, profile.PermanentHiddenMaterial);
+        if (!toggle || !permanent)
+            throw new InvalidOperationException("God-King hidden material contract mismatch skin=" + profile.Variant +
+                " toggle=" + profile.ToggleHiddenMaterial + ":" + toggle +
+                " permanent=" + profile.PermanentHiddenMaterial + ":" + permanent);
+    }
+
+    private static bool HasMaterial(Renderer[] renderers, string sourceName)
+    {
         for (int i = 0; i < renderers.Length; i++)
         {
             Material[] materials = renderers[i] != null ? renderers[i].sharedMaterials : null;
@@ -75,10 +89,11 @@ internal static class DariusModelContractValidator
             for (int m = 0; m < materials.Length; m++)
             {
                 string name = materials[m] != null ? materials[m].name : null;
-                if (!string.IsNullOrEmpty(name) && name.IndexOf("Wolf_Mat", StringComparison.OrdinalIgnoreCase) >= 0) return;
+                if (!string.IsNullOrEmpty(name) &&
+                    name.IndexOf(sourceName, StringComparison.OrdinalIgnoreCase) >= 0) return true;
             }
         }
-        throw new InvalidOperationException("God-King wolf material missing skin=" + profile.Variant);
+        return false;
     }
 
     private static bool HasAny(Transform[] transforms, params string[] names)
