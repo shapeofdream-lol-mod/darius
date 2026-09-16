@@ -149,6 +149,7 @@ internal static class DariusNativeModelAssets
 
     public static void Unload()
     {
+        DariusNativeEntityAnimationLease.Clear();
         Prefabs.Clear();
         _assetNames = null;
         _loadAttempted = false;
