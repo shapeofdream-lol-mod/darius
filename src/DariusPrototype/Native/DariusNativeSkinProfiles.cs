@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 internal sealed class DariusNativeSkinProfile
 {
@@ -13,6 +12,8 @@ internal sealed class DariusNativeSkinProfile
     public int ExpectedPrimitives;
     public int ExpectedBones;
     public int ExpectedAnimations;
+    public string ToggleHiddenMaterial;
+    public string PermanentHiddenMaterial;
     public string Idle;
     public string IdleVariant;
     public string Run;
@@ -34,10 +35,7 @@ internal sealed class DariusNativeSkinProfile
 
     public string[] RequiredClips
     {
-        get
-        {
-            return new[] { Idle, Run, Death, Attack1, Attack2, Crit, QIntro, Q, W, E, R };
-        }
+        get { return new[] { Idle, Run, Death, Attack1, Attack2, Crit, QIntro, Q, W, E, R }; }
     }
 }
 
@@ -58,6 +56,7 @@ internal static class DariusNativeSkinProfiles
     {
         Variant="GodKing", GlbFile="darius_godking.glb", FbxFile="darius_godking.fbx", Scale=RuntimeScale,
         YOffset=RuntimeYOffset, Yaw=180f, GodKing=true, ExpectedPrimitives=5, ExpectedBones=179, ExpectedAnimations=48,
+        ToggleHiddenMaterial="Wolf_Mat", PermanentHiddenMaterial="Throne",
         Idle="Idle1_Base", IdleVariant="Idle2_Base", Run="Run_Normal", Death="Death", Attack1="Attack1",
         Attack2="Attack2", Crit="Crit", QIntro="Darius_Skin15_Spell1_IN.anm", Q="Spell1", W="Spell2", E="Spell3", R="Spell4",
         Attack1ToIdle="Attack1_ToIdle", Attack2ToIdle="Attack2_ToIdle", CritToIdle="Crit_ToIdle",
