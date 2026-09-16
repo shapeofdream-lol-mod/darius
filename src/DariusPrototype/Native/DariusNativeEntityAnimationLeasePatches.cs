@@ -3,18 +3,10 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 
+// Native actions only suppress SoD's per-frame presentation write and competing ability requests.
+// LogicUpdate keeps running so death/status/gameplay animation state is never frozen by a visual lease.
 [HarmonyPatch(typeof(EntityAnimation), nameof(EntityAnimation.FrameUpdate))]
 internal static class DariusNativeEntityAnimationFramePatch
-{
-    [HarmonyPrefix]
-    private static bool Prefix(EntityAnimation __instance)
-    {
-        return !DariusNativeEntityAnimationLease.IsOwned(__instance);
-    }
-}
-
-[HarmonyPatch(typeof(EntityAnimation), nameof(EntityAnimation.LogicUpdate))]
-internal static class DariusNativeEntityAnimationLogicPatch
 {
     [HarmonyPrefix]
     private static bool Prefix(EntityAnimation __instance)
