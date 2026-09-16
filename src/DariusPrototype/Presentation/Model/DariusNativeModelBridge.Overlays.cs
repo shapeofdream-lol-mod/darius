@@ -71,35 +71,42 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         GameObject go = new GameObject("Darius_NativeOverlay_" + label);
         go.transform.SetParent(source.transform, false);
         SkinnedMeshRenderer renderer = go.AddComponent<SkinnedMeshRenderer>();
-        Mesh mesh = source.sharedMesh;
-        if (selectedSubmesh >= 0)
-        {
-            mesh = UnityEngine.Object.Instantiate(source.sharedMesh);
-            mesh.name = source.sharedMesh.name + "_OverlaySubmesh" + selectedSubmesh;
-            int[] triangles = source.sharedMesh.GetTriangles(selectedSubmesh);
-            mesh.subMeshCount = 1;
-            mesh.SetTriangles(triangles, 0, false);
-            DariusNativeOverlayMeshLifetime lifetime = go.AddComponent<DariusNativeOverlayMeshLifetime>();
-            lifetime.mesh = mesh;
-        }
-        renderer.sharedMesh = mesh;
+        renderer.sharedMesh = source.sharedMesh;
         renderer.bones = source.bones;
         renderer.rootBone = source.rootBone;
         renderer.quality = source.quality;
         renderer.localBounds = source.localBounds;
         renderer.updateWhenOffscreen = false;
-        if (selectedSubmesh >= 0)
+        int count = Mathf.Max(1, source.sharedMesh.subMeshCount);
+        Material[] materials = new Material[count];
+        if (selectedSubmesh < 0)
         {
-            renderer.sharedMaterials = new[] { material };
+            for (int i = 0; i < count; i++) materials[i] = material;
         }
         else
         {
-            int count = Mathf.Max(1, mesh.subMeshCount);
-            Material[] materials = new Material[count];
-            for (int i = 0; i < count; i++) materials[i] = material;
-            renderer.sharedMaterials = materials;
+            Material invisible = CreateInvisibleMaterial();
+            for (int i = 0; i < count; i++) materials[i] = i == selectedSubmesh ? material : invisible;
+            DariusLolVfxLinkedObjects links = go.AddComponent<DariusLolVfxLinkedObjects>();
+            links.Add(invisible);
         }
+        renderer.sharedMaterials = materials;
         return go;
+    }
+
+    private static Material CreateInvisibleMaterial()
+    {
+        Shader shader = Shader.Find("Unlit/Transparent");
+        if (shader == null) shader = Shader.Find("Sprites/Default");
+        if (shader == null)
+            throw new InvalidOperationException("No supported transparent Unity shader for native submesh isolation.");
+        Material material = new Material(shader);
+        material.name = "Darius_NativeOverlay_Invisible";
+        Color clear = new Color(0f, 0f, 0f, 0f);
+        if (material.HasProperty("_Color")) material.SetColor("_Color", clear);
+        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", clear);
+        material.color = clear;
+        return material;
     }
 
     public bool SetGodKingWolfVisible(bool visible)
