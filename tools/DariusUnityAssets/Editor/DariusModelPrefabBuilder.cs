@@ -8,43 +8,32 @@ using UnityEngine;
 
 internal static class DariusModelPrefabBuilder
 {
-    private const float RuntimeScale = 0.00921f;
-    private const float RuntimeYOffset = 0.04f;
-
-    public static GameObject Build(
-        string assetPath,
-        string prefabPath,
-        string variant,
-        float yaw,
-        string idleClip,
-        string[] requiredClips)
+    public static GameObject Build(string assetPath, string prefabPath, DariusNativeSkinProfile profile)
     {
+        if (profile == null) throw new ArgumentNullException(nameof(profile));
         GameObject source = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
-        if (source == null)
-            throw new InvalidOperationException("Missing imported model: " + assetPath);
+        if (source == null) throw new InvalidOperationException("Missing imported model: " + assetPath);
 
         AnimationClip[] clips = LoadAnimationClips(assetPath);
-        ValidateRequiredClips(clips, requiredClips, variant);
+        DariusModelContractValidator.Validate(source, clips, profile);
 
         string generatedRoot = (Path.GetDirectoryName(prefabPath) ?? "Assets").Replace('\\', '/');
-        string controllerPath = generatedRoot + "/darius_" + variant.ToLowerInvariant() + ".controller";
-        AnimatorController controller = BuildController(controllerPath, clips, idleClip, variant);
+        string controllerPath = generatedRoot + "/darius_" + profile.Variant.ToLowerInvariant() + ".controller";
+        AnimatorController controller = BuildController(controllerPath, clips, profile.Idle, profile.Variant);
 
-        GameObject root = new GameObject("Darius_" + variant);
+        GameObject root = new GameObject("Darius_" + profile.Variant);
         GameObject model = UnityEngine.Object.Instantiate(source, root.transform, false);
         model.name = "Model";
-        model.transform.localPosition = new Vector3(0f, RuntimeYOffset, 0f);
-        model.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
-        model.transform.localScale = Vector3.one * RuntimeScale;
+        model.transform.localPosition = new Vector3(0f, profile.YOffset, 0f);
+        model.transform.localRotation = Quaternion.Euler(0f, profile.Yaw, 0f);
+        model.transform.localScale = Vector3.one * profile.Scale;
 
         ConfigureAnimator(model, controller);
-        DariusModelMeshProcessor.ProcessPrefab(model, variant, generatedRoot);
+        DariusModelMeshProcessor.ProcessPrefab(model, profile.Variant, generatedRoot);
 
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
         UnityEngine.Object.DestroyImmediate(root);
-        if (prefab == null)
-            throw new InvalidOperationException("Failed saving generated prefab: " + prefabPath);
-
+        if (prefab == null) throw new InvalidOperationException("Failed saving generated prefab: " + prefabPath);
         AssetDatabase.SaveAssets();
         return prefab;
     }
@@ -59,32 +48,11 @@ internal static class DariusModelPrefabBuilder
             if (clip.name.StartsWith("__preview__", StringComparison.OrdinalIgnoreCase)) continue;
             clips.Add(clip);
         }
-        if (clips.Count == 0)
-            throw new InvalidOperationException("Imported model has no animation clips: " + assetPath);
+        if (clips.Count == 0) throw new InvalidOperationException("Imported model has no animation clips: " + assetPath);
         return clips.ToArray();
     }
 
-    private static void ValidateRequiredClips(AnimationClip[] clips, string[] requiredClips, string variant)
-    {
-        HashSet<string> names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        for (int i = 0; i < clips.Length; i++)
-            if (clips[i] != null && !string.IsNullOrEmpty(clips[i].name)) names.Add(clips[i].name);
-
-        if (requiredClips == null) return;
-        for (int i = 0; i < requiredClips.Length; i++)
-        {
-            string required = requiredClips[i];
-            if (!string.IsNullOrEmpty(required) && !names.Contains(required))
-                throw new InvalidOperationException(
-                    "Required animation missing skin=" + variant + " clip=" + required);
-        }
-    }
-
-    private static AnimatorController BuildController(
-        string path,
-        AnimationClip[] clips,
-        string idleClip,
-        string variant)
+    private static AnimatorController BuildController(string path, AnimationClip[] clips, string idleClip, string variant)
     {
         AssetDatabase.DeleteAsset(path);
         AnimatorController controller = AnimatorController.CreateAnimatorControllerAtPath(path);
@@ -98,12 +66,10 @@ internal static class DariusModelPrefabBuilder
             string stateName = ToAnimatorStateName(clip.name);
             if (!stateNames.Add(stateName))
                 throw new InvalidOperationException("Animator state collision skin=" + variant + " state=" + stateName);
-
             AnimatorState state = stateMachine.AddState(stateName);
             state.motion = clip;
             state.speed = 1f;
-            if (string.Equals(clip.name, idleClip, StringComparison.OrdinalIgnoreCase))
-                defaultState = state;
+            if (string.Equals(clip.name, idleClip, StringComparison.OrdinalIgnoreCase)) defaultState = state;
         }
 
         if (defaultState == null)
