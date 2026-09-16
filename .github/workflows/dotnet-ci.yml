@@ -48,16 +48,46 @@ jobs:
           $bad = @(git ls-files | Where-Object { $_ -match '\.(dll|exe|pdb|glb|ogg|wav|wem|tex|skn|png|jpe?g|bmp|ico|zip|7z|rar|assetbundle)$' })
           if ($bad.Count) { throw "Tracked binary assets/build products:`n$($bad -join "`n")" }
 
-      - name: Check reference-pack tooling
+      - name: Check build tooling
         shell: pwsh
         run: |
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path 'tools/SodReferencePack/New-SodReferencePack.ps1'),
-            [ref]$null,
-            [ref]$errors
-          ) | Out-Null
-          if ($errors.Count) { throw ($errors | Out-String) }
+          $scripts = @(
+            'tools/SodReferencePack/New-SodReferencePack.ps1',
+            'tools/DariusUnityAssets/Build-NativeModels.ps1'
+          )
+          foreach ($script in $scripts) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $script),
+              [ref]$null,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count) { throw "$script`n$($errors | Out-String)" }
+          }
+          python -m py_compile tools/DariusUnityAssets/convert_glb_to_fbx.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Check native pipeline size
+        shell: pwsh
+        run: |
+          $files = @(
+            'src/DariusPrototype/Native/DariusNativeSkinProfiles.cs',
+            'src/DariusPrototype/Native/DariusNativeEntityAnimationLeasePatches.cs',
+            'src/DariusPrototype/Native/DariusNativeAnimationAdapter.cs',
+            'src/DariusPrototype/Native/DariusNativeModelAssets.cs',
+            'src/DariusPrototype/Presentation/Model/DariusNativeModelBridge.cs',
+            'src/DariusPrototype/Presentation/Model/DariusNativeModelBridge.ActionLease.cs',
+            'src/DariusPrototype/Presentation/Model/DariusNativeModelBridge.EntityModel.cs',
+            'src/DariusPrototype/Presentation/Model/DariusNativeModelBridge.Playback.cs',
+            'src/DariusPrototype/Presentation/Model/DariusNativeModelBridge.Overlays.cs',
+            'tools/DariusUnityAssets/Build-NativeModels.ps1',
+            'tools/DariusUnityAssets/convert_glb_to_fbx.py'
+          )
+          $files += @(Get-ChildItem tools/DariusUnityAssets/Editor -Filter '*.cs' -File | ForEach-Object { $_.FullName })
+          foreach ($file in $files) {
+            $count = (Get-Content $file).Count
+            if ($count -gt 200) { throw "Native pipeline file exceeds 200 lines: $file ($count)" }
+          }
 
       - name: Check package configuration
         shell: pwsh
