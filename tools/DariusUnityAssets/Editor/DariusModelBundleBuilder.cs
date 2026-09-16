@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
+using UnityEngine;
 
 public static class DariusModelBundleBuilder
 {
@@ -27,7 +28,7 @@ public static class DariusModelBundleBuilder
     public static void BuildAllBatch()
     {
         try { BuildAll(); EditorApplication.Exit(0); }
-        catch (Exception e) { UnityEngine.Debug.LogException(e); EditorApplication.Exit(1); }
+        catch (Exception e) { Debug.LogException(e); EditorApplication.Exit(1); }
     }
 
     [MenuItem("Darius/Build Native Model Bundle")]
@@ -51,9 +52,9 @@ public static class DariusModelBundleBuilder
             DariusModelImportUtility.ConfigureModelImporter(assetPath, skin.Variant);
             DariusModelMaterialBinder.BindImportedTextures(assetPath);
 
-            string prefab = DariusModelPrefabBuilder.Build(assetPath, GeneratedRoot + "/darius_" + skin.Variant.ToLowerInvariant() + ".prefab", skin.Variant)?.name;
             string prefabPath = GeneratedRoot + "/darius_" + skin.Variant.ToLowerInvariant() + ".prefab";
-            if (AssetDatabase.LoadAssetAtPath<UnityEngine.GameObject>(prefabPath) != null)
+            GameObject prefab = DariusModelPrefabBuilder.Build(assetPath, prefabPath, skin.Variant);
+            if (prefab != null && AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath) != null)
                 prefabs.Add(prefabPath);
         }
 
