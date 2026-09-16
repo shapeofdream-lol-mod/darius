@@ -32,6 +32,7 @@ internal static class DariusModelPrefabBuilder
 
         animator.applyRootMotion = false;
         animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
+        animator.keepAnimatorControllerStateOnDisable = true;
     }
 }
 #endif
