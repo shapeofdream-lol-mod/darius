@@ -11,6 +11,7 @@ internal static class DariusModelContractValidator
         ValidateAnimations(clips, profile);
         ValidateGeometry(source, profile);
         ValidateAnchors(source, profile);
+        if (profile.GodKing) ValidateGodKingMaterials(source, profile);
     }
 
     private static void ValidateAnimations(AnimationClip[] clips, DariusNativeSkinProfile profile)
@@ -62,6 +63,22 @@ internal static class DariusModelContractValidator
         bool weapon = HasAny(transforms, "BuffBone_Glb_Weapon_1", "Weapon", "R_Hand");
         if (!health) throw new InvalidOperationException("Health anchor missing skin=" + profile.Variant);
         if (!weapon) throw new InvalidOperationException("Weapon anchor missing skin=" + profile.Variant);
+    }
+
+    private static void ValidateGodKingMaterials(GameObject source, DariusNativeSkinProfile profile)
+    {
+        Renderer[] renderers = source.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Material[] materials = renderers[i] != null ? renderers[i].sharedMaterials : null;
+            if (materials == null) continue;
+            for (int m = 0; m < materials.Length; m++)
+            {
+                string name = materials[m] != null ? materials[m].name : null;
+                if (!string.IsNullOrEmpty(name) && name.IndexOf("Wolf_Mat", StringComparison.OrdinalIgnoreCase) >= 0) return;
+            }
+        }
+        throw new InvalidOperationException("God-King wolf material missing skin=" + profile.Variant);
     }
 
     private static bool HasAny(Transform[] transforms, params string[] names)
