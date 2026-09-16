@@ -5,11 +5,11 @@ using UnityEngine;
 
 internal static class DariusModelMeshProcessor
 {
-    private enum SubmeshKind { Visible, Wolf, StaticHidden }
+    private enum SubmeshKind { Visible, ToggleHidden, PermanentHidden }
 
-    public static void ProcessPrefab(GameObject root, string variant, string generatedRoot)
+    public static void ProcessPrefab(GameObject root, DariusNativeSkinProfile profile, string generatedRoot)
     {
-        if (root == null) return;
+        if (root == null || profile == null) return;
         SkinnedMeshRenderer[] renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
         for (int i = 0; i < renderers.Length; i++)
         {
@@ -18,8 +18,7 @@ internal static class DariusModelMeshProcessor
             renderer.updateWhenOffscreen = false;
             renderer.localBounds = ExpandBounds(renderer, 1.20f);
         }
-        if (string.Equals(variant, "GodKing", StringComparison.OrdinalIgnoreCase))
-            SplitAuthoredHiddenSubmeshes(renderers, generatedRoot);
+        if (profile.GodKing) SplitAuthoredHiddenSubmeshes(renderers, profile, generatedRoot);
     }
 
     private static Bounds ExpandBounds(SkinnedMeshRenderer renderer, float factor)
@@ -31,7 +30,10 @@ internal static class DariusModelMeshProcessor
         return bounds;
     }
 
-    private static void SplitAuthoredHiddenSubmeshes(SkinnedMeshRenderer[] renderers, string generatedRoot)
+    private static void SplitAuthoredHiddenSubmeshes(
+        SkinnedMeshRenderer[] renderers,
+        DariusNativeSkinProfile profile,
+        string generatedRoot)
     {
         for (int r = 0; r < renderers.Length; r++)
         {
@@ -40,24 +42,24 @@ internal static class DariusModelMeshProcessor
             if (mesh == null) continue;
             Material[] materials = source.sharedMaterials;
             SubmeshKind[] kinds = new SubmeshKind[mesh.subMeshCount];
-            bool hasVisible = false, hasWolf = false, hasStatic = false;
+            bool hasVisible = false, hasToggle = false, hasPermanent = false;
             for (int i = 0; i < kinds.Length; i++)
             {
-                kinds[i] = ClassifyMaterial(i < materials.Length ? materials[i] : null);
+                kinds[i] = ClassifyMaterial(i < materials.Length ? materials[i] : null, profile);
                 hasVisible |= kinds[i] == SubmeshKind.Visible;
-                hasWolf |= kinds[i] == SubmeshKind.Wolf;
-                hasStatic |= kinds[i] == SubmeshKind.StaticHidden;
+                hasToggle |= kinds[i] == SubmeshKind.ToggleHidden;
+                hasPermanent |= kinds[i] == SubmeshKind.PermanentHidden;
             }
-            if (!hasWolf && !hasStatic) continue;
+            if (!hasToggle && !hasPermanent) continue;
 
             string stem = SanitizeAssetName(source.name + "_" + r);
             Mesh visibleMesh = CreateFilteredMesh(mesh, kinds, SubmeshKind.Visible,
                 generatedRoot, stem + "_visible", mesh.name + "_Visible");
-            if (hasWolf)
-                CreateHiddenRenderer(source, mesh, materials, kinds, SubmeshKind.Wolf, generatedRoot,
-                    stem + "_wolf", mesh.name + "_WolfHidden", "DariusHidden_Wolf_" + source.name);
-            if (hasStatic)
-                CreateHiddenRenderer(source, mesh, materials, kinds, SubmeshKind.StaticHidden, generatedRoot,
+            if (hasToggle)
+                CreateHiddenRenderer(source, mesh, materials, kinds, SubmeshKind.ToggleHidden, generatedRoot,
+                    stem + "_toggle", mesh.name + "_WolfHidden", "DariusHidden_Wolf_" + source.name);
+            if (hasPermanent)
+                CreateHiddenRenderer(source, mesh, materials, kinds, SubmeshKind.PermanentHidden, generatedRoot,
                     stem + "_static", mesh.name + "_StaticHidden", "DariusHidden_Static_" + source.name);
 
             source.sharedMesh = visibleMesh;
@@ -111,12 +113,16 @@ internal static class DariusModelMeshProcessor
         renderer.enabled = false;
     }
 
-    private static SubmeshKind ClassifyMaterial(Material material)
+    private static SubmeshKind ClassifyMaterial(Material material, DariusNativeSkinProfile profile)
     {
         string name = material != null ? material.name : null;
         if (string.IsNullOrEmpty(name)) return SubmeshKind.Visible;
-        if (name.IndexOf("Wolf_Mat", StringComparison.OrdinalIgnoreCase) >= 0) return SubmeshKind.Wolf;
-        if (name.IndexOf("Throne", StringComparison.OrdinalIgnoreCase) >= 0) return SubmeshKind.StaticHidden;
+        if (!string.IsNullOrEmpty(profile.ToggleHiddenMaterial) &&
+            name.IndexOf(profile.ToggleHiddenMaterial, StringComparison.OrdinalIgnoreCase) >= 0)
+            return SubmeshKind.ToggleHidden;
+        if (!string.IsNullOrEmpty(profile.PermanentHiddenMaterial) &&
+            name.IndexOf(profile.PermanentHiddenMaterial, StringComparison.OrdinalIgnoreCase) >= 0)
+            return SubmeshKind.PermanentHidden;
         return SubmeshKind.Visible;
     }
 
