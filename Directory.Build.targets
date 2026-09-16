@@ -1,5 +1,1 @@
-<Project>
-  <ItemGroup Condition="'$(UseSodReferencePack)' == 'true'">
-    <Reference Include="UnityEngine.AssetBundleModule" />
-  </ItemGroup>
-</Project>
+<Project />
