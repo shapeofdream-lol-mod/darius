@@ -36,7 +36,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         if (_entityModel == null || _modelRoot == null) return;
         Renderer[] allRenderers = _modelRoot.GetComponentsInChildren<Renderer>(true);
         List<Renderer> visibleRenderers = new List<Renderer>(allRenderers.Length);
-        List<Renderer> authoredHidden = IsGodKingSkin ? new List<Renderer>() : null;
+        List<Renderer> wolfRenderers = IsGodKingSkin ? new List<Renderer>() : null;
         for (int i = 0; i < allRenderers.Length; i++)
         {
             Renderer renderer = allRenderers[i];
@@ -44,11 +44,17 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
             if (skinned != null) skinned.updateWhenOffscreen = false;
             bool hidden = IsGodKingSkin && IsHiddenPresentationRenderer(renderer);
-            if (hidden) authoredHidden.Add(renderer);
-            else visibleRenderers.Add(renderer);
+            if (!hidden)
+            {
+                visibleRenderers.Add(renderer);
+                continue;
+            }
+
+            renderer.enabled = false;
+            if (IsGodKingWolfRenderer(renderer)) wolfRenderers.Add(renderer);
         }
 
-        _godKingWolfRenderers = authoredHidden != null ? authoredHidden.ToArray() : null;
+        _godKingWolfRenderers = wolfRenderers != null ? wolfRenderers.ToArray() : null;
         _entityModel.bodyRenderers = visibleRenderers.ToArray();
         AnimationClip run = FindClip(RunClipName);
         if (run != null) _entityModel.runForwardClip = run;
