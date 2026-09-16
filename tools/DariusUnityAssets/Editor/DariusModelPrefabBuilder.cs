@@ -8,7 +8,11 @@ using UnityEngine;
 
 internal static class DariusModelPrefabBuilder
 {
-    public static GameObject Build(string assetPath, string prefabPath, DariusNativeSkinProfile profile)
+    public static GameObject Build(
+        string assetPath,
+        string prefabPath,
+        DariusNativeSkinProfile profile,
+        List<string> bundleAssets)
     {
         if (profile == null) throw new ArgumentNullException(nameof(profile));
         GameObject source = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
@@ -29,7 +33,7 @@ internal static class DariusModelPrefabBuilder
         model.transform.localScale = Vector3.one * profile.Scale;
 
         ConfigureAnimator(model, controller);
-        DariusModelMeshProcessor.ProcessPrefab(model, profile, generatedRoot);
+        DariusModelMeshProcessor.ProcessPrefab(model, profile, generatedRoot, bundleAssets);
 
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
         UnityEngine.Object.DestroyImmediate(root);
