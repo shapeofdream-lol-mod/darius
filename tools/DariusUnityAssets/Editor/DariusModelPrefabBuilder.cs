@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using UnityEditor;
 using UnityEngine;
 
@@ -7,7 +8,7 @@ internal static class DariusModelPrefabBuilder
     {
         GameObject source = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
         if (source == null)
-            return null;
+            throw new System.InvalidOperationException("Missing imported model: " + assetPath);
 
         GameObject instance = Object.Instantiate(source);
         instance.name = "darius_" + variant.ToLowerInvariant();
@@ -15,19 +16,17 @@ internal static class DariusModelPrefabBuilder
         DariusModelMeshProcessor.ProcessPrefab(instance);
         ConfigureAnimator(instance);
 
-        PrefabUtility.SaveAsPrefabAsset(instance, prefabPath);
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(instance, prefabPath);
         Object.DestroyImmediate(instance);
         AssetDatabase.Refresh();
-
-        return AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+        return prefab;
     }
 
     private static void ConfigureAnimator(GameObject root)
     {
-        Animator animator = root.GetComponentInChildren<Animator>();
-        if (animator == null)
-            return;
-
+        Animator animator = root.GetComponentInChildren<Animator>(true);
+        if (animator == null) return;
         animator.applyRootMotion = false;
     }
 }
+#endif
