@@ -25,10 +25,12 @@ internal static class DariusUnityAssetBundleApi
 
     public static GameObject LoadGameObject(object bundle, string assetName)
     {
-        if (bundle == null || string.IsNullOrEmpty(assetName)) return null;
-        MethodInfo method = RequireMethod(
-            "LoadAsset", BindingFlags.Public | BindingFlags.Instance, new[] { typeof(string), typeof(Type) });
-        return method.Invoke(bundle, new object[] { assetName, typeof(GameObject) }) as GameObject;
+        return LoadAsset(bundle, assetName, typeof(GameObject)) as GameObject;
+    }
+
+    public static Mesh LoadMesh(object bundle, string assetName)
+    {
+        return LoadAsset(bundle, assetName, typeof(Mesh)) as Mesh;
     }
 
     public static void Unload(object bundle, bool unloadAllLoadedObjects)
@@ -42,6 +44,14 @@ internal static class DariusUnityAssetBundleApi
     public static void Reset()
     {
         _bundleType = null;
+    }
+
+    private static UnityEngine.Object LoadAsset(object bundle, string assetName, Type assetType)
+    {
+        if (bundle == null || string.IsNullOrEmpty(assetName) || assetType == null) return null;
+        MethodInfo method = RequireMethod(
+            "LoadAsset", BindingFlags.Public | BindingFlags.Instance, new[] { typeof(string), typeof(Type) });
+        return method.Invoke(bundle, new object[] { assetName, assetType }) as UnityEngine.Object;
     }
 
     private static MethodInfo RequireMethod(string name, BindingFlags flags, Type[] parameterTypes)
