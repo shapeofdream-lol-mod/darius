@@ -152,7 +152,8 @@ public static partial class DariusTravelerRegistry
         model.holsteredWeapon = CreateSkinAnchor(go.transform, spec.name + "_HolsteredWeaponAnchor", new Vector3(0f, 1.2f, -0.25f));
 
         if (go.GetComponent<DariusNativeModelHost>() == null) go.AddComponent<DariusNativeModelHost>();
-        if (go.GetComponent<DariusTravelerModelInstance>() == null) go.AddComponent<DariusTravelerModelInstance>();
+        if (DariusNativeModelAssets.CanUseLegacyFallback(go) && go.GetComponent<DariusTravelerModelInstance>() == null)
+            go.AddComponent<DariusTravelerModelInstance>();
         OwnedObjects.Add(go);
         RegisterNamedResource(skin, go, spec.name, spec.guid);
         DariusLog.Info("TRAVELER-SKIN", "Created runtime skin=" + spec.name + " guid=" + spec.guid +
