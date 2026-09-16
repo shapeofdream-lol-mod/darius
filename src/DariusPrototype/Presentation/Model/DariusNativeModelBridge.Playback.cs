@@ -1,8 +1,5 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
 using UnityEngine;
 
 public sealed partial class DariusNativeModelBridge : MonoBehaviour
@@ -26,7 +23,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         int hash = Animator.StringToHash(stateName);
         if (!_animator.HasState(0, hash))
         {
-            DariusLog.Warn("NATIVE-ANIM", "Animator state missing skin=" + VariantKey + " state=" + stateName + " clip=" + name);
+            DariusLog.Warn("NATIVE-ANIM", "Animator state missing skin=" + VariantKey +
+                " state=" + stateName + " clip=" + name);
             return false;
         }
         _animator.speed = Mathf.Max(0.05f, speed);
@@ -43,8 +41,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     public void PlayQ(bool instant)
     {
         StopSequence();
-        _locomotionState = null;
-        _actionUntil = 0f;
         _sequence = StartCoroutine(PlayQSequence(instant));
     }
 
@@ -67,29 +63,28 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     public void PlayWAttack(Vector3 direction)
     {
-        _wArmed = false;
         PlayAction(FirstExisting(_binding != null ? _binding.wClip : null, "Spell2"));
     }
 
     public void SetWArmed(bool armed)
     {
-        _wArmed = armed;
-        _locomotionState = null;
-        _actionUntil = 0f;
         if (!armed)
         {
             if (_entityAnimation != null) try { _entityAnimation.StopAbilityAnimation(); } catch { }
             return;
         }
-        string armedState = FirstExisting("Spell2_Idle", _binding != null ? _binding.idleClip : null, IdleClipName);
+        string armedState = FirstExisting(
+            "Spell2_Idle", _binding != null ? _binding.idleClip : null, IdleClipName);
         PlayState(armedState, 0.06f, 1f);
     }
 
     public void PlayOneShot(string name)
     {
         string resolved = name;
-        if (string.Equals(name, "Spell3", StringComparison.Ordinal)) resolved = FirstExisting(_binding != null ? _binding.eClip : null, "Spell3");
-        else if (string.Equals(name, "Spell4", StringComparison.Ordinal)) resolved = FirstExisting(_binding != null ? _binding.rClip : null, "Spell4");
+        if (string.Equals(name, "Spell3", StringComparison.Ordinal))
+            resolved = FirstExisting(_binding != null ? _binding.eClip : null, "Spell3");
+        else if (string.Equals(name, "Spell4", StringComparison.Ordinal))
+            resolved = FirstExisting(_binding != null ? _binding.rClip : null, "Spell4");
         PlayAction(resolved);
     }
 
@@ -101,9 +96,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     private void PlayAction(string state)
     {
         StopSequence();
-        _locomotionState = null;
-        _actionUntil = Time.time + ClipLength(state, 0.65f);
-        if (IsGodKingSkin && string.Equals(state, FirstExisting(_binding != null ? _binding.rClip : null, "Spell4"), StringComparison.Ordinal))
+        if (IsGodKingSkin && string.Equals(
+                state, FirstExisting(_binding != null ? _binding.rClip : null, "Spell4"), StringComparison.Ordinal))
             _sequence = StartCoroutine(PlayGodKingR(state));
         else
             PlayState(state, 0.05f, 1f);
