@@ -13,16 +13,13 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         for (int r = 0; r < renderers.Length; r++)
         {
             SkinnedMeshRenderer source = renderers[r];
-            if (!IsVisibleOverlaySource(source)) continue;
-            Material[] materials = source.sharedMaterials;
-            for (int i = 0; i < materials.Length && i < source.sharedMesh.subMeshCount; i++)
-            {
-                Material material = materials[i];
-                if (material == null || RiotStringHash(StripRuntimeSuffix(material.name)) != sourceMaterialHash) continue;
-                GameObject overlay = CreateOverlayRenderer(source, overlayMaterial, i, "Submesh_" + r + "_" + i);
-                links.Add(overlay);
-                created++;
-            }
+            if (!IsVisibleOverlaySource(source) || !RendererContainsMaterialHash(source, sourceMaterialHash)) continue;
+            Mesh filtered = DariusNativeModelAssets.GetOverlayMesh(VariantKey, r, sourceMaterialHash);
+            if (filtered == null) continue;
+            GameObject overlay = CreateOverlayRenderer(
+                source, filtered, overlayMaterial, sourceMaterialHash, false, "Submesh_" + r);
+            links.Add(overlay);
+            created++;
         }
         return FinishOverlayRoot(root, created);
     }
@@ -39,7 +36,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         {
             SkinnedMeshRenderer source = renderers[i];
             if (!IsVisibleOverlaySource(source)) continue;
-            GameObject overlay = CreateOverlayRenderer(source, overlayMaterial, -1, resolvedLabel + "_" + i);
+            GameObject overlay = CreateOverlayRenderer(
+                source, source.sharedMesh, overlayMaterial, 0u, true, resolvedLabel + "_" + i);
             links.Add(overlay);
             created++;
         }
@@ -66,47 +64,54 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         return source != null && source.enabled && source.sharedMesh != null && !IsHiddenPresentationRenderer(source);
     }
 
-    private static GameObject CreateOverlayRenderer(SkinnedMeshRenderer source, Material material, int selectedSubmesh, string label)
+    private static bool RendererContainsMaterialHash(Renderer renderer, uint materialHash)
+    {
+        if (renderer == null) return false;
+        Material[] materials = renderer.sharedMaterials;
+        for (int i = 0; i < materials.Length; i++)
+        {
+            Material material = materials[i];
+            if (material != null && RiotStringHash(StripRuntimeSuffix(material.name)) == materialHash) return true;
+        }
+        return false;
+    }
+
+    private static GameObject CreateOverlayRenderer(
+        SkinnedMeshRenderer source,
+        Mesh mesh,
+        Material material,
+        uint selectedMaterialHash,
+        bool fullMesh,
+        string label)
     {
         GameObject go = new GameObject("Darius_NativeOverlay_" + label);
         go.transform.SetParent(source.transform, false);
         SkinnedMeshRenderer renderer = go.AddComponent<SkinnedMeshRenderer>();
-        renderer.sharedMesh = source.sharedMesh;
+        renderer.sharedMesh = mesh;
         renderer.bones = source.bones;
         renderer.rootBone = source.rootBone;
         renderer.quality = source.quality;
         renderer.localBounds = source.localBounds;
         renderer.updateWhenOffscreen = false;
-        int count = Mathf.Max(1, source.sharedMesh.subMeshCount);
+
+        int count = Mathf.Max(1, mesh.subMeshCount);
         Material[] materials = new Material[count];
-        if (selectedSubmesh < 0)
+        if (fullMesh)
         {
             for (int i = 0; i < count; i++) materials[i] = material;
         }
         else
         {
-            Material invisible = CreateInvisibleMaterial();
-            for (int i = 0; i < count; i++) materials[i] = i == selectedSubmesh ? material : invisible;
-            DariusLolVfxLinkedObjects links = go.AddComponent<DariusLolVfxLinkedObjects>();
-            links.Add(invisible);
+            Material[] sourceMaterials = source.sharedMaterials;
+            for (int i = 0; i < count; i++)
+            {
+                Material sourceMaterial = i < sourceMaterials.Length ? sourceMaterials[i] : null;
+                if (sourceMaterial != null && RiotStringHash(StripRuntimeSuffix(sourceMaterial.name)) == selectedMaterialHash)
+                    materials[i] = material;
+            }
         }
         renderer.sharedMaterials = materials;
         return go;
-    }
-
-    private static Material CreateInvisibleMaterial()
-    {
-        Shader shader = Shader.Find("Unlit/Transparent");
-        if (shader == null) shader = Shader.Find("Sprites/Default");
-        if (shader == null)
-            throw new InvalidOperationException("No supported transparent Unity shader for native submesh isolation.");
-        Material material = new Material(shader);
-        material.name = "Darius_NativeOverlay_Invisible";
-        Color clear = new Color(0f, 0f, 0f, 0f);
-        if (material.HasProperty("_Color")) material.SetColor("_Color", clear);
-        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", clear);
-        material.color = clear;
-        return material;
     }
 
     public bool SetGodKingWolfVisible(bool visible)
