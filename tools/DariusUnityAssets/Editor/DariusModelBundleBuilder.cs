@@ -11,39 +11,6 @@ public static class DariusModelBundleBuilder
     private const string GeneratedRoot = "Assets/DariusGenerated";
     private const string BundleName = "darius_models.bundle";
 
-    private sealed class SkinSpec
-    {
-        public string Variant;
-        public string File;
-        public float Yaw;
-        public string Idle;
-        public string[] RequiredClips;
-    }
-
-    private static readonly SkinSpec[] Skins =
-    {
-        new SkinSpec {
-            Variant = "Classic", File = "darius.fbx", Yaw = 0f, Idle = "Idle1",
-            RequiredClips = new[] { "Idle1", "Run", "Death", "Attack1", "Attack2", "Crit",
-                "Darius_Spell1_IN.anm", "Spell1", "Spell2", "Spell3", "Spell4" }
-        },
-        new SkinSpec {
-            Variant = "GodKing", File = "darius_godking.fbx", Yaw = 180f, Idle = "Idle1_Base",
-            RequiredClips = new[] { "Idle1_Base", "Run_Normal", "Death", "Attack1", "Attack2", "Crit",
-                "Darius_Skin15_Spell1_IN.anm", "Spell1", "Spell2", "Spell3", "Spell4" }
-        },
-        new SkinSpec {
-            Variant = "Dunkmaster", File = "darius_dunkmaster.fbx", Yaw = 0f, Idle = "Idle1_Base",
-            RequiredClips = new[] { "Idle1_Base", "Darius_Skin04_Run.anm", "Death", "Attack1", "Attack2", "Crit",
-                "Darius_Skin04_Spell1_IN.anm", "Spell1", "Spell2", "Spell3", "Darius_Skin04_Spell4_A.anm" }
-        },
-        new SkinSpec {
-            Variant = "Mecha", File = "darius_mecha.fbx", Yaw = 180f, Idle = "Idle1_Base",
-            RequiredClips = new[] { "Idle1_Base", "Run_Normal", "Death", "Attack1", "Attack2", "Crit",
-                "Spell1_IN_Stand.SKINS_Darius_Skin67.anm", "Spell1", "Spell2", "Spell3", "Spell4" }
-        },
-    };
-
     public static void BuildAllBatch()
     {
         try
@@ -66,50 +33,41 @@ public static class DariusModelBundleBuilder
         string repoRoot = RequireDirectoryEnvironment("DARIUS_REPO_ROOT");
         string fbxRoot = RequireDirectoryEnvironment("DARIUS_MODEL_FBX_DIR");
         string workRoot = ResolveWorkRoot(repoRoot);
-
         EnsureAssetFolder(SourceRoot);
         if (AssetDatabase.IsValidFolder(GeneratedRoot)) AssetDatabase.DeleteAsset(GeneratedRoot);
         EnsureAssetFolder(GeneratedRoot);
 
         List<string> prefabs = new List<string>();
-        foreach (SkinSpec skin in Skins)
+        DariusNativeSkinProfile[] profiles = DariusNativeSkinProfiles.All;
+        for (int i = 0; i < profiles.Length; i++)
         {
-            string source = Path.Combine(fbxRoot, skin.File);
+            DariusNativeSkinProfile profile = profiles[i];
+            string source = Path.Combine(fbxRoot, profile.FbxFile);
             if (!File.Exists(source)) throw new FileNotFoundException("Native FBX missing", source);
 
-            string assetPath = SourceRoot + "/" + skin.File;
+            string assetPath = SourceRoot + "/" + profile.FbxFile;
             File.Copy(source, ToProjectAbsolute(assetPath), true);
-            AssetDatabase.ImportAsset(
-                assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
-            DariusModelImportUtility.ConfigureModelImporter(assetPath, skin.Variant);
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            DariusModelImportUtility.ConfigureModelImporter(assetPath, profile.Variant);
             DariusModelMaterialBinder.BindImportedTextures(assetPath);
 
-            string prefabPath = GeneratedRoot + "/darius_" + skin.Variant.ToLowerInvariant() + ".prefab";
-            GameObject prefab = DariusModelPrefabBuilder.Build(
-                assetPath, prefabPath, skin.Variant, skin.Yaw, skin.Idle, skin.RequiredClips);
+            string prefabPath = GeneratedRoot + "/darius_" + profile.Variant.ToLowerInvariant() + ".prefab";
+            GameObject prefab = DariusModelPrefabBuilder.Build(assetPath, prefabPath, profile);
             if (prefab == null || AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath) == null)
-                throw new InvalidOperationException("Generated prefab missing skin=" + skin.Variant);
+                throw new InvalidOperationException("Generated prefab missing skin=" + profile.Variant);
             prefabs.Add(prefabPath);
         }
 
-        if (prefabs.Count != Skins.Length)
-            throw new InvalidOperationException(
-                "Native prefab count mismatch expected=" + Skins.Length + " actual=" + prefabs.Count);
+        if (prefabs.Count != profiles.Length)
+            throw new InvalidOperationException("Native prefab count mismatch expected=" + profiles.Length + " actual=" + prefabs.Count);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         string output = Path.Combine(workRoot, "bundle-output");
         Directory.CreateDirectory(output);
-        AssetBundleBuild build = new AssetBundleBuild
-        {
-            assetBundleName = BundleName,
-            assetNames = prefabs.ToArray()
-        };
+        AssetBundleBuild build = new AssetBundleBuild { assetBundleName = BundleName, assetNames = prefabs.ToArray() };
         AssetBundleManifest manifest = BuildPipeline.BuildAssetBundles(
-            output,
-            new[] { build },
-            BuildAssetBundleOptions.ChunkBasedCompression,
-            BuildTarget.StandaloneWindows64);
+            output, new[] { build }, BuildAssetBundleOptions.ChunkBasedCompression, BuildTarget.StandaloneWindows64);
         if (manifest == null) throw new InvalidOperationException("Unity returned no AssetBundle manifest.");
 
         string builtBundle = Path.Combine(output, BundleName);
@@ -135,8 +93,7 @@ public static class DariusModelBundleBuilder
 
     private static void EnsureAssetFolder(string path)
     {
-        if (!AssetDatabase.IsValidFolder(path))
-            AssetDatabase.CreateFolder(Path.GetDirectoryName(path), Path.GetFileName(path));
+        if (!AssetDatabase.IsValidFolder(path)) AssetDatabase.CreateFolder(Path.GetDirectoryName(path), Path.GetFileName(path));
     }
 
     private static string ToProjectAbsolute(string assetPath)
