@@ -4,6 +4,8 @@ using UnityEngine;
 
 public sealed partial class DariusNativeModelBridge : MonoBehaviour
 {
+    private bool _wArmed;
+
     private AnimationClip FindClip(string name)
     {
         AnimationClip clip;
@@ -69,16 +71,9 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     public void SetWArmed(bool armed)
     {
-        if (!armed)
-        {
-            StopSequence();
-            if (_entityAnimation != null) try { _entityAnimation.StopAbilityAnimation(); } catch { }
-            return;
-        }
-        StopSequence();
-        BeginAnimatorAction();
-        string armedState = FirstExisting("Spell2_Idle", _binding != null ? _binding.idleClip : null, IdleClipName);
-        if (!PlayState(armedState, 0.06f, 1f)) EndAnimatorAction();
+        // Armed W may last four seconds. Keep Shape of Dreams locomotion/death authoritative for
+        // that whole window; only the actual empowered swing acquires a short action lease.
+        _wArmed = armed;
     }
 
     public void PlayOneShot(string name)
@@ -152,6 +147,11 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         }
         if (IsGodKingSkin) SetGodKingWolfVisible(false);
         EndAnimatorAction();
+    }
+
+    private void OnDisable()
+    {
+        StopSequence();
     }
 
     private void OnDestroy()
