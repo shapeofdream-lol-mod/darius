@@ -8,7 +8,6 @@ internal static class DariusModelMeshProcessor
     public static void ProcessPrefab(GameObject root, string variant, string generatedRoot)
     {
         if (root == null) return;
-
         SkinnedMeshRenderer[] renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
         for (int i = 0; i < renderers.Length; i++)
         {
@@ -17,7 +16,6 @@ internal static class DariusModelMeshProcessor
             renderer.updateWhenOffscreen = false;
             renderer.localBounds = ExpandBounds(renderer, 1.20f);
         }
-
         if (string.Equals(variant, "GodKing", StringComparison.OrdinalIgnoreCase))
             SplitAuthoredHiddenSubmeshes(renderers, generatedRoot);
     }
@@ -31,16 +29,13 @@ internal static class DariusModelMeshProcessor
         return bounds;
     }
 
-    private static void SplitAuthoredHiddenSubmeshes(
-        SkinnedMeshRenderer[] renderers,
-        string generatedRoot)
+    private static void SplitAuthoredHiddenSubmeshes(SkinnedMeshRenderer[] renderers, string generatedRoot)
     {
         for (int r = 0; r < renderers.Length; r++)
         {
             SkinnedMeshRenderer source = renderers[r];
             Mesh mesh = source != null ? source.sharedMesh : null;
-            if (mesh == null || mesh.subMeshCount <= 1) continue;
-
+            if (mesh == null) continue;
             Material[] materials = source.sharedMaterials;
             bool[] hidden = new bool[mesh.subMeshCount];
             bool hasHidden = false;
@@ -52,7 +47,18 @@ internal static class DariusModelMeshProcessor
                 hasHidden |= hidden[i];
                 hasVisible |= !hidden[i];
             }
-            if (!hasHidden || !hasVisible) continue;
+            if (!hasHidden) continue;
+
+            string stem = SanitizeAssetName(source.name + "_" + r);
+            if (!hasVisible)
+            {
+                Mesh hiddenOnly = SaveMeshCopy(mesh, generatedRoot, stem + "_hidden");
+                hiddenOnly.name = mesh.name + "_Hidden";
+                EditorUtility.SetDirty(hiddenOnly);
+                source.sharedMesh = hiddenOnly;
+                source.enabled = false;
+                continue;
+            }
 
             Mesh visibleMesh = UnityEngine.Object.Instantiate(mesh);
             Mesh hiddenMesh = UnityEngine.Object.Instantiate(mesh);
@@ -63,12 +69,8 @@ internal static class DariusModelMeshProcessor
                 if (hidden[i]) visibleMesh.SetTriangles(Array.Empty<int>(), i, false);
                 else hiddenMesh.SetTriangles(Array.Empty<int>(), i, false);
             }
-
-            string stem = SanitizeAssetName(source.name + "_" + r);
-            string visiblePath = AssetDatabase.GenerateUniqueAssetPath(generatedRoot + "/" + stem + "_visible.asset");
-            string hiddenPath = AssetDatabase.GenerateUniqueAssetPath(generatedRoot + "/" + stem + "_hidden.asset");
-            AssetDatabase.CreateAsset(visibleMesh, visiblePath);
-            AssetDatabase.CreateAsset(hiddenMesh, hiddenPath);
+            SaveMesh(visibleMesh, generatedRoot, stem + "_visible");
+            SaveMesh(hiddenMesh, generatedRoot, stem + "_hidden");
             source.sharedMesh = visibleMesh;
 
             Material[] visibleMaterials = (Material[])materials.Clone();
@@ -90,6 +92,19 @@ internal static class DariusModelMeshProcessor
         }
     }
 
+    private static Mesh SaveMeshCopy(Mesh source, string root, string stem)
+    {
+        Mesh copy = UnityEngine.Object.Instantiate(source);
+        SaveMesh(copy, root, stem);
+        return copy;
+    }
+
+    private static void SaveMesh(Mesh mesh, string root, string stem)
+    {
+        string path = AssetDatabase.GenerateUniqueAssetPath(root + "/" + stem + ".asset");
+        AssetDatabase.CreateAsset(mesh, path);
+    }
+
     private static bool IsAuthoredHiddenMaterial(Material material)
     {
         if (material == null || string.IsNullOrEmpty(material.name)) return false;
@@ -100,8 +115,7 @@ internal static class DariusModelMeshProcessor
     private static string SanitizeAssetName(string value)
     {
         if (string.IsNullOrEmpty(value)) return "mesh";
-        foreach (char c in System.IO.Path.GetInvalidFileNameChars())
-            value = value.Replace(c, '_');
+        foreach (char c in System.IO.Path.GetInvalidFileNameChars()) value = value.Replace(c, '_');
         return value.Replace('/', '_').Replace('\\', '_');
     }
 }
