@@ -72,11 +72,14 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     {
         if (_entityAnimation == null) return;
         EnsureWLocomotionSlots();
+        DariusNativeSkinProfile profile = DariusNativeSkinProfiles.Find(VariantKey);
+        string armedIdle = profile != null && !string.IsNullOrEmpty(profile.WIdle) ? profile.WIdle : "Spell2_Idle";
+        string armedRun = profile != null && !string.IsNullOrEmpty(profile.WRun) ? profile.WRun : "Spell2_Run";
         AnimationClip idle = _wArmedPresentation
-            ? (FindClip("Spell2_Idle") ?? FindClip(IdleClipName))
+            ? (FindClip(armedIdle) ?? FindClip(IdleClipName))
             : FindClip(IdleClipName);
         AnimationClip run = _wArmedPresentation
-            ? (FindClip("Spell2_Run") ?? FindClip(RunClipName))
+            ? (FindClip(armedRun) ?? FindClip(RunClipName))
             : FindClip(RunClipName);
 
         int idleBindings = ReplaceLocomotionSlots(_wIdleSlots, idle);
