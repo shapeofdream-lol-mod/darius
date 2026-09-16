@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
-using UnityEngine;
 
 public static class DariusModelBundleBuilder
 {
@@ -27,16 +26,8 @@ public static class DariusModelBundleBuilder
 
     public static void BuildAllBatch()
     {
-        try
-        {
-            BuildAll();
-            EditorApplication.Exit(0);
-        }
-        catch (Exception e)
-        {
-            Debug.LogException(e);
-            EditorApplication.Exit(1);
-        }
+        try { BuildAll(); EditorApplication.Exit(0); }
+        catch (Exception e) { UnityEngine.Debug.LogException(e); EditorApplication.Exit(1); }
     }
 
     [MenuItem("Darius/Build Native Model Bundle")]
@@ -47,8 +38,7 @@ public static class DariusModelBundleBuilder
         string workRoot = ResolveWorkRoot(repoRoot);
 
         EnsureAssetFolder(SourceRoot);
-        if (AssetDatabase.IsValidFolder(GeneratedRoot))
-            AssetDatabase.DeleteAsset(GeneratedRoot);
+        if (AssetDatabase.IsValidFolder(GeneratedRoot)) AssetDatabase.DeleteAsset(GeneratedRoot);
         EnsureAssetFolder(GeneratedRoot);
 
         List<string> prefabs = new List<string>();
@@ -56,46 +46,28 @@ public static class DariusModelBundleBuilder
         {
             string source = Path.Combine(fbxRoot, skin.File);
             string assetPath = SourceRoot + "/" + skin.File;
-
             File.Copy(source, ToProjectAbsolute(assetPath), true);
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
             DariusModelImportUtility.ConfigureModelImporter(assetPath, skin.Variant);
             DariusModelMaterialBinder.BindImportedTextures(assetPath);
 
-            string prefab = DariusModelPrefabBuilder.Build(
-                assetPath,
-                GeneratedRoot + "/darius_" + skin.Variant.ToLowerInvariant() + ".prefab",
-                skin.Variant);
-
-            prefabs.Add(prefab);
+            string prefab = DariusModelPrefabBuilder.Build(assetPath, GeneratedRoot + "/darius_" + skin.Variant.ToLowerInvariant() + ".prefab", skin.Variant)?.name;
+            string prefabPath = GeneratedRoot + "/darius_" + skin.Variant.ToLowerInvariant() + ".prefab";
+            if (AssetDatabase.LoadAssetAtPath<UnityEngine.GameObject>(prefabPath) != null)
+                prefabs.Add(prefabPath);
         }
 
-        AssetDatabase.SaveAssets();
-        AssetBundleBuild build = new AssetBundleBuild
-        {
-            assetBundleName = BundleName,
-            assetNames = prefabs.ToArray()
-        };
-
+        AssetBundleBuild build = new AssetBundleBuild { assetBundleName = BundleName, assetNames = prefabs.ToArray() };
         string output = Path.Combine(workRoot, "bundle-output");
         Directory.CreateDirectory(output);
-        BuildPipeline.BuildAssetBundles(
-            output,
-            new[] { build },
-            BuildAssetBundleOptions.ChunkBasedCompression,
-            BuildTarget.StandaloneWindows64);
-
-        File.Copy(
-            Path.Combine(output, BundleName),
-            Path.Combine(repoRoot, "assets", "models", BundleName),
-            true);
+        BuildPipeline.BuildAssetBundles(output, new[] { build }, BuildAssetBundleOptions.ChunkBasedCompression, BuildTarget.StandaloneWindows64);
+        File.Copy(Path.Combine(output, BundleName), Path.Combine(repoRoot, "assets", "models", BundleName), true);
     }
 
     private static string RequireDirectoryEnvironment(string key)
     {
         string value = Environment.GetEnvironmentVariable(key);
-        if (string.IsNullOrEmpty(value) || !Directory.Exists(value))
-            throw new DirectoryNotFoundException(key);
+        if (string.IsNullOrEmpty(value) || !Directory.Exists(value)) throw new DirectoryNotFoundException(key);
         return value;
     }
 
@@ -107,12 +79,7 @@ public static class DariusModelBundleBuilder
 
     private static void EnsureAssetFolder(string path)
     {
-        if (!AssetDatabase.IsValidFolder(path))
-        {
-            string parent = Path.GetDirectoryName(path);
-            string name = Path.GetFileName(path);
-            AssetDatabase.CreateFolder(parent, name);
-        }
+        if (!AssetDatabase.IsValidFolder(path)) AssetDatabase.CreateFolder(Path.GetDirectoryName(path), Path.GetFileName(path));
     }
 
     private static string ToProjectAbsolute(string assetPath)
