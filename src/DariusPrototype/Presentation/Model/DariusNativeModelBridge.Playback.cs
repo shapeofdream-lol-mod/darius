@@ -67,12 +67,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         PlayAction(FirstExisting(_binding != null ? _binding.wClip : null, "Spell2"));
     }
 
-    public void SetWArmed(bool armed)
-    {
-        // The four-second armed window is gameplay/VFX state only. Shape of Dreams remains the
-        // locomotion/death owner; the actual empowered swing acquires its own short action lease.
-    }
-
     public void PlayOneShot(string name)
     {
         string resolved = name;
@@ -148,11 +142,13 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private void OnDisable()
     {
+        ResetWLocomotionOverrides();
         StopSequence();
     }
 
     private void OnDestroy()
     {
+        ResetWLocomotionOverrides();
         StopSequence();
     }
 }
