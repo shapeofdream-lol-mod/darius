@@ -1,6 +1,5 @@
 #if UNITY_EDITOR
 using System;
-using System.IO;
 using UnityEditor;
 
 internal static class DariusModelImportUtility
@@ -16,6 +15,9 @@ internal static class DariusModelImportUtility
         modelImporter.importMaterials = true;
         modelImporter.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
         modelImporter.animationType = ModelImporterAnimationType.Generic;
+        modelImporter.optimizeGameObjects = false;
+        modelImporter.importCameras = false;
+        modelImporter.importLights = false;
         modelImporter.clipAnimations = NormalizeClips(modelImporter.defaultClipAnimations);
         modelImporter.SaveAndReimport();
     }
@@ -44,11 +46,6 @@ internal static class DariusModelImportUtility
     private static string NormalizeClipName(string name)
     {
         return string.IsNullOrEmpty(name) ? name : name.Replace(" ", "_").Replace(".", "_");
-    }
-
-    public static string GetDirectory(string path)
-    {
-        return Path.GetDirectoryName(path)?.Replace("\\", "/");
     }
 }
 #endif
