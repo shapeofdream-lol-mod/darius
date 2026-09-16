@@ -29,7 +29,7 @@ internal static class DariusModelPrefabBuilder
         model.transform.localScale = Vector3.one * profile.Scale;
 
         ConfigureAnimator(model, controller);
-        DariusModelMeshProcessor.ProcessPrefab(model, profile.Variant, generatedRoot);
+        DariusModelMeshProcessor.ProcessPrefab(model, profile, generatedRoot);
 
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
         UnityEngine.Object.DestroyImmediate(root);
