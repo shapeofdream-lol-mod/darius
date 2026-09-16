@@ -31,6 +31,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     internal void Initialize(GameObject modelRoot, DariusSkinModelBinding binding)
     {
+        ResetWLocomotionOverrides();
         EndAnimatorAction();
         _binding = binding;
         _modelRoot = modelRoot;
@@ -57,6 +58,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     {
         if (hero == null)
         {
+            ResetWLocomotionOverrides();
             StopSequence();
             _hero = null;
             _entityAnimation = null;
@@ -67,6 +69,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
         if (!ReferenceEquals(_hero, hero))
         {
+            ResetWLocomotionOverrides();
             StopSequence();
             _hero = hero;
             _entityAnimation = null;
@@ -87,6 +90,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         {
             _entityAnimation.SetupModel();
             _entityAnimationModelSetup = true;
+            if (_wArmedPresentation) ApplyWLocomotionOverrides();
             DariusLog.Info("NATIVE-MODEL", "EntityAnimation.SetupModel completed skin=" + VariantKey +
                 " animator=" + (_entityAnimation.animator != null));
         }
