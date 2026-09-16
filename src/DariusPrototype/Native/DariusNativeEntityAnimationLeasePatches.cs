@@ -41,10 +41,25 @@ internal static class DariusNativeEntityAnimationAbilityPatch
 
 internal static class DariusNativeEntityAnimationLease
 {
+    private static readonly HashSet<EntityAnimation> Owned = new HashSet<EntityAnimation>();
+
+    public static void Acquire(EntityAnimation animation)
+    {
+        if (animation != null) Owned.Add(animation);
+    }
+
+    public static void Release(EntityAnimation animation)
+    {
+        if (animation != null) Owned.Remove(animation);
+    }
+
     public static bool IsOwned(EntityAnimation animation)
     {
-        Hero_Darius hero = DariusNativeAnimationMode.FindHero(animation);
-        DariusNativeModelBridge bridge = hero != null ? hero.NativeModelBridge : null;
-        return bridge != null && bridge.OwnsAnimatorAction;
+        return animation != null && Owned.Contains(animation);
+    }
+
+    public static void Clear()
+    {
+        Owned.Clear();
     }
 }
