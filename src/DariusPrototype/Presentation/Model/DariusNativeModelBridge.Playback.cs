@@ -46,6 +46,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private IEnumerator PlayQSequence(bool instant)
     {
+        BeginAnimatorAction();
         string action = FirstExisting(_binding != null ? _binding.qClip : null, "Spell1");
         string intro = _binding != null ? _binding.qIntroClip : null;
         if (!instant && !string.IsNullOrEmpty(intro) && FindClip(intro) != null)
@@ -57,7 +58,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         float duration = instant ? Mathf.Clamp(raw, 0.42f, 0.70f) : raw;
         PlayState(action, 0.04f, raw / Mathf.Max(0.05f, duration));
         yield return new WaitForSeconds(duration);
-        _animator.speed = 1f;
+        EndAnimatorAction();
         _sequence = null;
     }
 
@@ -70,12 +71,14 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     {
         if (!armed)
         {
+            StopSequence();
             if (_entityAnimation != null) try { _entityAnimation.StopAbilityAnimation(); } catch { }
             return;
         }
-        string armedState = FirstExisting(
-            "Spell2_Idle", _binding != null ? _binding.idleClip : null, IdleClipName);
-        PlayState(armedState, 0.06f, 1f);
+        StopSequence();
+        BeginAnimatorAction();
+        string armedState = FirstExisting("Spell2_Idle", _binding != null ? _binding.idleClip : null, IdleClipName);
+        if (!PlayState(armedState, 0.06f, 1f)) EndAnimatorAction();
     }
 
     public void PlayOneShot(string name)
@@ -100,15 +103,37 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
                 state, FirstExisting(_binding != null ? _binding.rClip : null, "Spell4"), StringComparison.Ordinal))
             _sequence = StartCoroutine(PlayGodKingR(state));
         else
-            PlayState(state, 0.05f, 1f);
+            _sequence = StartCoroutine(PlayTimedAction(state));
+    }
+
+    private IEnumerator PlayTimedAction(string state)
+    {
+        BeginAnimatorAction();
+        if (!PlayState(state, 0.05f, 1f))
+        {
+            EndAnimatorAction();
+            _sequence = null;
+            yield break;
+        }
+        yield return new WaitForSeconds(ClipLength(state, 0.65f));
+        EndAnimatorAction();
+        _sequence = null;
     }
 
     private IEnumerator PlayGodKingR(string state)
     {
+        BeginAnimatorAction();
         SetGodKingWolfVisible(true);
-        PlayState(state, 0.05f, 1f);
+        if (!PlayState(state, 0.05f, 1f))
+        {
+            SetGodKingWolfVisible(false);
+            EndAnimatorAction();
+            _sequence = null;
+            yield break;
+        }
         yield return new WaitForSeconds(ClipLength(state, 0.6f));
         SetGodKingWolfVisible(false);
+        EndAnimatorAction();
         _sequence = null;
     }
 
@@ -126,7 +151,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _sequence = null;
         }
         if (IsGodKingSkin) SetGodKingWolfVisible(false);
-        if (_animator != null) _animator.speed = 1f;
+        EndAnimatorAction();
     }
 
     private void OnDestroy()
