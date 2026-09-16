@@ -30,11 +30,7 @@ function Format-ProcessArgument {
 }
 
 function Write-UnityLogDelta {
-    param(
-        [string]$Path,
-        [ref]$Offset
-    )
-
+    param([string]$Path, [ref]$Offset)
     if (-not (Test-Path $Path -PathType Leaf)) { return }
 
     $stream = $null
@@ -57,27 +53,17 @@ function Write-UnityLogDelta {
             Write-Host -NoNewline ([System.Text.Encoding]::UTF8.GetString($buffer, 0, $read))
         }
     }
-    catch {
-        # The live tail is diagnostic only. The Unity process exit code remains authoritative.
-    }
+    catch { }
     finally {
         if ($null -ne $stream) { $stream.Dispose() }
     }
 }
 
 function Invoke-UnityChecked {
-    param(
-        [string]$Exe,
-        [string[]]$Arguments,
-        [string]$LogPath
-    )
-
+    param([string]$Exe, [string[]]$Arguments, [string]$LogPath)
     $allArguments = @($Arguments) + @("-logFile", $LogPath)
     Write-Host "> $Exe $($allArguments -join ' ')"
 
-    # Unity.exe is a Windows GUI-subsystem process. Start it explicitly, then tail its log with
-    # FileShare.ReadWrite while it runs. This gives PowerShell/Agent callers a real wait boundary
-    # and visible progress even though Unity keeps the log file open.
     $argumentLine = ($allArguments | ForEach-Object { Format-ProcessArgument $_ }) -join ' '
     $process = Start-Process -FilePath $Exe -ArgumentList $argumentLine -PassThru
     [int64]$offset = 0
@@ -99,11 +85,21 @@ $BlenderExe = (Resolve-Path $BlenderExe).Path
 $RepoRoot = (Resolve-Path $RepoRoot).Path
 $modelRoot = Join-Path $RepoRoot "assets\models"
 $converter = Join-Path $PSScriptRoot "convert_glb_to_fbx.py"
-$editorBuilder = Join-Path $PSScriptRoot "Editor\DariusModelBundleBuilder.cs"
+$editorSourceDir = Join-Path $PSScriptRoot "Editor"
+$editorFiles = @(
+    "DariusModelBundleBuilder.cs",
+    "DariusModelImportUtility.cs",
+    "DariusModelMaterialBinder.cs",
+    "DariusModelMeshProcessor.cs",
+    "DariusModelPrefabBuilder.cs"
+)
 
 if (-not (Test-Path $modelRoot -PathType Container)) { throw "Model asset directory missing: $modelRoot" }
 if (-not (Test-Path $converter -PathType Leaf)) { throw "Converter missing: $converter" }
-if (-not (Test-Path $editorBuilder -PathType Leaf)) { throw "Unity builder missing: $editorBuilder" }
+foreach ($name in $editorFiles) {
+    $path = Join-Path $editorSourceDir $name
+    if (-not (Test-Path $path -PathType Leaf)) { throw "Unity editor pipeline file missing: $path" }
+}
 
 $workBase = Join-Path $RepoRoot "build\native-assets-work"
 $workName = (Get-Date -Format "yyyyMMdd-HHmmss") + "_" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -128,17 +124,9 @@ try {
         $src = Join-Path $modelRoot $model.Input
         if (-not (Test-Path $src -PathType Leaf)) { throw "Required GLB missing: $src" }
         $dst = Join-Path $fbxRoot $model.Output
-        Invoke-Checked $BlenderExe @(
-            "--background",
-            "--python", $converter,
-            "--",
-            $src,
-            $dst
-        )
+        Invoke-Checked $BlenderExe @("--background", "--python", $converter, "--", $src, $dst)
     }
 
-    # Create a clean throwaway Unity project under repository build/ so all generated state and
-    # diagnostic logs are easy to inspect and remain covered by the repository build ignore rule.
     Invoke-UnityChecked $UnityExe @(
         "-batchmode",
         "-quit",
@@ -146,8 +134,6 @@ try {
         "-buildTarget", "StandaloneWindows64"
     ) $createLog
 
-    # FBX texture references are relative. Put Blender's exported PNG sidecars beside the FBX
-    # destination before Unity imports the models so ModelImporter can bind them normally.
     $textureFiles = @(Get-ChildItem -Path $fbxRoot -Filter "*.png" -File)
     if ($textureFiles.Count -eq 0) { throw "Blender produced no native model texture sidecars in: $fbxRoot" }
     $unitySourceDir = Join-Path $unityProject "Assets\DariusSource"
@@ -159,7 +145,10 @@ try {
 
     $editorDir = Join-Path $unityProject "Assets\Editor"
     New-Item -ItemType Directory -Path $editorDir -Force | Out-Null
-    Copy-Item $editorBuilder (Join-Path $editorDir "DariusModelBundleBuilder.cs") -Force
+    foreach ($name in $editorFiles) {
+        Copy-Item (Join-Path $editorSourceDir $name) (Join-Path $editorDir $name) -Force
+    }
+    Write-Host "Unity editor pipeline staged: $($editorFiles.Count) files"
 
     $oldRepo = $env:DARIUS_REPO_ROOT
     $oldFbx = $env:DARIUS_MODEL_FBX_DIR
