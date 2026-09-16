@@ -9,29 +9,39 @@ public static class DariusModelMaterialBinder
     public static void BindImportedTextures(string assetPath)
     {
         string folder = Path.GetDirectoryName(assetPath);
-        if (string.IsNullOrEmpty(folder)) return;
+        string modelStem = Path.GetFileNameWithoutExtension(assetPath);
+        if (string.IsNullOrEmpty(folder) || string.IsNullOrEmpty(modelStem))
+            throw new InvalidOperationException("Invalid imported model path: " + assetPath);
 
+        int materialCount = 0;
+        int boundCount = 0;
         foreach (UnityEngine.Object asset in AssetDatabase.LoadAllAssetsAtPath(assetPath))
         {
             Material material = asset as Material;
             if (material == null) continue;
+            materialCount++;
 
-            Texture2D texture = FindTexture(folder, material.name);
+            Texture2D texture = FindTexture(folder, modelStem, material.name);
             if (texture == null)
-            {
-                Debug.LogWarning("[DariusNativeAssets] no texture match material=" + material.name + " asset=" + assetPath);
-                continue;
-            }
+                throw new InvalidOperationException(
+                    "No color texture match model=" + modelStem + " material=" + material.name);
 
             material.mainTexture = texture;
             EditorUtility.SetDirty(material);
-            Debug.Log("[DariusNativeAssets] bound material=" + material.name + " texture=" + texture.name);
+            boundCount++;
+            Debug.Log("[DariusNativeAssets] bound model=" + modelStem +
+                " material=" + material.name + " texture=" + texture.name);
         }
 
+        if (materialCount == 0)
+            throw new InvalidOperationException("Imported model has no materials: " + assetPath);
+        if (boundCount != materialCount)
+            throw new InvalidOperationException("Material binding incomplete model=" + modelStem +
+                " materials=" + materialCount + " bound=" + boundCount);
         AssetDatabase.SaveAssets();
     }
 
-    private static Texture2D FindTexture(string folder, string materialName)
+    private static Texture2D FindTexture(string folder, string modelStem, string materialName)
     {
         string materialKey = NormalizeMaterialKey(materialName);
         if (string.IsNullOrEmpty(materialKey)) return null;
@@ -40,13 +50,17 @@ public static class DariusModelMaterialBinder
         Texture2D best = null;
         string bestPath = null;
         int bestScore = -1;
+        string requiredPrefix = modelStem + "__tex_";
 
         for (int i = 0; i < guids.Length; i++)
         {
             string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+            string stem = Path.GetFileNameWithoutExtension(path);
+            if (string.IsNullOrEmpty(stem) ||
+                !stem.StartsWith(requiredPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+
             Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
             if (texture == null) continue;
-
             int score = ScoreTexture(materialKey, texture.name);
             if (score < bestScore) continue;
             if (score == bestScore && bestPath != null && string.CompareOrdinal(path, bestPath) >= 0) continue;
