@@ -1,9 +1,4 @@
-# Run with Blender in background mode, for example:
-# blender --background --python tools/DariusUnityAssets/convert_glb_to_fbx.py -- input.glb output.fbx
-#
-# This is an editor/build-time tool only. The shipped mod does not depend on Blender or a glTF
-# runtime importer; Unity receives a normal FBX and packages it into an AssetBundle.
-
+# Build-time GLB -> FBX conversion for the native Unity model bundle.
 import os
 import re
 import sys
@@ -24,25 +19,82 @@ def safe_name(value):
 def export_textures(dst):
     output_dir = os.path.dirname(dst)
     stem = os.path.splitext(os.path.basename(dst))[0]
-    exported = 0
+    exported = {}
     for index, image in enumerate(bpy.data.images):
         if image is None or image.name in {"Render Result", "Viewer Node"} or image.size[0] <= 0 or image.size[1] <= 0:
             continue
-        texture_path = os.path.join(output_dir, f"{stem}__tex_{index:02d}_{safe_name(image.name)}.png")
-        image.filepath_raw = texture_path
+        filename = f"{stem}__tex_{index:02d}_{safe_name(image.name)}.png"
+        image.filepath_raw = os.path.join(output_dir, filename)
         image.file_format = "PNG"
         image.save()
-        exported += 1
-    if exported == 0:
+        exported[image.name] = filename
+    if not exported:
         raise RuntimeError(f"GLB contains no exportable textures: {dst}")
-    print(f"Darius native texture export complete: {dst} textures={exported}")
+    print(f"Darius native texture export complete: {dst} textures={len(exported)}")
+    return exported
+
+
+def linked_image(socket, visited=None):
+    if socket is None or not getattr(socket, "is_linked", False):
+        return None
+    visited = visited or set()
+    for link in socket.links:
+        node = link.from_node
+        if node is None:
+            continue
+        key = node.as_pointer()
+        if key in visited:
+            continue
+        visited.add(key)
+        if node.type == "TEX_IMAGE" and node.image is not None:
+            return node.image
+        for child in node.inputs:
+            image = linked_image(child, visited)
+            if image is not None:
+                return image
+    return None
+
+
+def base_color_image(material):
+    if material is None or not material.use_nodes or material.node_tree is None:
+        return None
+    for node in material.node_tree.nodes:
+        if node.type != "BSDF_PRINCIPLED":
+            continue
+        socket = node.inputs.get("Base Color")
+        image = linked_image(socket)
+        if image is not None:
+            return image
+    return None
+
+
+def export_material_map(dst, exported):
+    stem = os.path.splitext(os.path.basename(dst))[0]
+    path = os.path.join(os.path.dirname(dst), f"{stem}__materials.tsv")
+    lines = []
+    for material in bpy.data.materials:
+        if material is None or material.users <= 0:
+            continue
+        image = base_color_image(material)
+        if image is None:
+            raise RuntimeError(f"Material has no linked base-color image: {material.name}")
+        filename = exported.get(image.name)
+        if filename is None:
+            raise RuntimeError(f"Base-color image was not exported: material={material.name} image={image.name}")
+        if any(c in material.name for c in "\t\r\n"):
+            raise RuntimeError(f"Material name cannot be represented in TSV manifest: {material.name!r}")
+        lines.append(f"{material.name}\t{filename}")
+    if not lines:
+        raise RuntimeError(f"GLB contains no material bindings: {dst}")
+    with open(path, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("\n".join(lines) + "\n")
+    print(f"Darius native material map complete: {path} materials={len(lines)}")
 
 
 def main():
     args = args_after_double_dash()
     if len(args) != 2:
         raise SystemExit("usage: blender --background --python convert_glb_to_fbx.py -- <input.glb> <output.fbx>")
-
     src = os.path.abspath(args[0])
     dst = os.path.abspath(args[1])
     if not os.path.isfile(src):
@@ -51,12 +103,8 @@ def main():
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=src, import_pack_images=True, merge_vertices=False)
-
-    # Unity's FBX importer did not recover Blender-embedded media from these generated files.
-    # Externalize every imported GLB image beside the FBX and let the FBX reference it relatively.
-    export_textures(dst)
-
-    # Preserve all imported actions. Unity will decide which clips loop when creating the bundle.
+    exported = export_textures(dst)
+    export_material_map(dst, exported)
     for action in bpy.data.actions:
         action.use_fake_user = True
 
