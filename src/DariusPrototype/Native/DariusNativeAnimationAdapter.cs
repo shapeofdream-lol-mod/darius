@@ -9,13 +9,18 @@ internal static class DariusNativeAnimationAdapter
 {
     public static bool PlayAbility(Hero hero, string animationName, bool instant = false)
     {
+        Vector3 direction = hero != null && hero.transform != null ? hero.transform.forward : Vector3.forward;
+        return PlayAbility(hero, animationName, direction, instant);
+    }
+
+    public static bool PlayAbility(Hero hero, string animationName, Vector3 direction, bool instant = false)
+    {
         if (hero == null || string.IsNullOrEmpty(animationName)) return false;
         DariusNativeModelBridge bridge = GetBridge(hero);
         if (bridge == null) return false;
 
         try
         {
-            Vector3 direction = hero.transform != null ? hero.transform.forward : Vector3.forward;
             switch (animationName)
             {
                 case "Spell1":
