@@ -19,7 +19,7 @@ public static class DariusSkinAnimationHooks
 
     public static void PlayW(Hero hero, Vector3 direction)
     {
-        if (DariusNativeAnimationAdapter.PlayAbility(hero, "Spell2")) return;
+        if (DariusNativeAnimationAdapter.PlayAbility(hero, "Spell2", direction)) return;
         DariusTravelerModelInstance traveler = FindTraveler(hero);
         if (traveler != null) { traveler.PlayWAttack(direction); return; }
         DariusModelAnimationRuntime.DariusRetargetApi.Play(hero, "Spell2", false, 1f);
@@ -59,7 +59,7 @@ public static class DariusSkinAnimationHooks
     public static void PlayAttack(Hero hero, bool alternate, bool critical, Vector3 direction)
     {
         string clip = critical ? "Crit" : (alternate ? "Attack2" : "Attack1");
-        if (DariusNativeAnimationAdapter.PlayAbility(hero, clip)) return;
+        if (DariusNativeAnimationAdapter.PlayAbility(hero, clip, direction)) return;
         DariusTravelerModelInstance traveler = FindTraveler(hero);
         if (traveler != null) { traveler.PlayAttack(alternate, critical, direction); return; }
         DariusModelAnimationRuntime.DariusRetargetApi.Play(hero, clip, false, 1f);
