@@ -27,30 +27,28 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         for (int i = 0; i < all.Length; i++)
         {
             Transform t = all[i];
-            if (t != null && !string.IsNullOrEmpty(t.name) && !_anchors.ContainsKey(t.name))
-                _anchors.Add(t.name, t);
+            if (t != null && !string.IsNullOrEmpty(t.name) && !_anchors.ContainsKey(t.name)) _anchors.Add(t.name, t);
         }
     }
 
     private void ConfigureEntityModel()
     {
         if (_entityModel == null || _modelRoot == null) return;
-
         Renderer[] allRenderers = _modelRoot.GetComponentsInChildren<Renderer>(true);
         List<Renderer> visibleRenderers = new List<Renderer>(allRenderers.Length);
-        List<Renderer> godKingWolfRenderers = IsGodKingSkin ? new List<Renderer>() : null;
+        List<Renderer> authoredHidden = IsGodKingSkin ? new List<Renderer>() : null;
         for (int i = 0; i < allRenderers.Length; i++)
         {
             Renderer renderer = allRenderers[i];
             if (renderer == null) continue;
             SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
             if (skinned != null) skinned.updateWhenOffscreen = false;
-            if (IsGodKingSkin && RendererContainsMaterial(renderer, "Wolf_Mat"))
-                godKingWolfRenderers.Add(renderer);
-            if (!IsHiddenPresentationObject(renderer.gameObject)) visibleRenderers.Add(renderer);
+            bool hidden = IsGodKingSkin && IsHiddenPresentationRenderer(renderer);
+            if (hidden) authoredHidden.Add(renderer);
+            else visibleRenderers.Add(renderer);
         }
 
-        _godKingWolfRenderers = godKingWolfRenderers != null ? godKingWolfRenderers.ToArray() : null;
+        _godKingWolfRenderers = authoredHidden != null ? authoredHidden.ToArray() : null;
         _entityModel.bodyRenderers = visibleRenderers.ToArray();
         AnimationClip run = FindClip(RunClipName);
         if (run != null) _entityModel.runForwardClip = run;
