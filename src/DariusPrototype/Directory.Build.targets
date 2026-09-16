@@ -1,0 +1,11 @@
+<Project>
+  <Target Name="VerifyNativeModelBundleFreshness" BeforeTargets="VerifyPackageAssets">
+    <PropertyGroup>
+      <_NativeBundleStamp>$(ModRootDir)\assets\models\darius_models.bundle.fingerprint</_NativeBundleStamp>
+      <_NativeBundleCheck>$(ModRootDir)\tools\DariusUnityAssets\Test-NativeModelBundle.ps1</_NativeBundleCheck>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(_NativeBundleStamp)')"
+           Text="Native model bundle fingerprint is missing. Rebuild with tools/DariusUnityAssets/Build-NativeModels.ps1." />
+    <Exec Command="pwsh -NoProfile -File &quot;$(_NativeBundleCheck)&quot; -RepoRoot &quot;$(ModRootDir)&quot;" />
+  </Target>
+</Project>
