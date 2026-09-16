@@ -14,10 +14,12 @@ internal static class DariusModelOverlayMeshBuilder
     {
         if (root == null || profile == null || bundleAssets == null) return;
         SkinnedMeshRenderer[] renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        int sourceIndex = 0;
         for (int r = 0; r < renderers.Length; r++)
         {
             SkinnedMeshRenderer source = renderers[r];
             if (!IsOverlaySource(source)) continue;
+            int stableIndex = sourceIndex++;
             Material[] materials = source.sharedMaterials;
             HashSet<uint> emitted = new HashSet<uint>();
             int count = Math.Min(materials.Length, source.sharedMesh.subMeshCount);
@@ -27,7 +29,7 @@ internal static class DariusModelOverlayMeshBuilder
                 if (material == null) continue;
                 uint hash = RiotStringHash(material.name);
                 if (!emitted.Add(hash)) continue;
-                string path = CreateFilteredMesh(source.sharedMesh, materials, hash, profile, r, generatedRoot);
+                string path = CreateFilteredMesh(source.sharedMesh, materials, hash, profile, stableIndex, generatedRoot);
                 bundleAssets.Add(path);
             }
         }
@@ -45,7 +47,7 @@ internal static class DariusModelOverlayMeshBuilder
         Material[] materials,
         uint materialHash,
         DariusNativeSkinProfile profile,
-        int rendererIndex,
+        int sourceIndex,
         string generatedRoot)
     {
         Mesh copy = UnityEngine.Object.Instantiate(source);
@@ -57,7 +59,7 @@ internal static class DariusModelOverlayMeshBuilder
                 copy.SetTriangles(Array.Empty<int>(), i, false);
         }
         string variant = profile.Variant.Replace(" ", string.Empty).ToLowerInvariant();
-        string path = generatedRoot + "/overlay_" + variant + "_" + rendererIndex + "_" +
+        string path = generatedRoot + "/overlay_" + variant + "_" + sourceIndex + "_" +
             materialHash.ToString("x8") + ".asset";
         AssetDatabase.CreateAsset(copy, path);
         return path;
