@@ -31,7 +31,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     internal void Initialize(GameObject modelRoot, DariusSkinModelBinding binding)
     {
-        _ownsAnimatorAction = false;
+        EndAnimatorAction();
         _binding = binding;
         _modelRoot = modelRoot;
         _entityModel = GetComponent<EntityModel>();
@@ -61,6 +61,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _hero = null;
             _entityAnimation = null;
             _entityAnimationModelSetup = false;
+            SyncAnimatorLease();
             return;
         }
 
@@ -78,6 +79,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         {
             _entityAnimation = animation;
             _entityAnimationModelSetup = false;
+            SyncAnimatorLease();
         }
         if (_entityAnimation == null || _entityAnimationModelSetup) return;
 
