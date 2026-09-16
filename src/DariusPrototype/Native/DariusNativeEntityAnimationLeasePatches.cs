@@ -55,7 +55,7 @@ internal static class DariusNativeEntityAnimationLease
 
     public static bool IsOwned(EntityAnimation animation)
     {
-        return animation != null && Owned.Contains(animation);
+        return animation != null && Owned.Count != 0 && Owned.Contains(animation);
     }
 
     public static void Clear()
