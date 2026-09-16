@@ -23,7 +23,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         int hash = Animator.StringToHash(stateName);
         if (!_animator.HasState(0, hash))
         {
-            DariusLog.Warn("NATIVE-ANIM", "Animator state missing skin=" + VariantKey+
+            DariusLog.Warn("NATIVE-ANIM", "Animator state missing skin=" + VariantKey +
                 " state=" + stateName + " clip=" + name);
             return false;
         }
@@ -36,32 +36,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     private static string ToAnimatorStateName(string clipName)
     {
         return clipName.Replace('.', '_').Replace('/', '_').Replace('\\', '_');
-    }
-
-    private bool IsRunningState()
-    {
-        if (_animator == null) return false;
-        AnimatorStateInfo state = _animator.GetCurrentAnimatorStateInfo(0);
-        return state.IsName(ToAnimatorStateName(RunClipName));
-    }
-
-    private void ApplyActionFacing(Vector3 direction)
-    {
-        if (_modelRoot == null) return;
-        direction.y = 0f;
-        if (direction.sqrMagnitude < 0.001f && _hero != null) direction = _hero.transform.forward;
-        if (direction.sqrMagnitude < 0.001f) return;
-        direction.Normalize();
-        Transform parent = _modelRoot.transform.parent;
-        Vector3 localDirection = parent != null ? parent.InverseTransformDirection(direction) : direction;
-        localDirection.y = 0f;
-        if (localDirection.sqrMagnitude < 0.001f) return;
-        _modelRoot.transform.localRotation = Quaternion.LookRotation(localDirection.normalized, Vector3.up);
-    }
-
-    private void ResetActionFacing()
-    {
-        if (_modelRoot != null) _modelRoot.transform.localRotation = Quaternion.identity;
     }
 
     public void PlayQ(bool instant)
@@ -124,7 +98,35 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             tail = critical ? _binding.critToIdleClip : (alternate ? _binding.attack2ToIdleClip : _binding.attack1ToIdleClip);
         StopSequence();
         ApplyActionFacing(direction);
-        _sequence = StartCoroutine(PlayTimedAction(action, tail));
+        _sequence = StartCoroutine(PlayAttackSequence(action, tail, moving));
+    }
+
+    private IEnumerator PlayAttackSequence(string state, string tail, bool moving)
+    {
+        BeginAnimatorAction();
+        float duration = moving ? 0.76f : 0.82f;
+        float raw = ClipLength(state, duration);
+        if (!PlayState(state, 0.08f, raw / duration))
+        {
+            FinishAction();
+            yield break;
+        }
+
+        if (moving)
+        {
+            yield return WaitForActionDuration(Mathf.Max(0.08f, duration - 0.08f));
+            FinishAction();
+            yield break;
+        }
+
+        yield return WaitForActionDuration(duration - 0.10f);
+        if (!string.IsNullOrEmpty(tail) && FindClip(tail) != null)
+        {
+            float rawTail = ClipLength(tail, 0.22f);
+            if (PlayState(tail, 0.06f, rawTail / 0.22f))
+                yield return WaitForActionDuration(0.08f);
+        }
+        FinishAction();
     }
 
     private void PlayAction(string state, string tail)
@@ -145,9 +147,9 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             FinishAction();
             yield break;
         }
-        yield return new WaitForSeconds(ClipLength(state, 0.65f));
+        yield return WaitForActionDuration(ClipLength(state, 0.65f));
         if (!string.IsNullOrEmpty(tail) && FindClip(tail) != null && PlayState(tail, 0.05f, 1f))
-            yield return new WaitForSeconds(ClipLength(tail, 0.22f));
+            yield return WaitForActionDuration(ClipLength(tail, 0.22f));
         FinishAction();
     }
 
@@ -161,10 +163,10 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             FinishAction();
             yield break;
         }
-        yield return new WaitForSeconds(ClipLength(state, 0.6f));
+        yield return WaitForActionDuration(ClipLength(state, 0.6f));
         SetGodKingWolfVisible(false);
         if (!string.IsNullOrEmpty(tail) && FindClip(tail) != null && PlayState(tail, 0.05f, 1f))
-            yield return new WaitForSeconds(ClipLength(tail, 0.2f));
+            yield return WaitForActionDuration(ClipLength(tail, 0.2f));
         FinishAction();
     }
 
