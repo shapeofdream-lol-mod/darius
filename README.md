@@ -15,7 +15,7 @@
 | 模块 | 说明 |
 | --- | --- |
 | 角色与技能 | Q 大杀四方 / W 致残打击 / E 无情铁手 / R 诺克萨斯断头台 + 被动「出血」；独立 `AbilityInstance`、`SkillTrigger`、`Gem` 实现 |
-| 皮肤 | 经典 / 神王 / 灌篮高手 / 机神；模型源经 Blender → FBX → Unity AssetBundle 构建，运行时优先使用 Unity prefab / Animator，GLB 保留为构建源与兼容 fallback |
+| 皮肤 | 经典 / 神王 / 灌篮高手 / 机神；模型源经 Blender → FBX → Unity AssetBundle 构建，发布运行时只使用 Unity prefab / Animator；GLB 仅作为构建源，本地开发时若实际存在可作为兼容 fallback |
 | 星座（星效） | 38 个 `Se_Star_Darius_*` 定义，接入原生星座界面与存档；见 [docs/PROGRESSION_PASS_2026-08-30.md](docs/PROGRESSION_PASS_2026-08-30.md) |
 | 召唤师技能 | 以 League 风格替换原版位移槽：Flash + Ghost |
 | VFX | Riot `VfxSystemDefinitionData` 运行时解释器，164 个系统 / 114 张贴图 / 51 个网格 |
@@ -63,7 +63,7 @@ dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:PackageMod
 dotnet build src/DariusPrototype/DariusPrototype.csproj -c Release -t:DeployMod
 ```
 
-`PackageMod` 的执行顺序固定为：Release 配置检查 → `VerifyVoiceAssets` → `VerifyPackageAssets` → `Build` → 清理旧 `build/` → 复制 DLL 与运行时资产。`VerifyVoiceAssets` 要求至少存在 `assets/audio/vo_*.ogg`，并在发现任何 `vo_*.wav` 时直接失败；package 本身也明确排除 `vo_*.wav`。
+`PackageMod` 的执行顺序固定为：Release 配置检查 → native bundle 指纹校验 → `VerifyVoiceAssets` → `VerifyPackageAssets` → `Build` → 清理旧 `build/` → 复制 DLL 与运行时资产。native bundle 指纹覆盖共享皮肤 profile、Blender 转换器、Unity Editor pipeline 与四套 GLB 源；任一输入变化后都必须重新运行 `tools/DariusUnityAssets/Build-NativeModels.ps1`。`VerifyVoiceAssets` 要求至少存在 `assets/audio/vo_*.ogg`，并在发现任何 `vo_*.wav` 时直接失败；package 本身也明确排除 `vo_*.wav`。
 
 | 目标 | 产物 |
 | --- | --- |
@@ -109,7 +109,7 @@ PR、`main` push 和手动 `workflow_dispatch` 会运行 `.github/workflows/dotn
 - 解析 `about/metadata.json`，检查必需字段、`DariusPrototype.dll` assembly entry 与当前 CHANGELOG 版本；
 - 检查 Workshop ID 仅含数字、Workshop 描述不超过 8000 bytes；
 - 拒绝被 Git 跟踪的二进制资产与构建产物；
-- 解析 reference-pack 与 native model PowerShell，编译检查 Blender Python，并强制 native pipeline 相关文件不超过 200 行；
+- 解析 reference-pack 与全部 native model PowerShell，执行共享 native profile parser，编译检查 Blender Python，并强制 native pipeline 相关文件不超过 200 行；
 - 执行主 csproj 的 `CheckPackageConfiguration`，确认 Release 通过、Debug 被拒绝；
 - 使用 GitHub Packages 中的 `ShapeOfDreams.ReferenceAssemblies` 执行真正的 `dotnet build -c Release -p:UseSodReferencePack=true`。
 
@@ -161,8 +161,8 @@ PR、`main` push 和手动 `workflow_dispatch` 会运行 `.github/workflows/dotn
 - **版本号单一真源**：只维护 `about/metadata.json` 的 `modVer`。运行时（`DariusModEnvironment.Version`）从它读取；README 不复制“当前版本”字面量。
 - **默认本地构建就是 `dotnet build`**：游戏路径通过 `GameDir` 属性注入；reference-pack 脚本仅用于生成 CI 编译引用，不替代主构建流程。
 - **云端 CI 编译主 DLL**：使用由真实游戏 DLL 生成的 metadata-only reference pack，避免提交游戏程序集或维护手写 stub。
-- **Package preflight**：`PackageMod` 先确认 Release 配置，再检查 voice OGG-only 契约与必需资产，随后编译并生成 snapshot。
-- **发布只发 `build/`**：`PackageMod` 会先清理 `build/` 再生成完整 snapshot；raw 提取资产不进包，`PASS2_MEDIA_MANIFEST.json` 是运行时所需的唯一例外。
+- **Package preflight**：`PackageMod` 先确认 Release 配置，再验证 native bundle 指纹、voice OGG-only 契约与必需资产；陈旧 bundle 会直接阻止打包。
+- **发布只发 `build/`**：`PackageMod` 会先清理 `build/` 再生成完整 snapshot；GLB 不进入发布包，`PASS2_MEDIA_MANIFEST.json` 是 raw 提取资产中运行时所需的唯一例外。
 - **语音 OGG-only**：运行时只从 `vo_*.ogg` 加载语音；打包发现 `vo_*.wav` 会失败，且 package 规则不会复制它；启动阶段不做语音预加载。
 - **部署是完整替换**：`DeployMod` 先清理 `<GameDir>\Mods\DariusPrototype`，再复制 package，因此旧版本已删除的音频、贴图或 manifest 不会残留并覆盖新资源。
 - **没有单元测试框架**：reference-pack CI 覆盖编译/API 契约，不替代游戏内行为验证。
