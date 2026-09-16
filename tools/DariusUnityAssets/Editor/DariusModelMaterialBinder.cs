@@ -16,9 +16,7 @@ public static class DariusModelMaterialBinder
         string folder = Path.GetDirectoryName(assetPath);
         if (string.IsNullOrEmpty(folder)) return;
 
-        UnityEngine.Object[] assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
-        int bound = 0;
-        foreach (UnityEngine.Object asset in assets)
+        foreach (UnityEngine.Object asset in AssetDatabase.LoadAllAssetsAtPath(assetPath))
         {
             Material material = asset as Material;
             if (material == null) continue;
@@ -28,31 +26,29 @@ public static class DariusModelMaterialBinder
 
             material.mainTexture = texture;
             EditorUtility.SetDirty(material);
-            bound++;
         }
 
         AssetDatabase.SaveAssets();
-        Debug.Log("[DariusNativeAssets] material-texture-bind complete asset=" + assetPath + " bound=" + bound);
     }
 
     private static Texture2D FindTexture(string folder, string materialName)
     {
         string exact = Normalize(materialName);
         string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folder });
-
         Texture2D fallback = null;
+
         foreach (string guid in guids)
         {
-            string path = AssetDatabase.GUIDToAssetPath(guid);
-            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(guid));
             if (texture == null) continue;
 
             string candidate = Normalize(texture.name);
-            if (candidate == exact)
-                return texture;
+            if (candidate == exact) return texture;
 
-            if (candidate.Contains(exact) || exact.Contains(candidate))
+            if (candidate == exact + "basecolor" || candidate == exact + "diffuse")
                 fallback = texture;
+            else if (candidate.Contains(exact) || exact.Contains(candidate))
+                fallback ??= texture;
         }
 
         return fallback;
@@ -61,9 +57,10 @@ public static class DariusModelMaterialBinder
     private static string Normalize(string value)
     {
         if (string.IsNullOrEmpty(value)) return string.Empty;
-        return value
-            .Replace("_mat", string.Empty)
+        return value.Replace("_mat", string.Empty)
             .Replace("_material", string.Empty)
+            .Replace("_basecolor", string.Empty)
+            .Replace("_diffuse", string.Empty)
             .Replace("_", string.Empty)
             .ToLowerInvariant();
     }
