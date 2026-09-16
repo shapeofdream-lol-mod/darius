@@ -15,20 +15,32 @@ public static class DariusModelBundleBuilder
     {
         public string Variant;
         public string File;
+        public float Yaw;
+        public string Idle;
     }
 
     private static readonly SkinSpec[] Skins =
     {
-        new SkinSpec { Variant = "Classic", File = "darius.fbx" },
-        new SkinSpec { Variant = "GodKing", File = "darius_godking.fbx" },
-        new SkinSpec { Variant = "Dunkmaster", File = "darius_dunkmaster.fbx" },
-        new SkinSpec { Variant = "Mecha", File = "darius_mecha.fbx" },
+        new SkinSpec { Variant = "Classic", File = "darius.fbx", Yaw = 0f, Idle = "Idle1" },
+        new SkinSpec { Variant = "GodKing", File = "darius_godking.fbx", Yaw = 180f, Idle = "Idle1_Base" },
+        new SkinSpec { Variant = "Dunkmaster", File = "darius_dunkmaster.fbx", Yaw = 0f, Idle = "Idle1_Base" },
+        new SkinSpec { Variant = "Mecha", File = "darius_mecha.fbx", Yaw = 180f, Idle = "Idle1_Base" },
     };
 
     public static void BuildAllBatch()
     {
-        try { BuildAll(); EditorApplication.Exit(0); }
-        catch (Exception e) { Debug.LogException(e); EditorApplication.Exit(1); }
+        try
+        {
+            BuildAll();
+            Debug.Log("[DariusNativeAssets] batch build completed successfully");
+            EditorApplication.Exit(0);
+        }
+        catch (Exception e)
+        {
+            Debug.LogException(e);
+            Debug.LogError("[DariusNativeAssets] batch build failed: " + e.Message);
+            EditorApplication.Exit(1);
+        }
     }
 
     [MenuItem("Darius/Build Native Model Bundle")]
@@ -46,23 +58,42 @@ public static class DariusModelBundleBuilder
         foreach (SkinSpec skin in Skins)
         {
             string source = Path.Combine(fbxRoot, skin.File);
+            if (!File.Exists(source)) throw new FileNotFoundException("Native FBX missing", source);
+
             string assetPath = SourceRoot + "/" + skin.File;
             File.Copy(source, ToProjectAbsolute(assetPath), true);
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
             DariusModelImportUtility.ConfigureModelImporter(assetPath, skin.Variant);
             DariusModelMaterialBinder.BindImportedTextures(assetPath);
 
             string prefabPath = GeneratedRoot + "/darius_" + skin.Variant.ToLowerInvariant() + ".prefab";
-            GameObject prefab = DariusModelPrefabBuilder.Build(assetPath, prefabPath, skin.Variant);
-            if (prefab != null && AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath) != null)
-                prefabs.Add(prefabPath);
+            GameObject prefab = DariusModelPrefabBuilder.Build(assetPath, prefabPath, skin.Variant, skin.Yaw, skin.Idle);
+            if (prefab == null || AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath) == null)
+                throw new InvalidOperationException("Generated prefab missing skin=" + skin.Variant);
+            prefabs.Add(prefabPath);
         }
 
-        AssetBundleBuild build = new AssetBundleBuild { assetBundleName = BundleName, assetNames = prefabs.ToArray() };
+        if (prefabs.Count != Skins.Length)
+            throw new InvalidOperationException("Native prefab count mismatch expected=" + Skins.Length + " actual=" + prefabs.Count);
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
         string output = Path.Combine(workRoot, "bundle-output");
         Directory.CreateDirectory(output);
-        BuildPipeline.BuildAssetBundles(output, new[] { build }, BuildAssetBundleOptions.ChunkBasedCompression, BuildTarget.StandaloneWindows64);
-        File.Copy(Path.Combine(output, BundleName), Path.Combine(repoRoot, "assets", "models", BundleName), true);
+        AssetBundleBuild build = new AssetBundleBuild { assetBundleName = BundleName, assetNames = prefabs.ToArray() };
+        AssetBundleManifest manifest = BuildPipeline.BuildAssetBundles(
+            output,
+            new[] { build },
+            BuildAssetBundleOptions.ChunkBasedCompression,
+            BuildTarget.StandaloneWindows64);
+        if (manifest == null) throw new InvalidOperationException("Unity returned no AssetBundle manifest.");
+
+        string builtBundle = Path.Combine(output, BundleName);
+        if (!File.Exists(builtBundle)) throw new FileNotFoundException("Built AssetBundle missing", builtBundle);
+        string destination = Path.Combine(repoRoot, "assets", "models", BundleName);
+        Directory.CreateDirectory(Path.GetDirectoryName(destination));
+        File.Copy(builtBundle, destination, true);
+        Debug.Log("[DariusNativeAssets] wrote " + destination + " bytes=" + new FileInfo(destination).Length);
     }
 
     private static string RequireDirectoryEnvironment(string key)
@@ -80,7 +111,8 @@ public static class DariusModelBundleBuilder
 
     private static void EnsureAssetFolder(string path)
     {
-        if (!AssetDatabase.IsValidFolder(path)) AssetDatabase.CreateFolder(Path.GetDirectoryName(path), Path.GetFileName(path));
+        if (!AssetDatabase.IsValidFolder(path))
+            AssetDatabase.CreateFolder(Path.GetDirectoryName(path), Path.GetFileName(path));
     }
 
     private static string ToProjectAbsolute(string assetPath)
