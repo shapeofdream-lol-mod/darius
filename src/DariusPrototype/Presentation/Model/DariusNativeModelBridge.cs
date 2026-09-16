@@ -31,6 +31,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     internal void Initialize(GameObject modelRoot, DariusSkinModelBinding binding)
     {
+        _ownsAnimatorAction = false;
         _binding = binding;
         _modelRoot = modelRoot;
         _entityModel = GetComponent<EntityModel>();
@@ -48,7 +49,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         ConfigureEntityModel();
         DariusRuntimePerformance.OptimizeSkinnedRenderers(modelRoot, true);
 
-        // Lobby previews have no Hero/EntityAnimation lifecycle, so idle them directly.
         if (GetComponentInParent<Hero>() == null)
             PlayState(IdleClipName, 0f, 1f);
     }
@@ -57,6 +57,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     {
         if (hero == null)
         {
+            StopSequence();
             _hero = null;
             _entityAnimation = null;
             _entityAnimationModelSetup = false;
@@ -65,6 +66,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
         if (!ReferenceEquals(_hero, hero))
         {
+            StopSequence();
             _hero = hero;
             _entityAnimation = null;
             _entityAnimationModelSetup = false;
@@ -93,35 +95,12 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         }
     }
 
-    private string IdleClipName
-    {
-        get { return FirstExisting(_binding != null ? _binding.idleClip : null, "Idle1_Base", "Idle1"); }
-    }
-
-    private string RunClipName
-    {
-        get { return FirstExisting(_binding != null ? _binding.runClip : null, "Run_Normal", "Run"); }
-    }
-
-    private string DeathClipName
-    {
-        get { return FirstExisting(_binding != null ? _binding.deathClip : null, "Death"); }
-    }
-
-    private string Attack1ClipName
-    {
-        get { return FirstExisting(_binding != null ? _binding.attack1Clip : null, "Attack1"); }
-    }
-
-    private string Attack2ClipName
-    {
-        get { return FirstExisting(_binding != null ? _binding.attack2Clip : null, "Attack2"); }
-    }
-
-    private string CritClipName
-    {
-        get { return FirstExisting(_binding != null ? _binding.critClip : null, "Crit"); }
-    }
+    private string IdleClipName { get { return FirstExisting(_binding != null ? _binding.idleClip : null, "Idle1_Base", "Idle1"); } }
+    private string RunClipName { get { return FirstExisting(_binding != null ? _binding.runClip : null, "Run_Normal", "Run"); } }
+    private string DeathClipName { get { return FirstExisting(_binding != null ? _binding.deathClip : null, "Death"); } }
+    private string Attack1ClipName { get { return FirstExisting(_binding != null ? _binding.attack1Clip : null, "Attack1"); } }
+    private string Attack2ClipName { get { return FirstExisting(_binding != null ? _binding.attack2Clip : null, "Attack2"); } }
+    private string CritClipName { get { return FirstExisting(_binding != null ? _binding.critClip : null, "Crit"); } }
 
     private string FirstExisting(params string[] candidates)
     {
