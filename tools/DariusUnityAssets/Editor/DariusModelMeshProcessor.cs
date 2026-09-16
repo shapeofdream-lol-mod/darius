@@ -71,6 +71,11 @@ internal static class DariusModelMeshProcessor
             AssetDatabase.CreateAsset(hiddenMesh, hiddenPath);
             source.sharedMesh = visibleMesh;
 
+            Material[] visibleMaterials = (Material[])materials.Clone();
+            for (int i = 0; i < hidden.Length && i < visibleMaterials.Length; i++)
+                if (hidden[i]) visibleMaterials[i] = null;
+            source.sharedMaterials = visibleMaterials;
+
             GameObject hiddenObject = new GameObject("DariusHidden_" + source.name);
             hiddenObject.transform.SetParent(source.transform, false);
             SkinnedMeshRenderer hiddenRenderer = hiddenObject.AddComponent<SkinnedMeshRenderer>();
