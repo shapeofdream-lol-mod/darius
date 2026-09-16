@@ -180,23 +180,4 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         if (finishW && !_wArmedPresentation && IsGodKingSkin)
             _sequence = StartCoroutine(PlayGodKingWTransition(false, false));
     }
-
-    public Transform GetAnchor(string name)
-    {
-        Transform result;
-        return !string.IsNullOrEmpty(name) && _anchors.TryGetValue(name, out result) ? result : null;
-    }
-
-    private void StopSequence()
-    {
-        if (_sequence != null)
-        {
-            try { StopCoroutine(_sequence); } catch { }
-            _sequence = null;
-        }
-        _wSwingActive = false;
-        if (IsGodKingSkin) SetGodKingWolfVisible(false);
-        ResetActionFacing();
-        EndAnimatorAction();
-    }
 }
