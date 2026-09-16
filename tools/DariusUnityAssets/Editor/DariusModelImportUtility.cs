@@ -10,6 +10,7 @@ internal static class DariusModelImportUtility
         if (modelImporter == null)
             throw new InvalidOperationException("Expected ModelImporter: " + assetPath);
 
+        modelImporter.globalScale = 1f;
         modelImporter.importAnimation = true;
         modelImporter.importBlendShapes = true;
         modelImporter.importMaterials = true;
