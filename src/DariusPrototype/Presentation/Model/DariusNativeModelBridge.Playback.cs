@@ -91,6 +91,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     public void PlayWAttack(Vector3 direction)
     {
         StopSequence();
+        _wSwingActive = true;
         ApplyActionFacing(direction);
         _sequence = StartCoroutine(PlayTimedAction(
             FirstExisting(_binding != null ? _binding.wClip : null, "Spell2"), null));
@@ -169,9 +170,13 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private void FinishAction()
     {
+        bool finishW = _wSwingActive;
+        _wSwingActive = false;
         ResetActionFacing();
         EndAnimatorAction();
         _sequence = null;
+        if (finishW && !_wArmedPresentation && IsGodKingSkin)
+            _sequence = StartCoroutine(PlayGodKingWTransition(false, false));
     }
 
     public Transform GetAnchor(string name)
@@ -187,20 +192,9 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             try { StopCoroutine(_sequence); } catch { }
             _sequence = null;
         }
+        _wSwingActive = false;
         if (IsGodKingSkin) SetGodKingWolfVisible(false);
         ResetActionFacing();
         EndAnimatorAction();
-    }
-
-    private void OnDisable()
-    {
-        ResetWLocomotionOverrides();
-        StopSequence();
-    }
-
-    private void OnDestroy()
-    {
-        ResetWLocomotionOverrides();
-        StopSequence();
     }
 }
