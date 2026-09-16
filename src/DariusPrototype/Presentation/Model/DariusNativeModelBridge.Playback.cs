@@ -4,8 +4,6 @@ using UnityEngine;
 
 public sealed partial class DariusNativeModelBridge : MonoBehaviour
 {
-    private bool _wArmed;
-
     private AnimationClip FindClip(string name)
     {
         AnimationClip clip;
@@ -71,9 +69,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     public void SetWArmed(bool armed)
     {
-        // Armed W may last four seconds. Keep Shape of Dreams locomotion/death authoritative for
-        // that whole window; only the actual empowered swing acquires a short action lease.
-        _wArmed = armed;
+        // The four-second armed window is gameplay/VFX state only. Shape of Dreams remains the
+        // locomotion/death owner; the actual empowered swing acquires its own short action lease.
     }
 
     public void PlayOneShot(string name)
