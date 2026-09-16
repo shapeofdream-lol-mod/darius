@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -7,7 +8,11 @@ internal static class DariusModelMeshProcessor
 {
     private enum SubmeshKind { Visible, ToggleHidden, PermanentHidden }
 
-    public static void ProcessPrefab(GameObject root, DariusNativeSkinProfile profile, string generatedRoot)
+    public static void ProcessPrefab(
+        GameObject root,
+        DariusNativeSkinProfile profile,
+        string generatedRoot,
+        List<string> bundleAssets)
     {
         if (root == null || profile == null) return;
         SkinnedMeshRenderer[] renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
@@ -19,6 +24,7 @@ internal static class DariusModelMeshProcessor
             renderer.localBounds = ExpandBounds(renderer, 1.20f);
         }
         if (profile.GodKing) SplitAuthoredHiddenSubmeshes(renderers, profile, generatedRoot);
+        DariusModelOverlayMeshBuilder.Build(root, profile, generatedRoot, bundleAssets);
     }
 
     private static Bounds ExpandBounds(SkinnedMeshRenderer renderer, float factor)
