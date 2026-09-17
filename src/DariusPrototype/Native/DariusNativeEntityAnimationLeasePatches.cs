@@ -42,7 +42,7 @@ internal static class DariusNativeEntityAnimationLease
 
     public static void Release(EntityAnimation animation)
     {
-        if (animation != null) Owned.Remove(animation);
+        if (!object.ReferenceEquals(animation, null)) Owned.Remove(animation);
     }
 
     public static bool IsOwned(EntityAnimation animation)
