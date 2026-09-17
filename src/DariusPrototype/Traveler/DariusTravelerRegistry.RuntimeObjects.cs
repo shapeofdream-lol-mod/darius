@@ -166,6 +166,7 @@ public static partial class DariusTravelerRegistry
         AttackCritInstancePrefab = null;
         if (_resourceRoot != null) UnityEngine.Object.Destroy(_resourceRoot);
         _resourceRoot = null;
+        DariusNativeModelAssets.Unload();
         DariusLog.Info("TRAVELER", "Runtime Hero_Darius resources unregistered; persistent profile data left untouched.");
     }
 }
