@@ -59,9 +59,9 @@ internal static class DariusModelContractValidator
     private static void ValidateAnchors(GameObject source, DariusNativeSkinProfile profile)
     {
         Transform[] transforms = source.GetComponentsInChildren<Transform>(true);
-        if (!HasAny(transforms, "C_BuffBone_Glb_Chest_Loc", "Chest", "Spine"))
+        if (!HasAny(transforms, DariusNativeAssetContract.HealthAnchorNames))
             throw new InvalidOperationException("Health anchor missing skin=" + profile.Variant);
-        if (!HasAny(transforms, "BuffBone_Glb_Weapon_1", "Weapon", "R_Hand"))
+        if (!HasAny(transforms, DariusNativeAssetContract.WeaponAnchorNames))
             throw new InvalidOperationException("Weapon anchor missing skin=" + profile.Variant);
     }
 
