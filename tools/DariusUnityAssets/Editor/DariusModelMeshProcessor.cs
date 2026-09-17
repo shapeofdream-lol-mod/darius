@@ -63,10 +63,12 @@ internal static class DariusModelMeshProcessor
                 generatedRoot, stem + "_visible", mesh.name + "_Visible");
             if (hasToggle)
                 CreateHiddenRenderer(source, mesh, materials, kinds, SubmeshKind.ToggleHidden, generatedRoot,
-                    stem + "_toggle", mesh.name + "_WolfHidden", "DariusHidden_Wolf_" + source.name);
+                    stem + "_toggle", mesh.name + "_WolfHidden",
+                    DariusNativeOverlayContract.WolfHiddenObjectName(source.name));
             if (hasPermanent)
                 CreateHiddenRenderer(source, mesh, materials, kinds, SubmeshKind.PermanentHidden, generatedRoot,
-                    stem + "_static", mesh.name + "_StaticHidden", "DariusHidden_Static_" + source.name);
+                    stem + "_static", mesh.name + "_StaticHidden",
+                    DariusNativeOverlayContract.StaticHiddenObjectName(source.name));
 
             source.sharedMesh = visibleMesh;
             source.sharedMaterials = FilterMaterials(materials, kinds, SubmeshKind.Visible);
