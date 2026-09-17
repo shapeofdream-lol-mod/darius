@@ -18,12 +18,7 @@ internal static class DariusModelPrefabBuilder
         if (source == null) throw new InvalidOperationException("Missing imported model: " + assetPath);
 
         AnimationClip[] clips = LoadAnimationClips(assetPath);
-        DariusModelContractValidator.Validate(source, clips, profile);
-
         string generatedRoot = DariusNativeAssetContract.GeneratedAssetRoot;
-        string controllerPath = generatedRoot + "/darius_" +
-            DariusNativeAssetContract.NormalizeVariant(profile.Variant) + ".controller";
-        AnimatorController controller = BuildController(controllerPath, clips, profile.Idle, profile.Variant);
 
         GameObject root = new GameObject("Darius_" + profile.Variant);
         GameObject model = UnityEngine.Object.Instantiate(source, root.transform, false);
@@ -32,6 +27,12 @@ internal static class DariusModelPrefabBuilder
         model.transform.localRotation = Quaternion.Euler(0f, profile.Yaw, 0f);
         model.transform.localScale = Vector3.one * profile.Scale;
 
+        DariusModelMaterialBinder.BindPrefabMaterials(model, assetPath, generatedRoot);
+        DariusModelContractValidator.Validate(model, clips, profile);
+
+        string controllerPath = generatedRoot + "/darius_" +
+            DariusNativeAssetContract.NormalizeVariant(profile.Variant) + ".controller";
+        AnimatorController controller = BuildController(controllerPath, clips, profile.Idle, profile.Variant);
         ConfigureAnimator(model, controller);
         DariusModelMeshProcessor.ProcessPrefab(model, profile, generatedRoot, bundleAssets);
 
