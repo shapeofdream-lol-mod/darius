@@ -71,15 +71,38 @@ def base_color_image(material):
     return None
 
 
+def exported_material_slots():
+    meshes = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
+    if len(meshes) != 1:
+        raise RuntimeError(f"Expected exactly one exported mesh object, found {len(meshes)}")
+
+    mesh = meshes[0].data
+    used = sorted({polygon.material_index for polygon in mesh.polygons})
+    if not used:
+        raise RuntimeError("Exported mesh contains no material slots in use")
+    if used != list(range(len(used))):
+        raise RuntimeError(f"Exported mesh material slots are not contiguous: {used}")
+    if len(mesh.materials) < len(used):
+        raise RuntimeError(
+            f"Exported mesh material slot count mismatch used={len(used)} slots={len(mesh.materials)}"
+        )
+
+    result = []
+    for slot in used:
+        material = mesh.materials[slot]
+        if material is None:
+            raise RuntimeError(f"Exported mesh material slot is empty: {slot}")
+        result.append((slot, material))
+    return result
+
+
 def export_material_map(dst, exported):
     stem = os.path.splitext(os.path.basename(dst))[0]
     path = os.path.join(os.path.dirname(dst), f"{stem}__materials.tsv")
     lines = []
     textured = 0
     untextured = 0
-    for material in bpy.data.materials:
-        if material is None or material.users <= 0:
-            continue
+    for slot, material in exported_material_slots():
         if any(c in material.name for c in "\t\r\n"):
             raise RuntimeError(f"Material name cannot be represented in TSV manifest: {material.name!r}")
 
@@ -92,7 +115,7 @@ def export_material_map(dst, exported):
             if filename is None:
                 raise RuntimeError(f"Base-color image was not exported: material={material.name} image={image.name}")
             textured += 1
-        lines.append(f"{material.name}\t{filename}")
+        lines.append(f"{slot}\t{material.name}\t{filename}")
 
     if not lines:
         raise RuntimeError(f"GLB contains no material bindings: {dst}")
