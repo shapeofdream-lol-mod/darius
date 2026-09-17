@@ -66,10 +66,22 @@ try {
     # editor followed immediately by a second editor can leave the project lock owned by the first
     # process. A single -projectPath + -executeMethod invocation avoids that lifecycle race entirely.
     Write-Host "> Unity project preparation"
-    $unityVersionOutput = & $UnityExe -version 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "Unity version probe failed with exit code $LASTEXITCODE" }
-    $unityVersion = (($unityVersionOutput | Out-String).Trim())
-    if ([string]::IsNullOrWhiteSpace($unityVersion)) { throw "Unity version probe returned no version" }
+    $versionPattern = '\d+\.\d+\.\d+[abfp]\d+'
+    $unityVersion = $null
+    $pathMatch = [regex]::Match($UnityExe, $versionPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if ($pathMatch.Success) {
+        $unityVersion = $pathMatch.Value
+    } else {
+        $productVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($UnityExe).ProductVersion
+        if (-not [string]::IsNullOrWhiteSpace($productVersion)) {
+            $metadataMatch = [regex]::Match($productVersion, $versionPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            if ($metadataMatch.Success) { $unityVersion = $metadataMatch.Value }
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($unityVersion)) {
+        throw "Unable to determine Unity editor version from executable path or file metadata: $UnityExe"
+    }
+    Write-Host "Unity editor version: $unityVersion"
 
     $sourceDir = Join-Path $unityProject 'Assets\DariusSource'
     $editorDir = Join-Path $unityProject 'Assets\Editor'
