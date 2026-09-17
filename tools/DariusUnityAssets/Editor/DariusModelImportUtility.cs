@@ -58,11 +58,21 @@ internal static class DariusModelImportUtility
     private static bool IsLoopClip(string name, DariusNativeSkinProfile profile)
     {
         if (string.IsNullOrEmpty(name) || profile == null) return false;
-        return string.Equals(name, profile.Idle, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(name, profile.IdleVariant, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(name, profile.Run, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(name, profile.WIdle, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(name, profile.WRun, StringComparison.OrdinalIgnoreCase);
+        if (string.Equals(name, profile.Idle, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, profile.Run, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.IsNullOrEmpty(profile.WIdle) &&
+            string.Equals(name, profile.WIdle, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(profile.WRun) &&
+            string.Equals(name, profile.WRun, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Main probes these authored W-locomotion names for every skin and loops them when present.
+        // IdleVariant is intentionally excluded: main plays it as a one-shot and returns to Idle.
+        return string.Equals(name, "Spell2_Idle", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(name, "Spell2_Run", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeImportedClipName(string name)
