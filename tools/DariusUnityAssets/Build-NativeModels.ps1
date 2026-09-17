@@ -23,14 +23,14 @@ $modelRoot = Join-Path $RepoRoot 'assets\models'
 $converter = Join-Path $PSScriptRoot 'convert_glb_to_fbx.py'
 $editorSourceDir = Join-Path $PSScriptRoot 'Editor'
 $sharedProfile = Join-Path $RepoRoot 'src\DariusPrototype\Native\DariusNativeSkinProfiles.cs'
-$sharedOverlayContract = Join-Path $RepoRoot 'src\DariusPrototype\Native\DariusNativeOverlayContract.cs'
+$sharedAssetContract = Join-Path $RepoRoot 'src\DariusPrototype\Native\DariusNativeAssetContract.cs'
 $editorFiles = @(
     'DariusModelBundleBuilder.cs', 'DariusModelImportUtility.cs', 'DariusModelMaterialBinder.cs',
     'DariusModelMeshProcessor.cs', 'DariusModelOverlayMeshBuilder.cs', 'DariusModelPrefabBuilder.cs',
     'DariusModelContractValidator.cs'
 )
 
-foreach ($required in @($modelRoot, $converter, $sharedProfile, $sharedOverlayContract)) {
+foreach ($required in @($modelRoot, $converter, $sharedProfile, $sharedAssetContract)) {
     if (-not (Test-Path $required)) { throw "Native asset input missing: $required" }
 }
 foreach ($name in $editorFiles) {
@@ -68,7 +68,7 @@ try {
     foreach ($sidecar in @($textures) + @($maps)) { Copy-Item $sidecar.FullName (Join-Path $sourceDir $sidecar.Name) -Force }
     foreach ($name in $editorFiles) { Copy-Item (Join-Path $editorSourceDir $name) (Join-Path $editorDir $name) -Force }
     Copy-Item $sharedProfile (Join-Path $editorDir 'DariusNativeSkinProfiles.cs') -Force
-    Copy-Item $sharedOverlayContract (Join-Path $editorDir 'DariusNativeOverlayContract.cs') -Force
+    Copy-Item $sharedAssetContract (Join-Path $editorDir 'DariusNativeAssetContract.cs') -Force
 
     $oldRepo = $env:DARIUS_REPO_ROOT; $oldFbx = $env:DARIUS_MODEL_FBX_DIR; $oldWork = $env:DARIUS_NATIVE_WORK_ROOT
     try {
