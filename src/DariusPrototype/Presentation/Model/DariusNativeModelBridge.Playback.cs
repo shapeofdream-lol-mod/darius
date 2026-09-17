@@ -19,7 +19,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     private bool PlayState(string name, float fade, float speed)
     {
         if (_animator == null || string.IsNullOrEmpty(name)) return false;
-        string stateName = ToAnimatorStateName(name);
+        string stateName = DariusNativeAssetContract.AnimatorStateName(name);
         int hash = Animator.StringToHash(stateName);
         if (!_animator.HasState(0, hash))
         {
@@ -31,11 +31,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         if (fade > 0.001f) _animator.CrossFadeInFixedTime(hash, fade, 0, 0f);
         else _animator.Play(hash, 0, 0f);
         return true;
-    }
-
-    private static string ToAnimatorStateName(string clipName)
-    {
-        return clipName.Replace('.', '_').Replace('/', '_').Replace('\\', '_');
     }
 
     public void PlayQ(bool instant)
