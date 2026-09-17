@@ -16,6 +16,8 @@ internal static class DariusModelImportUtility
         importer.importAnimation = true;
         importer.importBlendShapes = true;
         importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+        importer.materialLocation = ModelImporterMaterialLocation.InPrefab;
+        importer.materialName = ModelImporterMaterialName.BasedOnMaterialName;
         importer.animationType = ModelImporterAnimationType.Generic;
         importer.avatarSetup = ModelImporterAvatarSetup.NoAvatar;
         importer.optimizeGameObjects = false;
