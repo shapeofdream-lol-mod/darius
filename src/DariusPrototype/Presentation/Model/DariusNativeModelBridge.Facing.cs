@@ -22,10 +22,10 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private bool IsRunState(AnimatorStateInfo state)
     {
-        if (state.IsName(ToAnimatorStateName(RunClipName))) return true;
+        if (state.IsName(DariusNativeAssetContract.AnimatorStateName(RunClipName))) return true;
         DariusNativeSkinProfile profile = DariusNativeSkinProfiles.Find(VariantKey);
         return profile != null && !string.IsNullOrEmpty(profile.WRun) &&
-               state.IsName(ToAnimatorStateName(profile.WRun));
+               state.IsName(DariusNativeAssetContract.AnimatorStateName(profile.WRun));
     }
 
     private void BeginActionMovementTracking()
