@@ -86,6 +86,50 @@ def material_sources(document):
     return result
 
 
+def skinned_material_bindings(document, sources):
+    nodes = document.get("nodes", [])
+    meshes = document.get("meshes", [])
+    materials = document.get("materials", [])
+    result = []
+    renderer_names = set()
+
+    for node_index, node in enumerate(nodes):
+        if "skin" not in node or "mesh" not in node:
+            continue
+        renderer = node.get("name")
+        if not renderer:
+            raise RuntimeError(f"Skinned GLB node has no name: node={node_index}")
+        if any(c in renderer for c in "\t\r\n"):
+            raise RuntimeError(f"Skinned GLB node name cannot be represented in TSV: {renderer!r}")
+        if renderer in renderer_names:
+            raise RuntimeError(f"Duplicate skinned GLB node name: {renderer}")
+        renderer_names.add(renderer)
+
+        mesh_index = node.get("mesh")
+        if not isinstance(mesh_index, int) or mesh_index < 0 or mesh_index >= len(meshes):
+            raise RuntimeError(f"Skinned GLB node has invalid mesh: node={renderer} mesh={mesh_index}")
+        primitives = meshes[mesh_index].get("primitives", [])
+        if not primitives:
+            raise RuntimeError(f"Skinned GLB mesh has no primitives: node={renderer} mesh={mesh_index}")
+
+        for slot, primitive in enumerate(primitives):
+            material_index = primitive.get("material")
+            if not isinstance(material_index, int) or material_index < 0 or material_index >= len(materials):
+                raise RuntimeError(
+                    f"Skinned GLB primitive has no valid material: node={renderer} slot={slot} material={material_index}"
+                )
+            material = materials[material_index].get("name")
+            if not material or material not in sources:
+                raise RuntimeError(
+                    f"Skinned GLB primitive material is missing from material table: node={renderer} slot={slot}"
+                )
+            result.append((renderer, slot, material, sources[material]))
+
+    if not result:
+        raise RuntimeError("GLB contains no skinned material bindings")
+    return result
+
+
 def image_extension(mime_type):
     if mime_type == "image/png":
         return ".png"
@@ -94,14 +138,14 @@ def image_extension(mime_type):
     raise RuntimeError(f"Unsupported GLB image MIME type for Unity sidecar: {mime_type!r}")
 
 
-def export_textures(dst, document, binary, sources):
+def export_textures(dst, document, binary, bindings):
     output_dir = os.path.dirname(dst)
     stem = os.path.splitext(os.path.basename(dst))[0]
     images = document.get("images", [])
     views = document.get("bufferViews", [])
     exported = {}
 
-    for source in sorted({value for value in sources.values() if value is not None}):
+    for source in sorted({binding[3] for binding in bindings if binding[3] is not None}):
         if source < 0 or source >= len(images):
             raise RuntimeError(f"GLB image source out of range: {source}")
         image = images[source]
@@ -126,66 +170,36 @@ def export_textures(dst, document, binary, sources):
         exported[source] = filename
 
     if not exported:
-        raise RuntimeError(f"GLB materials contain no base-color textures: {dst}")
+        raise RuntimeError(f"GLB skinned materials contain no base-color textures: {dst}")
     print(f"Darius native texture export complete: {dst} textures={len(exported)}")
     return exported
 
 
-def exported_material_slots():
-    meshes = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
-    if len(meshes) != 1:
-        raise RuntimeError(f"Expected exactly one exported mesh object, found {len(meshes)}")
-
-    mesh = meshes[0].data
-    used = sorted({polygon.material_index for polygon in mesh.polygons})
-    if not used:
-        raise RuntimeError("Exported mesh contains no material slots in use")
-    if used != list(range(len(used))):
-        raise RuntimeError(f"Exported mesh material slots are not contiguous: {used}")
-    if len(mesh.materials) < len(used):
-        raise RuntimeError(
-            f"Exported mesh material slot count mismatch used={len(used)} slots={len(mesh.materials)}"
-        )
-
-    result = []
-    for slot in used:
-        material = mesh.materials[slot]
-        if material is None:
-            raise RuntimeError(f"Exported mesh material slot is empty: {slot}")
-        result.append((slot, material))
-    return result
-
-
-def export_material_map(dst, exported, sources):
+def export_material_map(dst, exported, bindings):
     stem = os.path.splitext(os.path.basename(dst))[0]
     path = os.path.join(os.path.dirname(dst), f"{stem}__materials.tsv")
     lines = []
     textured = 0
     untextured = 0
-    for slot, material in exported_material_slots():
-        if any(c in material.name for c in "\t\r\n"):
-            raise RuntimeError(f"Material name cannot be represented in TSV manifest: {material.name!r}")
-        if material.name not in sources:
-            raise RuntimeError(f"Exported Blender material is missing from GLB JSON: {material.name}")
 
-        source = sources[material.name]
+    for renderer, slot, material, source in bindings:
+        if any(c in material for c in "\t\r\n"):
+            raise RuntimeError(f"Material name cannot be represented in TSV manifest: {material!r}")
         if source is None:
             filename = NO_TEXTURE
             untextured += 1
         else:
             filename = exported.get(source)
             if filename is None:
-                raise RuntimeError(f"Base-color image was not exported: material={material.name} source={source}")
+                raise RuntimeError(f"Base-color image was not exported: material={material} source={source}")
             textured += 1
-        lines.append(f"{slot}\t{material.name}\t{filename}")
+        lines.append(f"{renderer}\t{slot}\t{material}\t{filename}")
 
-    if not lines:
-        raise RuntimeError(f"GLB contains no material bindings: {dst}")
     with open(path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write("\n".join(lines) + "\n")
     print(
-        f"Darius native material map complete: {path} materials={len(lines)} "
-        f"textured={textured} untextured={untextured}"
+        f"Darius native material map complete: {path} renderers={len({row[0] for row in bindings})} "
+        f"materials={len(lines)} textured={textured} untextured={untextured}"
     )
 
 
@@ -201,11 +215,12 @@ def main():
 
     document, binary = load_glb(src)
     sources = material_sources(document)
+    bindings = skinned_material_bindings(document, sources)
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=src, import_pack_images=True, merge_vertices=False)
-    exported = export_textures(dst, document, binary, sources)
-    export_material_map(dst, exported, sources)
+    exported = export_textures(dst, document, binary, bindings)
+    export_material_map(dst, exported, bindings)
     for action in bpy.data.actions:
         action.use_fake_user = True
 
