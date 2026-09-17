@@ -19,45 +19,18 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private static bool IsHiddenPresentationRenderer(Renderer renderer)
     {
-        if (renderer == null) return false;
-        if (IsHiddenPresentationObject(renderer.gameObject)) return true;
-        SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
-        string name = skinned != null && skinned.sharedMesh != null ? skinned.sharedMesh.name : null;
-        return !string.IsNullOrEmpty(name) &&
-            (name.EndsWith("_Hidden", StringComparison.OrdinalIgnoreCase) ||
-             name.EndsWith("_WolfHidden", StringComparison.OrdinalIgnoreCase) ||
-             name.EndsWith("_StaticHidden", StringComparison.OrdinalIgnoreCase));
+        string name = renderer != null && renderer.gameObject != null
+            ? renderer.gameObject.name
+            : string.Empty;
+        return DariusNativeOverlayContract.IsHiddenObjectName(name);
     }
 
     private static bool IsGodKingWolfRenderer(Renderer renderer)
     {
-        if (renderer == null) return false;
-        string objectName = renderer.gameObject != null ? renderer.gameObject.name : string.Empty;
-        if (objectName.StartsWith("DariusHidden_Wolf_", StringComparison.OrdinalIgnoreCase)) return true;
-        SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
-        string meshName = skinned != null && skinned.sharedMesh != null ? skinned.sharedMesh.name : null;
-        if (!string.IsNullOrEmpty(meshName) && meshName.EndsWith("_WolfHidden", StringComparison.OrdinalIgnoreCase)) return true;
-        return IsHiddenPresentationRenderer(renderer) && RendererContainsMaterial(renderer, "Wolf_Mat") &&
-               !RendererContainsMaterial(renderer, "Throne");
-    }
-
-    private static bool RendererContainsMaterial(Renderer renderer, string sourceName)
-    {
-        Material[] materials = renderer.sharedMaterials;
-        for (int i = 0; i < materials.Length; i++)
-        {
-            Material material = materials[i];
-            string name = material != null ? DariusNativeOverlayContract.NormalizeMaterialName(material.name) : null;
-            if (!string.IsNullOrEmpty(name) && name.IndexOf(sourceName, StringComparison.OrdinalIgnoreCase) >= 0)
-                return true;
-        }
-        return false;
-    }
-
-    private static bool IsHiddenPresentationObject(GameObject go)
-    {
-        string name = go != null ? go.name : string.Empty;
-        return name.StartsWith("DariusHidden_", StringComparison.OrdinalIgnoreCase);
+        string name = renderer != null && renderer.gameObject != null
+            ? renderer.gameObject.name
+            : string.Empty;
+        return DariusNativeOverlayContract.IsWolfHiddenObjectName(name);
     }
 
     private static bool IsNativeOverlayObject(GameObject go)
