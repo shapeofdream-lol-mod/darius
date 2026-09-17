@@ -22,7 +22,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         string name = renderer != null && renderer.gameObject != null
             ? renderer.gameObject.name
             : string.Empty;
-        return DariusNativeOverlayContract.IsHiddenObjectName(name);
+        return DariusNativeAssetContract.IsHiddenObjectName(name);
     }
 
     private static bool IsGodKingWolfRenderer(Renderer renderer)
@@ -30,7 +30,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         string name = renderer != null && renderer.gameObject != null
             ? renderer.gameObject.name
             : string.Empty;
-        return DariusNativeOverlayContract.IsWolfHiddenObjectName(name);
+        return DariusNativeAssetContract.IsWolfHiddenObjectName(name);
     }
 
     private static bool IsNativeOverlayObject(GameObject go)
