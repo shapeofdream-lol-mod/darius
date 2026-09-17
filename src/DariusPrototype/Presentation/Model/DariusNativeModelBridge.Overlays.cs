@@ -13,9 +13,9 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         for (int r = 0; r < renderers.Length; r++)
         {
             SkinnedMeshRenderer source = renderers[r];
-            if (!IsVisibleOverlaySource(source)) continue;
+            if (!IsOverlaySourceStructure(source)) continue;
             int stableIndex = sourceIndex++;
-            if (!RendererContainsMaterialHash(source, sourceMaterialHash)) continue;
+            if (!source.enabled || !RendererContainsMaterialHash(source, sourceMaterialHash)) continue;
             Mesh filtered = DariusNativeModelAssets.GetOverlayMesh(VariantKey, stableIndex, sourceMaterialHash);
             if (filtered == null) continue;
             GameObject overlay = CreateOverlayRenderer(
@@ -37,7 +37,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         for (int i = 0; i < renderers.Length; i++)
         {
             SkinnedMeshRenderer source = renderers[i];
-            if (!IsVisibleOverlaySource(source)) continue;
+            if (!IsOverlaySourceStructure(source) || !source.enabled) continue;
             GameObject overlay = CreateOverlayRenderer(
                 source, source.sharedMesh, overlayMaterial, 0u, true, resolvedLabel + "_" + i);
             links.Add(overlay);
@@ -61,9 +61,9 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         return null;
     }
 
-    private static bool IsVisibleOverlaySource(SkinnedMeshRenderer source)
+    private static bool IsOverlaySourceStructure(SkinnedMeshRenderer source)
     {
-        return source != null && source.enabled && source.sharedMesh != null &&
+        return source != null && source.sharedMesh != null &&
                !IsHiddenPresentationRenderer(source) && !IsNativeOverlayObject(source.gameObject);
     }
 
