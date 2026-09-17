@@ -42,18 +42,61 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     private IEnumerator PlayQSequence(bool instant)
     {
         BeginAnimatorAction();
+        const float swingLead = 0.08f;
+        const float swingSoundAt = 0.62f;
+        float windupToSwing = Mathf.Max(0.05f, Ai_Darius_Decimate.Windup - swingLead);
         string action = _binding != null ? _binding.qClip : null;
         string intro = _binding != null ? _binding.qIntroClip : null;
-        if (!instant && !string.IsNullOrEmpty(intro) && FindClip(intro) != null)
+        if (string.IsNullOrEmpty(intro) || FindClip(intro) == null) intro = null;
+
+        if (instant)
+        {
+            float raw = ClipLength(action, 0.53f);
+            float duration = Mathf.Clamp(raw, 0.42f, 0.70f);
+            PlayState(action, 0.03f, raw / Mathf.Max(0.05f, duration));
+            PlayQSwingAudio();
+            yield return WaitForActionDuration(duration);
+        }
+        else if (!string.IsNullOrEmpty(intro))
         {
             PlayState(intro, 0.04f, 1f);
-            yield return new WaitForSeconds(Mathf.Max(0.05f, Ai_Darius_Decimate.Windup - 0.08f));
+            float beforeSound = Mathf.Min(swingSoundAt, windupToSwing);
+            yield return WaitForActionDuration(beforeSound);
+            PlayQSwingAudio();
+            yield return WaitForActionDuration(Mathf.Max(0f, windupToSwing - beforeSound));
+
+            float raw = ClipLength(action, 0.53f);
+            PlayState(action, 0.04f, 1f);
+            yield return WaitForActionDuration(raw);
         }
-        float raw = ClipLength(action, 0.53f);
-        float duration = instant ? Mathf.Clamp(raw, 0.42f, 0.70f) : raw;
-        PlayState(action, 0.04f, raw / Mathf.Max(0.05f, duration));
-        yield return new WaitForSeconds(duration);
+        else
+        {
+            float raw = ClipLength(action, Ai_Darius_Decimate.Windup + 0.35f);
+            float duration = Mathf.Max(0.55f, Ai_Darius_Decimate.Windup + 0.20f);
+            PlayState(action, 0.08f, raw / duration);
+            float beforeSound = Mathf.Min(swingSoundAt, duration);
+            yield return WaitForActionDuration(beforeSound);
+            PlayQSwingAudio();
+            yield return WaitForActionDuration(Mathf.Max(0f, duration - beforeSound));
+        }
+
+        // Main plays God-King's authored Q-to-idle tail only when the cast ends stationary.
+        if (IsGodKingSkin && !IsActionMovingNow() && FindClip("Spell1_ToIdle") != null)
+        {
+            if (PlayState("Spell1_ToIdle", 0.05f, 1f))
+                yield return WaitForActionDuration(ClipLength("Spell1_ToIdle", 0.3f));
+        }
         FinishAction();
+    }
+
+    private void PlayQSwingAudio()
+    {
+        try
+        {
+            if (_hero != null)
+                DariusMedia.PlayForSkin("q_swing", _hero, _hero.transform.position, 0.98f);
+        }
+        catch { }
     }
 
     public void PlayWAttack(Vector3 direction)
@@ -174,7 +217,10 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         ResetActionFacing();
         EndAnimatorAction();
         _sequence = null;
-        if (finishW && !_wArmedPresentation && IsGodKingSkin)
+
+        if (_wArmedPresentation)
+            RestoreWLocomotionAfterAction();
+        else if (finishW && IsGodKingSkin)
             _sequence = StartCoroutine(PlayGodKingWTransition(false, false));
     }
 }
