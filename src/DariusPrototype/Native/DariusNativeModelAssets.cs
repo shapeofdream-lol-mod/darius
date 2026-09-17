@@ -140,7 +140,6 @@ internal static partial class DariusNativeModelAssets
     public static void Unload()
     {
         DariusNativeEntityAnimationLease.Clear();
-        DariusNativeAnimationReplacementLedger.Clear();
         Prefabs.Clear();
         ClearOverlayMeshes();
         _assetNames = null;
