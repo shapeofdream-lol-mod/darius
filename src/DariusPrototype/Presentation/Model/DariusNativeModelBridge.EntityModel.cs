@@ -64,6 +64,13 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _entityModel.lobby = ClipWithSpeed(idle, 1f);
         }
         if (death != null) _entityModel.death = ClipWithSpeed(death, 1f);
+
+        // The Skin resource is structurally cloned from Vesper. Main never lets Vesper's stock
+        // stagger animation drive Darius, so do not leave that foreign clip live now that native
+        // mode calls EntityAnimation.SetupModel(). A Darius stagger can be bound later only when an
+        // authored clip is explicitly identified in the skin profile.
+        _entityModel.stagger = default(AnimationClipWithSpeed);
+
         if (run != null)
         {
             // Darius assets expose one authored Run clip. Populate every directional slot so the
