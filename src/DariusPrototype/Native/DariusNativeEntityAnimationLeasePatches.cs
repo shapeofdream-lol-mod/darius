@@ -1,29 +1,11 @@
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using HarmonyLib;
 
-// Native actions only suppress SoD's per-frame presentation write and competing ability requests.
-// LogicUpdate keeps running so death/status/gameplay animation state is never frozen by a visual lease.
+// Native actions only suppress SoD's per-frame presentation write.
+// LogicUpdate and ability-animation state continue running so gameplay animation lifecycle remains authoritative.
 [HarmonyPatch(typeof(EntityAnimation), nameof(EntityAnimation.FrameUpdate))]
 internal static class DariusNativeEntityAnimationFramePatch
 {
-    [HarmonyPrefix]
-    private static bool Prefix(EntityAnimation __instance)
-    {
-        return !DariusNativeEntityAnimationLease.IsOwned(__instance);
-    }
-}
-
-[HarmonyPatch]
-internal static class DariusNativeEntityAnimationAbilityPatch
-{
-    private static IEnumerable<MethodBase> TargetMethods()
-    {
-        return typeof(EntityAnimation).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-            .Where(m => m.Name == "PlayAbilityAnimation");
-    }
-
     [HarmonyPrefix]
     private static bool Prefix(EntityAnimation __instance)
     {
