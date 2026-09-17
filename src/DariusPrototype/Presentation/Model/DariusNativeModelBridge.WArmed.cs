@@ -77,46 +77,34 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         AnimationClip baseIdle = FindClip(IdleClipName);
         AnimationClip baseRun = FindClip(RunClipName);
         DariusNativeSkinProfile profile = DariusNativeSkinProfiles.Find(VariantKey);
-        string armedIdleName = profile != null && !string.IsNullOrEmpty(profile.WIdle) ? profile.WIdle : "Spell2_Idle";
-        string armedRunName = profile != null && !string.IsNullOrEmpty(profile.WRun) ? profile.WRun : "Spell2_Run";
-        AnimationClip armedIdle = FindClip(armedIdleName) ?? baseIdle;
-        AnimationClip armedRun = FindClip(armedRunName) ?? baseRun;
+        AnimationClip armedIdle = profile != null && !string.IsNullOrEmpty(profile.WIdle)
+            ? FindClip(profile.WIdle)
+            : baseIdle;
+        AnimationClip armedRun = profile != null && !string.IsNullOrEmpty(profile.WRun)
+            ? FindClip(profile.WRun)
+            : baseRun;
         if (baseIdle == null || baseRun == null || armedIdle == null || armedRun == null)
             throw new InvalidOperationException("Native W locomotion clips are incomplete skin=" + VariantKey);
 
+        AnimationClip idle = armed ? armedIdle : baseIdle;
+        AnimationClip run = armed ? armedRun : baseRun;
         try
         {
-            if (armed)
-            {
-                PushWSlots(_wIdleSlots, armedIdle, baseIdle);
-                PushWSlots(_wRunSlots, armedRun, baseRun);
-            }
-            else
-            {
-                PopWSlots(_wIdleSlots);
-                PopWSlots(_wRunSlots);
-            }
+            ApplyWSlots(_wIdleSlots, idle);
+            ApplyWSlots(_wRunSlots, run);
         }
         catch
         {
             if (armed)
             {
-                DariusNativeAnimationReplacementLedger.ForceRelease(_entityAnimation);
-            }
-            else
-            {
-                try
-                {
-                    PushWSlots(_wIdleSlots, armedIdle, baseIdle);
-                    PushWSlots(_wRunSlots, armedRun, baseRun);
-                }
-                catch { }
+                try { ApplyWSlots(_wIdleSlots, baseIdle); } catch { }
+                try { ApplyWSlots(_wRunSlots, baseRun); } catch { }
             }
             throw;
         }
 
         DariusLog.DebugInfo("NATIVE-W", "armed=" + armed +
-            " idle=" + armedIdle.name + " run=" + armedRun.name +
+            " idle=" + idle.name + " run=" + run.name +
             " replaceableIdle=" + _wIdleSlots.Length + " replaceableRun=" + _wRunSlots.Length);
     }
 
@@ -146,19 +134,10 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
                name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
     }
 
-    private void PushWSlots(
-        EntityAnimation.ReplaceableAnimationType[] slots,
-        AnimationClip replacement,
-        AnimationClip fallback)
+    private void ApplyWSlots(EntityAnimation.ReplaceableAnimationType[] slots, AnimationClip clip)
     {
         for (int i = 0; i < slots.Length; i++)
-            DariusNativeAnimationReplacementLedger.PushOverride(_entityAnimation, slots[i], replacement, fallback);
-    }
-
-    private void PopWSlots(EntityAnimation.ReplaceableAnimationType[] slots)
-    {
-        for (int i = 0; i < slots.Length; i++)
-            DariusNativeAnimationReplacementLedger.PopOverride(_entityAnimation, slots[i]);
+            _entityAnimation.ReplaceAnimationLocal(slots[i], clip);
     }
 
     private void ResetWLocomotionOverrides()
@@ -171,12 +150,10 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         try
         {
             if (_wArmedPresentation) ApplyWLocomotionOverrides(false);
-            else DariusNativeAnimationReplacementLedger.ForceRelease(_entityAnimation);
         }
         catch (Exception e)
         {
             DariusLog.Exception("NATIVE-W", e, "Failed restoring W locomotion overrides skin=" + VariantKey);
-            DariusNativeAnimationReplacementLedger.ForceRelease(_entityAnimation);
         }
         _wArmedPresentation = false;
     }
