@@ -52,7 +52,7 @@ internal static class DariusNativeAnimationAdapter
         catch (Exception e)
         {
             DariusLog.Exception("NATIVE-ANIM", e, "Native bridge animation dispatch failed: " + animationName);
-            return false;
+            return true;
         }
     }
 
@@ -70,7 +70,7 @@ internal static class DariusNativeAnimationAdapter
         catch (Exception e)
         {
             DariusLog.Exception("NATIVE-ANIM", e, "Native bridge StopAbility failed");
-            return false;
+            return true;
         }
     }
 
