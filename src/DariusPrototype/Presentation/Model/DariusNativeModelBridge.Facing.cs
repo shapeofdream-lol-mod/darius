@@ -12,6 +12,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     private bool _actionMovementTracking;
     private Vector3 _actionMovementPosition;
     private float _actionLastMotionAt = -999f;
+    private bool _lowerBodyActive;
+    private string _lowerBodyClip;
 
     private bool IsRunningState()
     {
@@ -24,8 +26,9 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     {
         if (state.IsName(DariusNativeAssetContract.AnimatorStateName(RunClipName))) return true;
         DariusNativeSkinProfile profile = DariusNativeSkinProfiles.Find(VariantKey);
-        return profile != null && !string.IsNullOrEmpty(profile.WRun) &&
-               state.IsName(DariusNativeAssetContract.AnimatorStateName(profile.WRun));
+        if (profile != null && !string.IsNullOrEmpty(profile.WRun) &&
+            state.IsName(DariusNativeAssetContract.AnimatorStateName(profile.WRun))) return true;
+        return state.IsName(DariusNativeAssetContract.AnimatorStateName("Spell2_Run"));
     }
 
     private void BeginActionMovementTracking()
@@ -57,6 +60,50 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         _actionMovementTracking = false;
         _actionMovementPosition = Vector3.zero;
         _actionLastMotionAt = -999f;
+    }
+
+    private void RefreshActionLowerBody()
+    {
+        if (_animator == null || _lowerBodyLayer < 0 || !_ownsAnimatorAction || IsHeroInDeathState())
+        {
+            DisableActionLowerBody();
+            return;
+        }
+
+        if (!IsActionMovingNow())
+        {
+            DisableActionLowerBody();
+            return;
+        }
+
+        string clip = _wArmedPresentation ? ResolveWLocomotionClip(true) : RunClipName;
+        if (string.IsNullOrEmpty(clip) || FindClip(clip) == null)
+        {
+            DisableActionLowerBody();
+            return;
+        }
+
+        int hash = Animator.StringToHash(DariusNativeAssetContract.AnimatorStateName(clip));
+        if (!_animator.HasState(_lowerBodyLayer, hash))
+        {
+            DariusLog.Warn("NATIVE-ANIM", "Lower-body state missing skin=" + VariantKey + " clip=" + clip);
+            DisableActionLowerBody();
+            return;
+        }
+
+        if (!_lowerBodyActive || !string.Equals(_lowerBodyClip, clip, StringComparison.OrdinalIgnoreCase))
+            _animator.Play(hash, _lowerBodyLayer, 0f);
+        _animator.SetLayerWeight(_lowerBodyLayer, 1f);
+        _lowerBodyActive = true;
+        _lowerBodyClip = clip;
+    }
+
+    private void DisableActionLowerBody()
+    {
+        if (_animator != null && _lowerBodyLayer >= 0 && _lowerBodyActive)
+            _animator.SetLayerWeight(_lowerBodyLayer, 0f);
+        _lowerBodyActive = false;
+        _lowerBodyClip = null;
     }
 
     private void ApplyActionFacing(Vector3 direction)
@@ -95,10 +142,12 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         {
             RefreshActionMovement();
             RefreshActionFacing();
+            RefreshActionLowerBody();
             yield return null;
         }
         while (Time.time < endAt);
         RefreshActionMovement();
         RefreshActionFacing();
+        RefreshActionLowerBody();
     }
 }
