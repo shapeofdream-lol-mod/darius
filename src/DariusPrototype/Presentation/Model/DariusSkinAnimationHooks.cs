@@ -81,8 +81,8 @@ public static class DariusSkinAnimationHooks
         return traveler != null ? traveler.VariantKey : "Classic";
     }
 
-    public static Transform GetWeaponAnchor(Hero hero) => GetAnchor(hero, "BuffBone_Glb_Weapon_1", "Weapon", "R_Hand");
-    public static Transform GetChestAnchor(Hero hero) => GetAnchor(hero, "C_BuffBone_Glb_Chest_Loc", "Chest", "Spine");
+    public static Transform GetWeaponAnchor(Hero hero) => GetAnchor(hero, DariusNativeAssetContract.WeaponAnchorNames);
+    public static Transform GetChestAnchor(Hero hero) => GetAnchor(hero, DariusNativeAssetContract.HealthAnchorNames);
 
     public static Transform GetAnchor(Hero hero, params string[] names)
     {
