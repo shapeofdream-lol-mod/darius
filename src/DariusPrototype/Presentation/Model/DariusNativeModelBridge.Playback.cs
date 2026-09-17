@@ -47,7 +47,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     private IEnumerator PlayQSequence(bool instant)
     {
         BeginAnimatorAction();
-        string action = FirstExisting(_binding != null ? _binding.qClip : null, "Spell1");
+        string action = _binding != null ? _binding.qClip : null;
         string intro = _binding != null ? _binding.qIntroClip : null;
         if (!instant && !string.IsNullOrEmpty(intro) && FindClip(intro) != null)
         {
@@ -67,14 +67,14 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         _wSwingActive = true;
         ApplyActionFacing(direction);
         _sequence = StartCoroutine(PlayTimedAction(
-            FirstExisting(_binding != null ? _binding.wClip : null, "Spell2"), null));
+            _binding != null ? _binding.wClip : null, null));
     }
 
     public void PlayOneShot(string name)
     {
         if (string.Equals(name, "Spell3", StringComparison.Ordinal))
         {
-            string state = FirstExisting(_binding != null ? _binding.eClip : null, "Spell3");
+            string state = _binding != null ? _binding.eClip : null;
             PlayLocomotionAction(state,
                 _binding != null ? _binding.eToIdleClip : null,
                 _binding != null ? _binding.eToRunClip : null,
@@ -83,7 +83,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         }
         if (string.Equals(name, "Spell4", StringComparison.Ordinal))
         {
-            string state = FirstExisting(_binding != null ? _binding.rClip : null, "Spell4");
+            string state = _binding != null ? _binding.rClip : null;
             PlayLocomotionAction(state, null, _binding != null ? _binding.rToRunClip : null, IsGodKingSkin);
             return;
         }
