@@ -29,7 +29,9 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private void OnDestroy()
     {
+        EntityAnimation animation = _entityAnimation;
         ResetWLocomotionOverrides();
         StopSequence();
+        DariusNativeAnimationReplacementLedger.Forget(animation);
     }
 }
