@@ -58,8 +58,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         float duration = instant ? Mathf.Clamp(raw, 0.42f, 0.70f) : raw;
         PlayState(action, 0.04f, raw / Mathf.Max(0.05f, duration));
         yield return new WaitForSeconds(duration);
-        EndAnimatorAction();
-        _sequence = null;
+        FinishAction();
     }
 
     public void PlayWAttack(Vector3 direction)
@@ -73,20 +72,22 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     public void PlayOneShot(string name)
     {
-        bool moving = IsRunningState();
-        string resolved = name;
-        string tail = null;
         if (string.Equals(name, "Spell3", StringComparison.Ordinal))
         {
-            resolved = FirstExisting(_binding != null ? _binding.eClip : null, "Spell3");
-            tail = moving ? (_binding != null ? _binding.eToRunClip : null) : (_binding != null ? _binding.eToIdleClip : null);
+            string state = FirstExisting(_binding != null ? _binding.eClip : null, "Spell3");
+            PlayLocomotionAction(state,
+                _binding != null ? _binding.eToIdleClip : null,
+                _binding != null ? _binding.eToRunClip : null,
+                false);
+            return;
         }
-        else if (string.Equals(name, "Spell4", StringComparison.Ordinal))
+        if (string.Equals(name, "Spell4", StringComparison.Ordinal))
         {
-            resolved = FirstExisting(_binding != null ? _binding.rClip : null, "Spell4");
-            if (moving) tail = _binding != null ? _binding.rToRunClip : null;
+            string state = FirstExisting(_binding != null ? _binding.rClip : null, "Spell4");
+            PlayLocomotionAction(state, null, _binding != null ? _binding.rToRunClip : null, IsGodKingSkin);
+            return;
         }
-        PlayAction(resolved, tail);
+        PlayAction(name, null);
     }
 
     public void PlayAttack(bool alternate, bool critical, Vector3 direction)
@@ -111,14 +112,12 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             FinishAction();
             yield break;
         }
-
         if (moving)
         {
             yield return WaitForActionDuration(Mathf.Max(0.08f, duration - 0.08f));
             FinishAction();
             yield break;
         }
-
         yield return WaitForActionDuration(duration - 0.10f);
         if (!string.IsNullOrEmpty(tail) && FindClip(tail) != null)
         {
@@ -132,11 +131,13 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     private void PlayAction(string state, string tail)
     {
         StopSequence();
-        if (IsGodKingSkin && string.Equals(
-                state, FirstExisting(_binding != null ? _binding.rClip : null, "Spell4"), StringComparison.Ordinal))
-            _sequence = StartCoroutine(PlayGodKingR(state, tail));
-        else
-            _sequence = StartCoroutine(PlayTimedAction(state, tail));
+        _sequence = StartCoroutine(PlayTimedAction(state, tail));
+    }
+
+    private void PlayLocomotionAction(string state, string idleTail, string runTail, bool godKingWolf)
+    {
+        StopSequence();
+        _sequence = StartCoroutine(PlayLocomotionActionSequence(state, idleTail, runTail, godKingWolf));
     }
 
     private IEnumerator PlayTimedAction(string state, string tail)
@@ -153,20 +154,21 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         FinishAction();
     }
 
-    private IEnumerator PlayGodKingR(string state, string tail)
+    private IEnumerator PlayLocomotionActionSequence(string state, string idleTail, string runTail, bool godKingWolf)
     {
         BeginAnimatorAction();
-        SetGodKingWolfVisible(true);
+        if (godKingWolf) SetGodKingWolfVisible(true);
         if (!PlayState(state, 0.05f, 1f))
         {
-            SetGodKingWolfVisible(false);
+            if (godKingWolf) SetGodKingWolfVisible(false);
             FinishAction();
             yield break;
         }
-        yield return WaitForActionDuration(ClipLength(state, 0.6f));
-        SetGodKingWolfVisible(false);
+        yield return WaitForActionDuration(ClipLength(state, godKingWolf ? 0.6f : 0.65f));
+        if (godKingWolf) SetGodKingWolfVisible(false);
+        string tail = IsActionMovingNow() ? runTail : idleTail;
         if (!string.IsNullOrEmpty(tail) && FindClip(tail) != null && PlayState(tail, 0.05f, 1f))
-            yield return WaitForActionDuration(ClipLength(tail, 0.2f));
+            yield return WaitForActionDuration(ClipLength(tail, 0.22f));
         FinishAction();
     }
 
