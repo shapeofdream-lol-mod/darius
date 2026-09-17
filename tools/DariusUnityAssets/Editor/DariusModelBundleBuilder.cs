@@ -50,7 +50,6 @@ public static class DariusModelBundleBuilder
             File.Copy(source, ToProjectAbsolute(assetPath), true);
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
             DariusModelImportUtility.ConfigureModelImporter(assetPath, profile);
-            DariusModelMaterialBinder.BindImportedTextures(assetPath);
 
             string prefabPath = DariusNativeAssetContract.PrefabAssetPath(profile.Variant);
             GameObject prefab = DariusModelPrefabBuilder.Build(assetPath, prefabPath, profile, bundleAssets);
