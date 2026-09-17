@@ -11,6 +11,7 @@ public static class DariusModelMaterialBinder
 
     private sealed class MaterialBinding
     {
+        public string Renderer;
         public int Slot;
         public string Name;
         public string TextureFile;
@@ -26,26 +27,33 @@ public static class DariusModelMaterialBinder
 
         List<MaterialBinding> bindings = LoadBindings(folder, modelStem);
         Dictionary<string, Material> imported = LoadImportedMaterials(assetPath);
-        SkinnedMeshRenderer[] renderers = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-        int slotCount = 0;
-        for (int r = 0; r < renderers.Length; r++)
-            if (renderers[r] != null) slotCount += renderers[r].sharedMaterials.Length;
-        if (slotCount != bindings.Count)
-            throw new InvalidOperationException("Blender/Unity material slot count mismatch model=" + modelStem +
-                " blender=" + bindings.Count + " unity=" + slotCount);
+        Dictionary<string, SkinnedMeshRenderer> renderers = LoadRenderers(model, modelStem);
+        Dictionary<string, List<MaterialBinding>> byRenderer = GroupBindings(bindings, modelStem);
 
-        int cursor = 0;
-        for (int r = 0; r < renderers.Length; r++)
+        if (renderers.Count != byRenderer.Count)
+            throw new InvalidOperationException("Blender/Unity skinned renderer count mismatch model=" + modelStem +
+                " blender=" + byRenderer.Count + " unity=" + renderers.Count);
+
+        int assetIndex = 0;
+        foreach (KeyValuePair<string, List<MaterialBinding>> pair in byRenderer)
         {
-            SkinnedMeshRenderer renderer = renderers[r];
-            if (renderer == null) continue;
+            SkinnedMeshRenderer renderer;
+            if (!renderers.TryGetValue(pair.Key, out renderer) || renderer == null)
+                throw new InvalidOperationException("Unity skinned renderer missing model=" + modelStem +
+                    " renderer=" + pair.Key);
+
             Material[] materials = renderer.sharedMaterials;
-            for (int m = 0; m < materials.Length; m++)
+            List<MaterialBinding> rendererBindings = pair.Value;
+            if (materials.Length != rendererBindings.Count)
+                throw new InvalidOperationException("Blender/Unity material slot count mismatch model=" + modelStem +
+                    " renderer=" + pair.Key + " blender=" + rendererBindings.Count + " unity=" + materials.Length);
+
+            for (int slot = 0; slot < rendererBindings.Count; slot++)
             {
-                MaterialBinding binding = bindings[cursor];
-                if (binding.Slot != cursor)
+                MaterialBinding binding = rendererBindings[slot];
+                if (binding.Slot != slot)
                     throw new InvalidOperationException("Native material slots are not contiguous model=" + modelStem +
-                        " expected=" + cursor + " actual=" + binding.Slot);
+                        " renderer=" + pair.Key + " expected=" + slot + " actual=" + binding.Slot);
 
                 Material template;
                 if (!imported.TryGetValue(binding.Name, out template) || template == null)
@@ -64,18 +72,63 @@ public static class DariusModelMaterialBinder
                 }
 
                 string materialPath = generatedRoot + "/" + modelStem + "_mat_" +
-                    cursor.ToString("D2") + "_" + SanitizeAssetName(binding.Name) + ".mat";
+                    assetIndex.ToString("D2") + "_" + SanitizeAssetName(binding.Name) + ".mat";
                 AssetDatabase.DeleteAsset(materialPath);
                 AssetDatabase.CreateAsset(material, materialPath);
-                materials[m] = material;
+                materials[slot] = material;
                 Debug.Log("[DariusNativeAssets] assigned model=" + modelStem +
-                    " slot=" + cursor + " material=" + binding.Name +
+                    " renderer=" + pair.Key + " slot=" + slot + " material=" + binding.Name +
                     " texture=" + binding.TextureFile);
-                cursor++;
+                assetIndex++;
             }
             renderer.sharedMaterials = materials;
         }
         AssetDatabase.SaveAssets();
+    }
+
+    private static Dictionary<string, SkinnedMeshRenderer> LoadRenderers(GameObject model, string modelStem)
+    {
+        Dictionary<string, SkinnedMeshRenderer> result =
+            new Dictionary<string, SkinnedMeshRenderer>(StringComparer.OrdinalIgnoreCase);
+        SkinnedMeshRenderer[] renderers = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            SkinnedMeshRenderer renderer = renderers[i];
+            if (renderer == null || renderer.sharedMesh == null) continue;
+            string name = renderer.gameObject != null ? renderer.gameObject.name : null;
+            if (string.IsNullOrEmpty(name))
+                throw new InvalidOperationException("Unity skinned renderer has no name model=" + modelStem);
+            if (result.ContainsKey(name))
+                throw new InvalidOperationException("Duplicate Unity skinned renderer name model=" + modelStem +
+                    " renderer=" + name);
+            result.Add(name, renderer);
+        }
+        if (result.Count == 0)
+            throw new InvalidOperationException("Imported model has no skinned renderers: " + modelStem);
+        return result;
+    }
+
+    private static Dictionary<string, List<MaterialBinding>> GroupBindings(
+        List<MaterialBinding> bindings,
+        string modelStem)
+    {
+        Dictionary<string, List<MaterialBinding>> result =
+            new Dictionary<string, List<MaterialBinding>>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < bindings.Count; i++)
+        {
+            MaterialBinding binding = bindings[i];
+            List<MaterialBinding> list;
+            if (!result.TryGetValue(binding.Renderer, out list))
+            {
+                list = new List<MaterialBinding>();
+                result.Add(binding.Renderer, list);
+            }
+            if (binding.Slot != list.Count)
+                throw new InvalidDataException("Non-contiguous native material slot model=" + modelStem +
+                    " renderer=" + binding.Renderer + " expected=" + list.Count + " actual=" + binding.Slot);
+            list.Add(binding);
+        }
+        return result;
     }
 
     private static Dictionary<string, Material> LoadImportedMaterials(string assetPath)
@@ -98,7 +151,6 @@ public static class DariusModelMaterialBinder
             throw new FileNotFoundException("Native material manifest missing", manifestPath);
 
         List<MaterialBinding> result = new List<MaterialBinding>();
-        HashSet<string> names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string[] lines = File.ReadAllLines(manifestPath);
         for (int i = 0; i < lines.Length; i++)
         {
@@ -106,34 +158,27 @@ public static class DariusModelMaterialBinder
             if (string.IsNullOrWhiteSpace(line)) continue;
             string[] parts = line.Split('\t');
             int slot;
-            string material;
-            string textureFile;
-            if (parts.Length == 2)
-            {
-                slot = result.Count;
-                material = parts[0].Trim();
-                textureFile = parts[1].Trim();
-            }
-            else if (parts.Length == 3 && int.TryParse(parts[0], out slot))
-            {
-                material = parts[1].Trim();
-                textureFile = parts[2].Trim();
-            }
-            else
-            {
-                throw new InvalidDataException("Malformed native material manifest line=" + (i + 1) + " file=" + manifestPath);
-            }
+            if (parts.Length != 4 || string.IsNullOrWhiteSpace(parts[0]) ||
+                !int.TryParse(parts[1], out slot) || slot < 0 ||
+                string.IsNullOrWhiteSpace(parts[2]) || string.IsNullOrWhiteSpace(parts[3]))
+                throw new InvalidDataException("Malformed native material manifest line=" + (i + 1) +
+                    " file=" + manifestPath);
 
-            if (slot != result.Count || string.IsNullOrWhiteSpace(material) || string.IsNullOrWhiteSpace(textureFile))
-                throw new InvalidDataException("Invalid native material slot line=" + (i + 1) + " file=" + manifestPath);
+            string renderer = parts[0].Trim();
+            string material = parts[2].Trim();
+            string textureFile = parts[3].Trim();
             if (!string.Equals(textureFile, NoTexture, StringComparison.Ordinal) &&
                 (!string.Equals(Path.GetFileName(textureFile), textureFile, StringComparison.Ordinal) ||
                  !textureFile.StartsWith(modelStem + "__tex_", StringComparison.OrdinalIgnoreCase)))
-                throw new InvalidDataException("Invalid native texture mapping model=" + modelStem + " texture=" + textureFile);
-            if (!names.Add(material))
-                throw new InvalidDataException("Duplicate native material mapping model=" + modelStem + " material=" + material);
+                throw new InvalidDataException("Invalid native texture mapping model=" + modelStem +
+                    " texture=" + textureFile);
 
-            result.Add(new MaterialBinding { Slot = slot, Name = material, TextureFile = textureFile });
+            result.Add(new MaterialBinding {
+                Renderer = renderer,
+                Slot = slot,
+                Name = material,
+                TextureFile = textureFile
+            });
         }
         if (result.Count == 0) throw new InvalidDataException("Native material manifest is empty: " + manifestPath);
         return result;
