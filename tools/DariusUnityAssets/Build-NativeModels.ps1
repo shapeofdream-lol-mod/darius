@@ -66,7 +66,7 @@ try {
     # editor followed immediately by a second editor can leave the project lock owned by the first
     # process. A single -projectPath + -executeMethod invocation avoids that lifecycle race entirely.
     Write-Host "> Unity project preparation"
-    $unityVersionOutput = & $UnityExe -version
+    $unityVersionOutput = & $UnityExe -version 2>&1
     if ($LASTEXITCODE -ne 0) { throw "Unity version probe failed with exit code $LASTEXITCODE" }
     $unityVersion = (($unityVersionOutput | Out-String).Trim())
     if ([string]::IsNullOrWhiteSpace($unityVersion)) { throw "Unity version probe returned no version" }
