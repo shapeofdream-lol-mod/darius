@@ -10,13 +10,12 @@ internal static partial class DariusNativeModelAssets
     internal static Mesh GetOverlayMesh(string variantKey, int rendererIndex, uint materialHash)
     {
         if (string.IsNullOrEmpty(variantKey) || rendererIndex < 0) return null;
-        string key = variantKey + "|" + rendererIndex + "|" + materialHash.ToString("x8");
+        string key = DariusNativeOverlayContract.AssetFileName(variantKey, rendererIndex, materialHash);
         Mesh cached;
         if (OverlayMeshes.TryGetValue(key, out cached)) return cached;
         if (!EnsureBundle()) return null;
 
-        string variant = variantKey.Replace(" ", string.Empty).ToLowerInvariant();
-        string suffix = "/overlay_" + variant + "_" + rendererIndex + "_" + materialHash.ToString("x8") + ".asset";
+        string suffix = DariusNativeOverlayContract.AssetSuffix(variantKey, rendererIndex, materialHash);
         string assetName = null;
         for (int i = 0; i < _assetNames.Length; i++)
         {
