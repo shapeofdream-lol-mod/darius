@@ -129,11 +129,9 @@ internal static class DariusRuntimePerformance
 
     private static bool IsAuthoredHiddenRenderer(SkinnedMeshRenderer renderer)
     {
-        if (renderer == null) return false;
-        string objectName = renderer.gameObject != null ? renderer.gameObject.name : null;
-        if (!string.IsNullOrEmpty(objectName) && objectName.StartsWith("DariusHidden_", StringComparison.OrdinalIgnoreCase))
-            return true;
-        string meshName = renderer.sharedMesh != null ? renderer.sharedMesh.name : null;
-        return !string.IsNullOrEmpty(meshName) && meshName.EndsWith("_Hidden", StringComparison.OrdinalIgnoreCase);
+        string objectName = renderer != null && renderer.gameObject != null
+            ? renderer.gameObject.name
+            : null;
+        return DariusNativeAssetContract.IsHiddenObjectName(objectName);
     }
 }
