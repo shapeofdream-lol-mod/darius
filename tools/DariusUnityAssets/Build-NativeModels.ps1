@@ -62,7 +62,7 @@ try {
         Invoke-Checked $BlenderExe @('--background', '--python-exit-code', '1', '--python', $converter, '--', $src, $dst) "Blender $($model.Variant)"
     }
 
-    $textures = @(Get-ChildItem $fbxRoot -Filter '*.png' -File)
+    $textures = @(Get-ChildItem $fbxRoot -File | Where-Object { $_.Name -match '__tex_\d+_.+\.(png|jpe?g)$' })
     $maps = @(Get-ChildItem $fbxRoot -Filter '*__materials.tsv' -File)
     if ($textures.Count -eq 0) { throw "Blender produced no texture sidecars: $fbxRoot" }
     if ($maps.Count -ne $models.Count) { throw "Material map count mismatch expected=$($models.Count) actual=$($maps.Count)" }
