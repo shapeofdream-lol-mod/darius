@@ -44,7 +44,6 @@ $models = @(Get-DariusNativeProfiles -ProfilePath $sharedProfile)
 $workRoot = Join-Path (Join-Path $RepoRoot 'build\native-assets-work') ((Get-Date -Format 'yyyyMMdd-HHmmss') + '_' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
 $fbxRoot = Join-Path $workRoot 'fbx'
 $unityProject = Join-Path $workRoot 'UnityProject'
-$createLog = Join-Path $workRoot 'unity-create-project.log'
 $buildLog = Join-Path $workRoot 'unity-build-native-models.log'
 $preserveWorkspace = [bool]$KeepTemp
 New-Item -ItemType Directory -Path $fbxRoot -Force | Out-Null
@@ -58,15 +57,30 @@ try {
         Invoke-Checked $BlenderExe @('--background', '--python-exit-code', '1', '--python', $converter, '--', $src, $dst) "Blender $($model.Variant)"
     }
 
-    Invoke-Checked $UnityExe @('-batchmode', '-quit', '-createProject', $unityProject, '-buildTarget', 'StandaloneWindows64', '-logFile', $createLog) 'Unity project creation'
     $textures = @(Get-ChildItem $fbxRoot -Filter '*.png' -File)
     $maps = @(Get-ChildItem $fbxRoot -Filter '*__materials.tsv' -File)
     if ($textures.Count -eq 0) { throw "Blender produced no texture sidecars: $fbxRoot" }
     if ($maps.Count -ne $models.Count) { throw "Material map count mismatch expected=$($models.Count) actual=$($maps.Count)" }
 
+    # Build the disposable project on disk before launching Unity. Using a separate -createProject
+    # editor followed immediately by a second editor can leave the project lock owned by the first
+    # process. A single -projectPath + -executeMethod invocation avoids that lifecycle race entirely.
+    Write-Host "> Unity project preparation"
+    $unityVersionOutput = & $UnityExe -version
+    if ($LASTEXITCODE -ne 0) { throw "Unity version probe failed with exit code $LASTEXITCODE" }
+    $unityVersion = (($unityVersionOutput | Out-String).Trim())
+    if ([string]::IsNullOrWhiteSpace($unityVersion)) { throw "Unity version probe returned no version" }
+
     $sourceDir = Join-Path $unityProject 'Assets\DariusSource'
     $editorDir = Join-Path $unityProject 'Assets\Editor'
-    New-Item -ItemType Directory -Path $sourceDir, $editorDir -Force | Out-Null
+    $projectSettingsDir = Join-Path $unityProject 'ProjectSettings'
+    New-Item -ItemType Directory -Path $sourceDir, $editorDir, $projectSettingsDir -Force | Out-Null
+    [System.IO.File]::WriteAllText(
+        (Join-Path $projectSettingsDir 'ProjectVersion.txt'),
+        "m_EditorVersion: $unityVersion`n",
+        (New-Object System.Text.UTF8Encoding($false))
+    )
+
     foreach ($sidecar in @($textures) + @($maps)) { Copy-Item $sidecar.FullName (Join-Path $sourceDir $sidecar.Name) -Force }
     foreach ($name in $editorFiles) { Copy-Item (Join-Path $editorSourceDir $name) (Join-Path $editorDir $name) -Force }
     Copy-Item $sharedProfile (Join-Path $editorDir 'DariusNativeSkinProfiles.cs') -Force
