@@ -5,6 +5,9 @@ import sys
 import bpy
 
 
+NO_TEXTURE = "-"
+
+
 def args_after_double_dash():
     if "--" not in sys.argv:
         return []
@@ -56,7 +59,7 @@ def linked_image(socket, visited=None):
 
 
 def base_color_image(material):
-    if material is None or not material.use_nodes or material.node_tree is None:
+    if material is None or material.node_tree is None:
         return None
     for node in material.node_tree.nodes:
         if node.type != "BSDF_PRINCIPLED":
@@ -72,23 +75,33 @@ def export_material_map(dst, exported):
     stem = os.path.splitext(os.path.basename(dst))[0]
     path = os.path.join(os.path.dirname(dst), f"{stem}__materials.tsv")
     lines = []
+    textured = 0
+    untextured = 0
     for material in bpy.data.materials:
         if material is None or material.users <= 0:
             continue
-        image = base_color_image(material)
-        if image is None:
-            raise RuntimeError(f"Material has no linked base-color image: {material.name}")
-        filename = exported.get(image.name)
-        if filename is None:
-            raise RuntimeError(f"Base-color image was not exported: material={material.name} image={image.name}")
         if any(c in material.name for c in "\t\r\n"):
             raise RuntimeError(f"Material name cannot be represented in TSV manifest: {material.name!r}")
+
+        image = base_color_image(material)
+        if image is None:
+            filename = NO_TEXTURE
+            untextured += 1
+        else:
+            filename = exported.get(image.name)
+            if filename is None:
+                raise RuntimeError(f"Base-color image was not exported: material={material.name} image={image.name}")
+            textured += 1
         lines.append(f"{material.name}\t{filename}")
+
     if not lines:
         raise RuntimeError(f"GLB contains no material bindings: {dst}")
     with open(path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write("\n".join(lines) + "\n")
-    print(f"Darius native material map complete: {path} materials={len(lines)}")
+    print(
+        f"Darius native material map complete: {path} materials={len(lines)} "
+        f"textured={textured} untextured={untextured}"
+    )
 
 
 def main():
