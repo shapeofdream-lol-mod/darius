@@ -15,7 +15,6 @@ internal static class DariusModelImportUtility
         importer.globalScale = 1f;
         importer.importAnimation = true;
         importer.importBlendShapes = true;
-        importer.importMaterials = true;
         importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
         importer.animationType = ModelImporterAnimationType.Generic;
         importer.avatarSetup = ModelImporterAvatarSetup.NoAvatar;
