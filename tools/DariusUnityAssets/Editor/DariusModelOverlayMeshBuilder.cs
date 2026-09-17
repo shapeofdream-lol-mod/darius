@@ -31,7 +31,7 @@ internal static class DariusModelOverlayMeshBuilder
             {
                 Material material = materials[i];
                 if (material == null) continue;
-                uint hash = RiotStringHash(StripRuntimeSuffix(material.name));
+                uint hash = DariusNativeOverlayContract.MaterialHash(material.name);
                 if (!emitted.Add(hash)) continue;
                 expected++;
                 string path = CreateFilteredMesh(
@@ -70,35 +70,13 @@ internal static class DariusModelOverlayMeshBuilder
         for (int i = 0; i < copy.subMeshCount; i++)
         {
             Material material = i < materials.Length ? materials[i] : null;
-            if (material == null || RiotStringHash(StripRuntimeSuffix(material.name)) != materialHash)
+            if (material == null || DariusNativeOverlayContract.MaterialHash(material.name) != materialHash)
                 copy.SetTriangles(Array.Empty<int>(), i, false);
         }
-        string variant = profile.Variant.Replace(" ", string.Empty).ToLowerInvariant();
-        string path = generatedRoot + "/overlay_" + variant + "_" + sourceIndex + "_" +
-            materialHash.ToString("x8") + ".asset";
+        string path = generatedRoot + "/" +
+            DariusNativeOverlayContract.AssetFileName(profile.Variant, sourceIndex, materialHash);
         AssetDatabase.CreateAsset(copy, path);
         return path;
-    }
-
-    private static string StripRuntimeSuffix(string name)
-    {
-        if (string.IsNullOrEmpty(name)) return string.Empty;
-        const string runtime = "_Runtime";
-        return name.EndsWith(runtime, StringComparison.OrdinalIgnoreCase)
-            ? name.Substring(0, name.Length - runtime.Length)
-            : name;
-    }
-
-    private static uint RiotStringHash(string text)
-    {
-        uint h = 2166136261u;
-        if (text == null) return h;
-        for (int i = 0; i < text.Length; i++)
-        {
-            h ^= (byte)char.ToLowerInvariant(text[i]);
-            h *= 16777619u;
-        }
-        return h;
     }
 }
 #endif
