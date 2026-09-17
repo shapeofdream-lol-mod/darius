@@ -15,6 +15,14 @@ internal static class DariusModelMeshProcessor
         List<string> bundleAssets)
     {
         if (root == null || profile == null) return;
+
+        // Main's runtime GLB path only builds the skinned champion mesh. FBX import can additionally
+        // surface unskinned helper/authoring meshes from the source scene; leaving their MeshRenderer
+        // components in the native prefab changes presentation semantics and can expose texture cards
+        // during action clips. Keep the hierarchy for animation/anchor paths, but remove rendering for
+        // geometry that main never displayed.
+        RemoveNonSkinnedRenderers(root);
+
         SkinnedMeshRenderer[] renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
         for (int i = 0; i < renderers.Length; i++)
         {
@@ -25,6 +33,18 @@ internal static class DariusModelMeshProcessor
         }
         if (profile.GodKing) SplitAuthoredHiddenSubmeshes(renderers, profile, generatedRoot);
         DariusModelOverlayMeshBuilder.Build(root, profile, bundleAssets);
+    }
+
+    private static void RemoveNonSkinnedRenderers(GameObject root)
+    {
+        MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            MeshRenderer renderer = renderers[i];
+            if (renderer == null) continue;
+            Debug.Log("[DariusNativeAssets] removed non-skinned source renderer object=" + renderer.gameObject.name);
+            UnityEngine.Object.DestroyImmediate(renderer);
+        }
     }
 
     private static Bounds ExpandBounds(SkinnedMeshRenderer renderer, float factor)
