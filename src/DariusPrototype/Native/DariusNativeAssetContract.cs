@@ -3,6 +3,7 @@ using System;
 internal static class DariusNativeAssetContract
 {
     public const string GeneratedAssetRoot = "Assets/DariusGenerated";
+    public const string LowerBodyAnimatorLayerName = "DariusLowerBody";
 
     private const string HiddenObjectPrefix = "DariusHidden_";
     private const string WolfHiddenObjectPrefix = "DariusHidden_Wolf_";
@@ -68,6 +69,17 @@ internal static class DariusNativeAssetContract
                name.StartsWith(WolfHiddenObjectPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
+    public static bool IsLowerBodyLocomotionName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+        string lower = name.ToLowerInvariant();
+        if (lower.Contains("weapon") || lower.Contains("buffbone") || lower.Contains("ground_loc") ||
+            lower.Contains("glb_foot_loc") || lower.Contains("snap_") || lower.Contains("doll")) return false;
+        return lower.Contains("hip") || lower.Contains("knee") || lower.Contains("leg") ||
+               lower.Contains("thigh") || lower.Contains("calf") || lower.Contains("foot") ||
+               lower.Contains("toe");
+    }
+
     public static string WolfHiddenObjectName(string sourceName)
     {
         return WolfHiddenObjectPrefix + (sourceName ?? string.Empty);
@@ -81,6 +93,11 @@ internal static class DariusNativeAssetContract
     public static string PrefabAssetPath(string variant)
     {
         return GeneratedAssetRoot + "/darius_" + NormalizeVariant(variant) + ".prefab";
+    }
+
+    public static string LowerBodyMaskAssetPath(string variant)
+    {
+        return GeneratedAssetRoot + "/darius_" + NormalizeVariant(variant) + "_lowerbody.mask";
     }
 
     public static string OverlayAssetFileName(string variant, int rendererIndex, uint materialHash)
