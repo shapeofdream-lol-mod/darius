@@ -8,7 +8,7 @@ using UnityEngine;
 public static class DariusModelBundleBuilder
 {
     private const string SourceRoot = "Assets/DariusSource";
-    private const string GeneratedRoot = "Assets/DariusGenerated";
+    private const string GeneratedRoot = DariusNativeAssetContract.GeneratedAssetRoot;
     private const string BundleName = "darius_models.bundle";
 
     public static void BuildAllBatch()
@@ -52,7 +52,7 @@ public static class DariusModelBundleBuilder
             DariusModelImportUtility.ConfigureModelImporter(assetPath, profile);
             DariusModelMaterialBinder.BindImportedTextures(assetPath);
 
-            string prefabPath = GeneratedRoot + "/darius_" + profile.Variant.ToLowerInvariant() + ".prefab";
+            string prefabPath = DariusNativeAssetContract.PrefabAssetPath(profile.Variant);
             GameObject prefab = DariusModelPrefabBuilder.Build(assetPath, prefabPath, profile, bundleAssets);
             if (prefab == null || AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath) == null)
                 throw new InvalidOperationException("Generated prefab missing skin=" + profile.Variant);
