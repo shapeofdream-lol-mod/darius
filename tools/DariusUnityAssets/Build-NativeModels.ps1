@@ -12,8 +12,13 @@ Set-StrictMode -Version Latest
 function Invoke-Checked {
     param([string]$Exe, [string[]]$Arguments, [string]$Label)
     Write-Host "> $Label"
-    & $Exe @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "$Label failed with exit code $LASTEXITCODE" }
+    $processArguments = @($Arguments | ForEach-Object {
+        $value = [string]$_
+        if ($value.IndexOf('"') -ge 0) { throw "$Label argument contains an unsupported quote: $value" }
+        if ($value -match '\s') { '"' + $value + '"' } else { $value }
+    })
+    $process = Start-Process -FilePath $Exe -ArgumentList $processArguments -NoNewWindow -Wait -PassThru
+    if ($process.ExitCode -ne 0) { throw "$Label failed with exit code $($process.ExitCode)" }
 }
 
 $UnityExe = (Resolve-Path $UnityExe).Path
