@@ -7,6 +7,8 @@ using UnityEngine;
 
 public static class DariusModelMaterialBinder
 {
+    private const string NoTexture = "-";
+
     public static void BindImportedTextures(string assetPath)
     {
         string folder = (Path.GetDirectoryName(assetPath) ?? string.Empty).Replace('\\', '/');
@@ -26,6 +28,14 @@ public static class DariusModelMaterialBinder
             if (!bindings.TryGetValue(material.name, out textureFile))
                 throw new InvalidOperationException("No Blender material binding model=" + modelStem + " material=" + material.name);
 
+            consumed.Add(material.name);
+            if (string.Equals(textureFile, NoTexture, StringComparison.Ordinal))
+            {
+                Debug.Log("[DariusNativeAssets] preserved untextured material model=" + modelStem +
+                    " material=" + material.name);
+                continue;
+            }
+
             string texturePath = folder + "/" + textureFile;
             Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
             if (texture == null)
@@ -33,7 +43,6 @@ public static class DariusModelMaterialBinder
                     " material=" + material.name + " asset=" + texturePath);
             material.mainTexture = texture;
             EditorUtility.SetDirty(material);
-            consumed.Add(material.name);
             Debug.Log("[DariusNativeAssets] bound model=" + modelStem +
                 " material=" + material.name + " texture=" + texture.name);
         }
@@ -62,8 +71,9 @@ public static class DariusModelMaterialBinder
             if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[1]))
                 throw new InvalidDataException("Malformed native material manifest line=" + (i + 1) + " file=" + manifestPath);
             string textureFile = parts[1].Trim();
-            if (!string.Equals(Path.GetFileName(textureFile), textureFile, StringComparison.Ordinal) ||
-                !textureFile.StartsWith(modelStem + "__tex_", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(textureFile, NoTexture, StringComparison.Ordinal) &&
+                (!string.Equals(Path.GetFileName(textureFile), textureFile, StringComparison.Ordinal) ||
+                 !textureFile.StartsWith(modelStem + "__tex_", StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidDataException("Invalid native texture mapping model=" + modelStem + " texture=" + textureFile);
             string material = parts[0].Trim();
             if (result.ContainsKey(material))
