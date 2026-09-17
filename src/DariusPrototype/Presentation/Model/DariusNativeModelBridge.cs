@@ -112,6 +112,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _entityAnimationModelSetup = false;
             ResetWLocomotionOverrides();
             StopSequence();
+            DariusNativeAnimationReplacementLedger.Forget(_entityAnimation);
             DariusLog.Exception("NATIVE-MODEL", e,
                 "EntityAnimation.SetupModel failed skin=" + VariantKey + "; native gameplay presentation disabled");
         }
