@@ -27,9 +27,16 @@ public sealed class Hero_Darius : Hero
         try
         {
             DariusNativeModelBridge native = NativeModelBridge;
-            DariusTravelerModelInstance legacy = native == null ? GetComponentInChildren<DariusTravelerModelInstance>(true) : null;
-            if (native != null) native.BindHero(this);
-            else if (legacy != null) legacy.BindHero(this);
+            if (native != null)
+            {
+                native.BindHero(this);
+                if (!native.IsReady) native = null;
+            }
+
+            DariusTravelerModelInstance legacy = native == null
+                ? GetComponentInChildren<DariusTravelerModelInstance>(true)
+                : null;
+            if (legacy != null) legacy.BindHero(this);
 
             DariusBasicAttackVisualRuntime attackVisual = GetComponent<DariusBasicAttackVisualRuntime>();
             if (attackVisual == null) attackVisual = gameObject.AddComponent<DariusBasicAttackVisualRuntime>();
