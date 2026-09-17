@@ -47,7 +47,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         for (int i = 0; i < materials.Length; i++)
         {
             Material material = materials[i];
-            if (material != null && StripRuntimeSuffix(material.name).IndexOf(sourceName, StringComparison.OrdinalIgnoreCase) >= 0)
+            string name = material != null ? DariusNativeOverlayContract.NormalizeMaterialName(material.name) : null;
+            if (!string.IsNullOrEmpty(name) && name.IndexOf(sourceName, StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
         }
         return false;
@@ -64,27 +65,5 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         string name = go != null ? go.name : string.Empty;
         return name.StartsWith("Darius_NativeOverlay_", StringComparison.OrdinalIgnoreCase) ||
                name.StartsWith("Darius_NativeOverlayGroup_", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string StripRuntimeSuffix(string name)
-    {
-        if (string.IsNullOrEmpty(name)) return string.Empty;
-        const string instance = " (Instance)";
-        if (name.EndsWith(instance, StringComparison.Ordinal)) name = name.Substring(0, name.Length - instance.Length);
-        const string runtime = "_Runtime";
-        if (name.EndsWith(runtime, StringComparison.OrdinalIgnoreCase)) name = name.Substring(0, name.Length - runtime.Length);
-        return name;
-    }
-
-    private static uint RiotStringHash(string text)
-    {
-        uint h = 2166136261u;
-        if (text == null) return h;
-        for (int i = 0; i < text.Length; i++)
-        {
-            h ^= (byte)char.ToLowerInvariant(text[i]);
-            h *= 16777619u;
-        }
-        return h;
     }
 }
