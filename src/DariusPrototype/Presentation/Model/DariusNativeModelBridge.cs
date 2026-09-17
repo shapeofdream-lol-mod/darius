@@ -34,7 +34,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     {
         ResetWLocomotionOverrides();
         EndAnimatorAction();
-        DariusNativeAnimationReplacementLedger.Forget(_entityAnimation);
         _binding = binding;
         _modelRoot = modelRoot;
         _entityModel = GetComponent<EntityModel>();
@@ -61,10 +60,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     {
         if (hero == null)
         {
-            EntityAnimation previous = _entityAnimation;
             ResetWLocomotionOverrides();
             StopSequence();
-            DariusNativeAnimationReplacementLedger.Forget(previous);
             _hero = null;
             _entityAnimation = null;
             _entityAnimationModelSetup = false;
@@ -75,10 +72,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
         if (!ReferenceEquals(_hero, hero))
         {
-            EntityAnimation previous = _entityAnimation;
             ResetWLocomotionOverrides();
             StopSequence();
-            DariusNativeAnimationReplacementLedger.Forget(previous);
             _hero = hero;
             _entityAnimation = null;
             _entityAnimationModelSetup = false;
@@ -89,7 +84,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         EntityAnimation animation = _hero.GetComponent<EntityAnimation>();
         if (!ReferenceEquals(_entityAnimation, animation))
         {
-            DariusNativeAnimationReplacementLedger.Forget(_entityAnimation);
             _entityAnimation = animation;
             _entityAnimationModelSetup = false;
             _setupFailed = false;
@@ -120,7 +114,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _entityAnimationModelSetup = false;
             ResetWLocomotionOverrides();
             StopSequence();
-            DariusNativeAnimationReplacementLedger.Forget(_entityAnimation);
             if (_modelRoot != null) _modelRoot.SetActive(false);
             DariusLog.Exception("NATIVE-MODEL", e,
                 "EntityAnimation.SetupModel failed skin=" + VariantKey + "; native gameplay presentation disabled");
