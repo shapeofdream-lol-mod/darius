@@ -24,7 +24,7 @@ internal static class DariusModelMeshProcessor
             renderer.localBounds = ExpandBounds(renderer, 1.20f);
         }
         if (profile.GodKing) SplitAuthoredHiddenSubmeshes(renderers, profile, generatedRoot);
-        DariusModelOverlayMeshBuilder.Build(root, profile, generatedRoot, bundleAssets);
+        DariusModelOverlayMeshBuilder.Build(root, profile, bundleAssets);
     }
 
     private static Bounds ExpandBounds(SkinnedMeshRenderer renderer, float factor)
@@ -64,11 +64,11 @@ internal static class DariusModelMeshProcessor
             if (hasToggle)
                 CreateHiddenRenderer(source, mesh, materials, kinds, SubmeshKind.ToggleHidden, generatedRoot,
                     stem + "_toggle", mesh.name + "_WolfHidden",
-                    DariusNativeOverlayContract.WolfHiddenObjectName(source.name));
+                    DariusNativeAssetContract.WolfHiddenObjectName(source.name));
             if (hasPermanent)
                 CreateHiddenRenderer(source, mesh, materials, kinds, SubmeshKind.PermanentHidden, generatedRoot,
                     stem + "_static", mesh.name + "_StaticHidden",
-                    DariusNativeOverlayContract.StaticHiddenObjectName(source.name));
+                    DariusNativeAssetContract.StaticHiddenObjectName(source.name));
 
             source.sharedMesh = visibleMesh;
             source.sharedMaterials = FilterMaterials(materials, kinds, SubmeshKind.Visible);
