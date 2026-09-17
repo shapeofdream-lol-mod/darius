@@ -74,27 +74,6 @@ internal static class DariusNativeAnimationAdapter
         }
     }
 
-    public static bool Replace(Hero hero, string key, AnimationClip clip)
-    {
-        if (hero == null || clip == null || string.IsNullOrEmpty(key)) return false;
-        EntityAnimation animation = hero.GetComponent<EntityAnimation>();
-        if (animation == null) return false;
-
-        EntityAnimation.ReplaceableAnimationType type;
-        if (!Enum.TryParse(key, true, out type)) return false;
-
-        try
-        {
-            animation.ReplaceAnimation(type, clip);
-            return true;
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("NATIVE-ANIM", e, "EntityAnimation.ReplaceAnimation failed: " + key);
-            return false;
-        }
-    }
-
     private static DariusNativeModelBridge GetBridge(Hero hero)
     {
         Hero_Darius darius = hero as Hero_Darius;
