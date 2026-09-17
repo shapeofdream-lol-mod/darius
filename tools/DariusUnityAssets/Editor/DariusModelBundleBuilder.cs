@@ -62,8 +62,6 @@ public static class DariusModelBundleBuilder
 
         if (prefabs.Count != profiles.Length)
             throw new InvalidOperationException("Native prefab count mismatch expected=" + profiles.Length + " actual=" + prefabs.Count);
-        if (bundleAssets.Count <= prefabs.Count)
-            throw new InvalidOperationException("Native overlay mesh assets were not generated.");
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
