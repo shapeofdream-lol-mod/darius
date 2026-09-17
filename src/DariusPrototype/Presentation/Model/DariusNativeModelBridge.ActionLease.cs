@@ -16,11 +16,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         _ownsAnimatorAction = true;
         BeginActionMovementTracking();
         SyncAnimatorLease();
-        if (_entityAnimation != null)
-        {
-            try { _entityAnimation.StopAbilityAnimation(); }
-            catch { }
-        }
     }
 
     private void SyncAnimatorLease()
