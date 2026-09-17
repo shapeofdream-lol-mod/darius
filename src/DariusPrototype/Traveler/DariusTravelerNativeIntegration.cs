@@ -110,9 +110,8 @@ internal static class DariusEntityVisualLoadModelFinalizerPatch
     }
 }
 
-// These two guards are retained only for the legacy GLB fallback. Native bundle models deliberately
-// return true so Shape of Dreams can execute ReplaceAnimationLocal and its normal networked ability
-// animation receiver again.
+// Native models keep stock ReplaceAnimationLocal available for generic locomotion/status changes.
+// Only the legacy GLB fallback lacks the stock model contract and therefore still skips replacement.
 [HarmonyPatch]
 internal static class DariusEntityAnimationReplaceAnimationLocalPatch
 {
@@ -133,6 +132,9 @@ internal static class DariusEntityAnimationReplaceAnimationLocalPatch
     }
 }
 
+// Main deliberately makes Darius' own presentation hooks authoritative for ability clips. Keep the
+// same single-owner contract in native mode: stock logic/state still runs, but the receiver-side RPC
+// must not also drive the same Q/W/E/R/basic-attack presentation on the Animator.
 [HarmonyPatch]
 internal static class DariusEntityAnimationAbilityRpcPatch
 {
@@ -146,10 +148,10 @@ internal static class DariusEntityAnimationAbilityRpcPatch
     private static bool Prefix(EntityAnimation __instance)
     {
         Hero_Darius hero = DariusNativeAnimationMode.FindHero(__instance);
-        if (hero == null || hero.NativeModelBridge != null) return true;
+        if (hero == null) return true;
 
-        DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "legacy-ability-rpc",
-            "Skipped stock ability-animation RPC only because Hero_Darius is using the legacy GLB fallback.", 20.0);
+        DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "darius-ability-rpc",
+            "Skipped stock ability-animation RPC for Hero_Darius; Darius presentation hooks own ability clips.", 20.0);
         return false;
     }
 }
