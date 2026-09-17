@@ -44,7 +44,10 @@ function Get-DariusNativeFingerprint {
     foreach ($relative in @(
         'tools\DariusUnityAssets\convert_glb_to_fbx.py',
         'tools\DariusUnityAssets\Build-NativeModels.ps1',
-        'tools\DariusUnityAssets\Native-Model-Contract.ps1'
+        'tools\DariusUnityAssets\Native-Model-Contract.ps1',
+        'src\DariusPrototype\Native\DariusNativeModelAssets.OverlayMeshes.cs',
+        'src\DariusPrototype\Presentation\Model\DariusNativeModelBridge.Overlays.cs',
+        'src\DariusPrototype\Presentation\Model\DariusNativeModelBridge.RendererContracts.cs'
     )) {
         $inputs.Add((Resolve-Path (Join-Path $repo $relative)).Path)
     }
