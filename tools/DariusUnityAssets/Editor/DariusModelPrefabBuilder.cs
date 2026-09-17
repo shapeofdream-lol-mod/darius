@@ -36,8 +36,7 @@ internal static class DariusModelPrefabBuilder
 
         string controllerPath = generatedRoot + "/darius_" +
             DariusNativeAssetContract.NormalizeVariant(profile.Variant) + ".controller";
-        AnimatorController controller = BuildController(
-            controllerPath, clips, profile.Idle, profile.Variant, lowerBodyMask);
+        AnimatorController controller = BuildController(controllerPath, clips, profile, lowerBodyMask);
         ConfigureAnimator(model, controller);
         DariusModelMeshProcessor.ProcessPrefab(model, profile, generatedRoot, bundleAssets);
 
@@ -95,13 +94,12 @@ internal static class DariusModelPrefabBuilder
     private static AnimatorController BuildController(
         string path,
         AnimationClip[] clips,
-        string idleClip,
-        string variant,
+        DariusNativeSkinProfile profile,
         AvatarMask lowerBodyMask)
     {
         AssetDatabase.DeleteAsset(path);
         AnimatorController controller = AnimatorController.CreateAnimatorControllerAtPath(path);
-        PopulateStateMachine(controller.layers[0].stateMachine, clips, idleClip, variant, "base");
+        PopulateBaseStateMachine(controller.layers[0].stateMachine, clips, profile.Idle, profile.Variant);
 
         controller.AddLayer(DariusNativeAssetContract.LowerBodyAnimatorLayerName);
         AnimatorControllerLayer[] layers = controller.layers;
@@ -109,7 +107,7 @@ internal static class DariusModelPrefabBuilder
         lower.avatarMask = lowerBodyMask;
         lower.blendingMode = AnimatorLayerBlendingMode.Override;
         lower.defaultWeight = 0f;
-        PopulateStateMachine(lower.stateMachine, clips, idleClip, variant, "lower-body");
+        PopulateLowerBodyStateMachine(lower.stateMachine, clips, profile);
         layers[layers.Length - 1] = lower;
         controller.layers = layers;
 
@@ -117,12 +115,11 @@ internal static class DariusModelPrefabBuilder
         return controller;
     }
 
-    private static void PopulateStateMachine(
+    private static void PopulateBaseStateMachine(
         AnimatorStateMachine stateMachine,
         AnimationClip[] clips,
         string idleClip,
-        string variant,
-        string layerLabel)
+        string variant)
     {
         HashSet<string> stateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         AnimatorState defaultState = null;
@@ -133,7 +130,7 @@ internal static class DariusModelPrefabBuilder
             string stateName = DariusNativeAssetContract.AnimatorStateName(clip.name);
             if (!stateNames.Add(stateName))
                 throw new InvalidOperationException("Animator state collision skin=" + variant +
-                    " layer=" + layerLabel + " state=" + stateName);
+                    " layer=base state=" + stateName);
             AnimatorState state = stateMachine.AddState(stateName);
             state.motion = clip;
             state.speed = 1f;
@@ -141,9 +138,52 @@ internal static class DariusModelPrefabBuilder
         }
 
         if (defaultState == null)
-            throw new InvalidOperationException("Required idle animation missing skin=" + variant +
-                " layer=" + layerLabel + " clip=" + idleClip);
+            throw new InvalidOperationException("Required idle animation missing skin=" + variant + " clip=" + idleClip);
         stateMachine.defaultState = defaultState;
+    }
+
+    private static void PopulateLowerBodyStateMachine(
+        AnimatorStateMachine stateMachine,
+        AnimationClip[] clips,
+        DariusNativeSkinProfile profile)
+    {
+        AnimatorState disabled = stateMachine.AddState("Disabled");
+        stateMachine.defaultState = disabled;
+
+        Dictionary<string, AnimationClip> byName = new Dictionary<string, AnimationClip>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < clips.Length; i++)
+            if (clips[i] != null && !string.IsNullOrEmpty(clips[i].name) && !byName.ContainsKey(clips[i].name))
+                byName.Add(clips[i].name, clips[i]);
+
+        HashSet<string> added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        AddLowerBodyState(stateMachine, byName, added, profile.Run, true, profile.Variant);
+        AddLowerBodyState(stateMachine, byName, added, profile.WRun, false, profile.Variant);
+        AddLowerBodyState(stateMachine, byName, added, "Spell2_Run", false, profile.Variant);
+    }
+
+    private static void AddLowerBodyState(
+        AnimatorStateMachine stateMachine,
+        Dictionary<string, AnimationClip> clips,
+        HashSet<string> added,
+        string clipName,
+        bool required,
+        string variant)
+    {
+        if (string.IsNullOrEmpty(clipName)) return;
+        AnimationClip clip;
+        if (!clips.TryGetValue(clipName, out clip))
+        {
+            if (required)
+                throw new InvalidOperationException("Required lower-body locomotion clip missing skin=" + variant +
+                    " clip=" + clipName);
+            return;
+        }
+
+        string stateName = DariusNativeAssetContract.AnimatorStateName(clip.name);
+        if (!added.Add(stateName)) return;
+        AnimatorState state = stateMachine.AddState(stateName);
+        state.motion = clip;
+        state.speed = 1f;
     }
 
     private static void ConfigureAnimator(GameObject model, RuntimeAnimatorController controller)
