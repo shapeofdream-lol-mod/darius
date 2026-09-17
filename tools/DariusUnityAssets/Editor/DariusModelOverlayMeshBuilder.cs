@@ -9,7 +9,6 @@ internal static class DariusModelOverlayMeshBuilder
     public static void Build(
         GameObject root,
         DariusNativeSkinProfile profile,
-        string generatedRoot,
         List<string> bundleAssets)
     {
         if (root == null || profile == null || bundleAssets == null)
@@ -31,11 +30,10 @@ internal static class DariusModelOverlayMeshBuilder
             {
                 Material material = materials[i];
                 if (material == null) continue;
-                uint hash = DariusNativeOverlayContract.MaterialHash(material.name);
+                uint hash = DariusNativeAssetContract.MaterialHash(material.name);
                 if (!emitted.Add(hash)) continue;
                 expected++;
-                string path = CreateFilteredMesh(
-                    source.sharedMesh, materials, hash, profile, stableIndex, generatedRoot);
+                string path = CreateFilteredMesh(source.sharedMesh, materials, hash, profile, stableIndex);
                 Mesh asset = AssetDatabase.LoadAssetAtPath<Mesh>(path);
                 if (asset == null)
                     throw new InvalidOperationException("Overlay mesh asset was not created skin=" + profile.Variant +
@@ -54,7 +52,7 @@ internal static class DariusModelOverlayMeshBuilder
     {
         if (renderer == null || renderer.sharedMesh == null) return false;
         string name = renderer.gameObject != null ? renderer.gameObject.name : string.Empty;
-        return !DariusNativeOverlayContract.IsHiddenObjectName(name);
+        return !DariusNativeAssetContract.IsHiddenObjectName(name);
     }
 
     private static string CreateFilteredMesh(
@@ -62,19 +60,17 @@ internal static class DariusModelOverlayMeshBuilder
         Material[] materials,
         uint materialHash,
         DariusNativeSkinProfile profile,
-        int sourceIndex,
-        string generatedRoot)
+        int sourceIndex)
     {
         Mesh copy = UnityEngine.Object.Instantiate(source);
         copy.name = source.name + "_Overlay_" + materialHash.ToString("x8");
         for (int i = 0; i < copy.subMeshCount; i++)
         {
             Material material = i < materials.Length ? materials[i] : null;
-            if (material == null || DariusNativeOverlayContract.MaterialHash(material.name) != materialHash)
+            if (material == null || DariusNativeAssetContract.MaterialHash(material.name) != materialHash)
                 copy.SetTriangles(Array.Empty<int>(), i, false);
         }
-        string path = generatedRoot + "/" +
-            DariusNativeOverlayContract.AssetFileName(profile.Variant, sourceIndex, materialHash);
+        string path = DariusNativeAssetContract.OverlayAssetPath(profile.Variant, sourceIndex, materialHash);
         AssetDatabase.CreateAsset(copy, path);
         return path;
     }
