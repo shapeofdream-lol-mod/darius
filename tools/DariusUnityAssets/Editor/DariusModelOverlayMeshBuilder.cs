@@ -54,7 +54,7 @@ internal static class DariusModelOverlayMeshBuilder
     {
         if (renderer == null || renderer.sharedMesh == null) return false;
         string name = renderer.gameObject != null ? renderer.gameObject.name : string.Empty;
-        return !name.StartsWith("DariusHidden_", StringComparison.OrdinalIgnoreCase);
+        return !DariusNativeOverlayContract.IsHiddenObjectName(name);
     }
 
     private static string CreateFilteredMesh(
