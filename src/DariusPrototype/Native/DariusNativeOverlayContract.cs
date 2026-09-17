@@ -2,6 +2,10 @@ using System;
 
 internal static class DariusNativeOverlayContract
 {
+    private const string HiddenObjectPrefix = "DariusHidden_";
+    private const string WolfHiddenObjectPrefix = "DariusHidden_Wolf_";
+    private const string StaticHiddenObjectPrefix = "DariusHidden_Static_";
+
     public static string NormalizeVariant(string variant)
     {
         return string.IsNullOrEmpty(variant)
@@ -31,6 +35,28 @@ internal static class DariusNativeOverlayContract
             hash *= 16777619u;
         }
         return hash;
+    }
+
+    public static bool IsHiddenObjectName(string name)
+    {
+        return !string.IsNullOrEmpty(name) &&
+               name.StartsWith(HiddenObjectPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsWolfHiddenObjectName(string name)
+    {
+        return !string.IsNullOrEmpty(name) &&
+               name.StartsWith(WolfHiddenObjectPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string WolfHiddenObjectName(string sourceName)
+    {
+        return WolfHiddenObjectPrefix + (sourceName ?? string.Empty);
+    }
+
+    public static string StaticHiddenObjectName(string sourceName)
+    {
+        return StaticHiddenObjectPrefix + (sourceName ?? string.Empty);
     }
 
     public static string AssetFileName(string variant, int rendererIndex, uint materialHash)
