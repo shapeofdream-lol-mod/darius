@@ -95,16 +95,23 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _setupFailed = false;
             SyncAnimatorLease();
         }
-        if (_entityAnimation == null || _entityAnimationModelSetup) return;
+        if (_entityAnimationModelSetup) return;
+        if (_entityAnimation == null)
+        {
+            _setupFailed = true;
+            DariusLog.Error("NATIVE-MODEL", "Hero has no EntityAnimation; native gameplay presentation disabled skin=" + VariantKey);
+            return;
+        }
 
         try
         {
             _entityAnimation.SetupModel();
+            if (_entityAnimation.animator == null)
+                throw new InvalidOperationException("EntityAnimation.SetupModel produced no animator.");
             _entityAnimationModelSetup = true;
             _setupFailed = false;
             if (_wArmedPresentation) ApplyWLocomotionOverrides(true);
-            DariusLog.Info("NATIVE-MODEL", "EntityAnimation.SetupModel completed skin=" + VariantKey +
-                " animator=" + (_entityAnimation.animator != null));
+            DariusLog.Info("NATIVE-MODEL", "EntityAnimation.SetupModel completed skin=" + VariantKey + " animator=true");
         }
         catch (Exception e)
         {
