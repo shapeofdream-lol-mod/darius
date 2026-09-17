@@ -1,0 +1,7 @@
+<Project>
+  <Target Name="VerifyNativeModelBundleFreshness"
+          BeforeTargets="PackageMod;DeployMod"
+          Condition="'$(Configuration)' == 'Release'">
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)tools\DariusUnityAssets\Test-NativeBundle.ps1&quot; -RepoRoot &quot;$(MSBuildThisFileDirectory)&quot;" />
+  </Target>
+</Project>
