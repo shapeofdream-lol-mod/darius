@@ -53,7 +53,7 @@ try {
         $src = Join-Path $modelRoot $model.Input
         if (-not (Test-Path $src -PathType Leaf)) { throw "Required GLB missing: $src" }
         $dst = Join-Path $fbxRoot $model.Output
-        Invoke-Checked $BlenderExe @('--background', '--python', $converter, '--', $src, $dst) "Blender $($model.Variant)"
+        Invoke-Checked $BlenderExe @('--background', '--python-exit-code', '1', '--python', $converter, '--', $src, $dst) "Blender $($model.Variant)"
     }
 
     Invoke-Checked $UnityExe @('-batchmode', '-quit', '-createProject', $unityProject, '-buildTarget', 'StandaloneWindows64', '-logFile', $createLog) 'Unity project creation'
