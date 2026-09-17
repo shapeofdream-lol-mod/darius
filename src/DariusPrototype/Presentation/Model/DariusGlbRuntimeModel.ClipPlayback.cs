@@ -35,11 +35,8 @@ public sealed partial class DariusGlbRuntimeModel
 
             if (string.Equals(t.path, "translation", StringComparison.Ordinal))
             {
-                // The Darius combat clips animate Root and the separate Weapon node as a matched
-                // authored pair. Suppressing Root translation while still applying Weapon is what
-                // made the axe fly away from the body. Keep locomotion world movement owned by SoD,
-                // but preserve the action clip's internal Root translation so the skeleton and axe
-                // stay in the same source coordinate frame.
+                // Legacy fallback keeps world locomotion external, but combat clips may still use
+                // authored Root translation as part of their internal pose hierarchy.
                 string nodeName = _nodes[t.node] != null ? _nodes[t.node].name : null;
                 bool isRootNode = string.Equals(nodeName, "Root", StringComparison.OrdinalIgnoreCase);
                 if (isRootNode && ((upperBodyOnly && !locomotionActionMask) || !IsDariusCombatActionClip(clip.name))) continue;
@@ -49,10 +46,8 @@ public sealed partial class DariusGlbRuntimeModel
             }
             else if (string.Equals(t.path, "scale", StringComparison.Ordinal))
             {
-                // LoL exports contain scale tracks for smears, weapons and form-swap helpers.
-                // Core humanoid bones must never inherit those tracks in the runtime GLB player:
-                // a single bad Root/Pelvis/Spine scale is enough to fold the whole skinned model
-                // into the compact "ball" seen in gameplay. Keep body scale at the bind pose.
+                // Legacy fallback keeps the humanoid body chain at bind-pose scale while allowing
+                // auxiliary/form-swap nodes to retain authored scale animation.
                 if (IsCoreBodyScaleNode(t.node))
                 {
                     _nodes[t.node].localScale = _baseScale[t.node];
@@ -99,16 +94,14 @@ public sealed partial class DariusGlbRuntimeModel
     {
         if (node < 0 || node >= _nodes.Length || _nodes[node] == null) return false;
         string n = (_nodes[node].name ?? string.Empty).ToLowerInvariant();
-        // God-King Spell4 drives the restored beast with Lion_* scale tracks. Those names include
-        // head/neck/spine and were accidentally caught by the humanoid anti-collapse guard, which
-        // folded the authentic wolf/lion submesh into the red-black clump seen in the test video.
+        // Auxiliary beast/form-swap rigs use authored scale tracks and are not part of the humanoid
+        // bind-scale guard used by the legacy fallback.
         if (n.StartsWith("lion_") || n.StartsWith("wolf_")) return false;
         if (n == "root" || n == "c_root" || n == "skeleton_root" || n == "doll_root" || n.Contains("pelvis") || n.Contains("spine") ||
             n.Contains("chest") || n.Contains("neck") || n.Contains("head") || n.Contains("clav") ||
             n.Contains("shoulder") || n.Contains("upperarm") || n.Contains("forearm") || n.Contains("hand") ||
             n.Contains("thigh") || n.Contains("knee") || n.Contains("calf") || n.Contains("ankle") ||
             n.Contains("foot") || n.Contains("toe")) return true;
-        // Some Riot skeletons use L_Arm/R_Arm and L_Leg/R_Leg rather than upperarm/thigh names.
         if ((n.StartsWith("l_") || n.StartsWith("r_")) && (n.Contains("arm") || n.Contains("leg"))) return true;
         return false;
     }
@@ -135,8 +128,6 @@ public sealed partial class DariusGlbRuntimeModel
     {
         if (node < 0 || node >= _nodes.Length || _nodes[node] == null) return false;
         string n = _nodes[node].name ?? string.Empty;
-        // Keep SoD locomotion on the actual leg chains. Everything else (Root/Pelvis, torso,
-        // arms, weapon, cape and skin-specific auxiliary bones) follows the authored action.
         string lower = n.ToLowerInvariant();
         if (lower.Contains("hip") || lower.Contains("knee") || lower.Contains("foot") || lower.Contains("toe")) return false;
         if (lower.Contains("leg")) return false;
