@@ -73,6 +73,8 @@ internal static class DariusNativeAssetContract
     {
         if (string.IsNullOrEmpty(name)) return false;
         string lower = name.ToLowerInvariant();
+        if (lower.StartsWith("lion_", StringComparison.Ordinal) ||
+            lower.StartsWith("wolf_", StringComparison.Ordinal)) return false;
         if (lower.Contains("weapon") || lower.Contains("buffbone") || lower.Contains("ground_loc") ||
             lower.Contains("glb_foot_loc") || lower.Contains("snap_") || lower.Contains("doll")) return false;
         return lower.Contains("hip") || lower.Contains("knee") || lower.Contains("leg") ||
