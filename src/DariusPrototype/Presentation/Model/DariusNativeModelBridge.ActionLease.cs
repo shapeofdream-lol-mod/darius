@@ -21,6 +21,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         _ownsAnimatorAction = true;
         BeginActionMovementTracking();
         SyncAnimatorLease();
+        RefreshActionLowerBody();
     }
 
     private void SyncAnimatorLease()
@@ -39,6 +40,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private void EndAnimatorAction()
     {
+        DisableActionLowerBody();
         _ownsAnimatorAction = false;
         EndActionMovementTracking();
         if (_animator != null) _animator.speed = 1f;
@@ -57,6 +59,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _wArmedPresentation = false;
             _wSwingActive = false;
             EndWLocomotionTracking();
+            DisableActionLowerBody();
             StopSequence();
             SyncAnimatorLease();
             return;
