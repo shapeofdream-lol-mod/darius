@@ -123,6 +123,10 @@ try {
     Write-Host "Fingerprint: $fingerprint"
 } catch {
     $preserveWorkspace = $true
+    if (Test-Path $buildLog -PathType Leaf) {
+        Write-Host "Unity build log tail:"
+        Get-Content $buildLog -Tail 120 | ForEach-Object { Write-Host $_ }
+    }
     throw
 } finally {
     if ($preserveWorkspace) {
