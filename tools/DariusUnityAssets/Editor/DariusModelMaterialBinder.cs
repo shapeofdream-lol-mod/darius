@@ -17,13 +17,23 @@ public static class DariusModelMaterialBinder
             throw new InvalidOperationException("Invalid imported model path: " + assetPath);
 
         Dictionary<string, string> bindings = LoadBindings(folder, modelStem);
-        HashSet<string> consumed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        int materialCount = 0;
-        foreach (UnityEngine.Object asset in AssetDatabase.LoadAllAssetsAtPath(assetPath))
+        GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+        if (model == null) throw new InvalidOperationException("Imported model asset missing: " + assetPath);
+
+        HashSet<Material> referenced = new HashSet<Material>();
+        Renderer[] renderers = model.GetComponentsInChildren<Renderer>(true);
+        for (int r = 0; r < renderers.Length; r++)
         {
-            Material material = asset as Material;
-            if (material == null) continue;
-            materialCount++;
+            Material[] materials = renderers[r] != null ? renderers[r].sharedMaterials : null;
+            if (materials == null) continue;
+            for (int m = 0; m < materials.Length; m++)
+                if (materials[m] != null) referenced.Add(materials[m]);
+        }
+        if (referenced.Count == 0) throw new InvalidOperationException("Imported model has no referenced materials: " + assetPath);
+
+        HashSet<string> consumed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Material material in referenced)
+        {
             string textureFile;
             if (!bindings.TryGetValue(material.name, out textureFile))
                 throw new InvalidOperationException("No Blender material binding model=" + modelStem + " material=" + material.name);
@@ -47,9 +57,8 @@ public static class DariusModelMaterialBinder
                 " material=" + material.name + " texture=" + texture.name);
         }
 
-        if (materialCount == 0) throw new InvalidOperationException("Imported model has no materials: " + assetPath);
         if (consumed.Count != bindings.Count)
-            throw new InvalidOperationException("Blender/Unity material count mismatch model=" + modelStem +
+            throw new InvalidOperationException("Blender/Unity referenced material count mismatch model=" + modelStem +
                 " blender=" + bindings.Count + " unity=" + consumed.Count);
         AssetDatabase.SaveAssets();
     }
