@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using UnityEngine;
 
 public sealed partial class DariusNativeModelBridge : MonoBehaviour
@@ -56,11 +55,16 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
         _godKingWolfRenderers = wolfRenderers != null ? wolfRenderers.ToArray() : null;
         _entityModel.bodyRenderers = visibleRenderers.ToArray();
+        AnimationClip idle = FindClip(IdleClipName);
+        AnimationClip death = FindClip(DeathClipName);
         AnimationClip run = FindClip(RunClipName);
+        if (idle != null)
+        {
+            _entityModel.idle = ClipWithSpeed(idle, 1f);
+            _entityModel.lobby = ClipWithSpeed(idle, 1f);
+        }
+        if (death != null) _entityModel.death = ClipWithSpeed(death, 1f);
         if (run != null) _entityModel.runForwardClip = run;
-        AssignClipWithSpeed(_entityModel, "idle", FindClip(IdleClipName), 1f);
-        AssignClipWithSpeed(_entityModel, "lobby", FindClip(IdleClipName), 1f);
-        AssignClipWithSpeed(_entityModel, "death", FindClip(DeathClipName), 1f);
 
         Transform health = GetAnchor("C_BuffBone_Glb_Chest_Loc") ?? GetAnchor("Chest") ?? GetAnchor("Spine");
         Transform weapon = GetAnchor("BuffBone_Glb_Weapon_1") ?? GetAnchor("Weapon") ?? GetAnchor("R_Hand");
@@ -68,31 +72,11 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         if (weapon != null) _entityModel.weapon = weapon;
     }
 
-    private static void AssignClipWithSpeed(EntityModel model, string fieldName, AnimationClip clip, float speed)
+    private static AnimationClipWithSpeed ClipWithSpeed(AnimationClip clip, float speed)
     {
-        if (model == null || clip == null) return;
-        try
-        {
-            FieldInfo ownerField = typeof(EntityModel).GetField(
-                fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (ownerField == null) return;
-            object boxed = ownerField.GetValue(model) ?? Activator.CreateInstance(ownerField.FieldType);
-            FieldInfo[] fields = ownerField.FieldType.GetFields(
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            for (int i = 0; i < fields.Length; i++)
-            {
-                FieldInfo field = fields[i];
-                if (field.FieldType == typeof(AnimationClip)) field.SetValue(boxed, clip);
-                else if (field.FieldType == typeof(float) &&
-                         field.Name.IndexOf("speed", StringComparison.OrdinalIgnoreCase) >= 0)
-                    field.SetValue(boxed, speed);
-            }
-            ownerField.SetValue(model, boxed);
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("NATIVE-MODEL", e,
-                "Failed binding EntityModel." + fieldName + " to clip=" + clip.name);
-        }
+        AnimationClipWithSpeed value = new AnimationClipWithSpeed();
+        value.clip = clip;
+        value.speed = speed;
+        return value;
     }
 }
