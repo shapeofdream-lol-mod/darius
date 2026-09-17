@@ -99,7 +99,7 @@ public static partial class DariusTravelerRegistry
             Skin skin;
             if (!SkinsByName.TryGetValue(SkinSpecs[i].name, out skin) || skin == null || skin.gameObject == null) return false;
             if (skin.GetComponent<EntityModel>() == null || skin.GetComponent<DariusSkinModelBinding>() == null ||
-                skin.GetComponent<DariusTravelerModelInstance>() == null) return false;
+                skin.GetComponent<DariusNativeModelHost>() == null) return false;
         }
         return true;
     }
