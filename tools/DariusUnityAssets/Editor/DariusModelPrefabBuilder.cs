@@ -1,7 +1,6 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
-using System.IO;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
@@ -21,8 +20,9 @@ internal static class DariusModelPrefabBuilder
         AnimationClip[] clips = LoadAnimationClips(assetPath);
         DariusModelContractValidator.Validate(source, clips, profile);
 
-        string generatedRoot = (Path.GetDirectoryName(prefabPath) ?? "Assets").Replace('\\', '/');
-        string controllerPath = generatedRoot + "/darius_" + profile.Variant.ToLowerInvariant() + ".controller";
+        string generatedRoot = DariusNativeAssetContract.GeneratedAssetRoot;
+        string controllerPath = generatedRoot + "/darius_" +
+            DariusNativeAssetContract.NormalizeVariant(profile.Variant) + ".controller";
         AnimatorController controller = BuildController(controllerPath, clips, profile.Idle, profile.Variant);
 
         GameObject root = new GameObject("Darius_" + profile.Variant);
@@ -67,7 +67,7 @@ internal static class DariusModelPrefabBuilder
         for (int i = 0; i < clips.Length; i++)
         {
             AnimationClip clip = clips[i];
-            string stateName = ToAnimatorStateName(clip.name);
+            string stateName = DariusNativeAssetContract.AnimatorStateName(clip.name);
             if (!stateNames.Add(stateName))
                 throw new InvalidOperationException("Animator state collision skin=" + variant + " state=" + stateName);
             AnimatorState state = stateMachine.AddState(stateName);
@@ -91,11 +91,6 @@ internal static class DariusModelPrefabBuilder
         animator.applyRootMotion = false;
         animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
         animator.keepAnimatorControllerStateOnDisable = true;
-    }
-
-    private static string ToAnimatorStateName(string clipName)
-    {
-        return clipName.Replace('.', '_').Replace('/', '_').Replace('\\', '_');
     }
 }
 #endif
