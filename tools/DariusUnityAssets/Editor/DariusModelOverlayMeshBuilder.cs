@@ -12,13 +12,17 @@ internal static class DariusModelOverlayMeshBuilder
         string generatedRoot,
         List<string> bundleAssets)
     {
-        if (root == null || profile == null || bundleAssets == null) return;
+        if (root == null || profile == null || bundleAssets == null)
+            throw new ArgumentNullException("Native overlay build contract received null input.");
+
         SkinnedMeshRenderer[] renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
         int sourceIndex = 0;
+        int expected = 0;
+        int generated = 0;
         for (int r = 0; r < renderers.Length; r++)
         {
             SkinnedMeshRenderer source = renderers[r];
-            if (!IsOverlaySource(source)) continue;
+            if (!IsOverlaySourceStructure(source)) continue;
             int stableIndex = sourceIndex++;
             Material[] materials = source.sharedMaterials;
             HashSet<uint> emitted = new HashSet<uint>();
@@ -29,15 +33,26 @@ internal static class DariusModelOverlayMeshBuilder
                 if (material == null) continue;
                 uint hash = RiotStringHash(StripRuntimeSuffix(material.name));
                 if (!emitted.Add(hash)) continue;
-                string path = CreateFilteredMesh(source.sharedMesh, materials, hash, profile, stableIndex, generatedRoot);
+                expected++;
+                string path = CreateFilteredMesh(
+                    source.sharedMesh, materials, hash, profile, stableIndex, generatedRoot);
+                Mesh asset = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+                if (asset == null)
+                    throw new InvalidOperationException("Overlay mesh asset was not created skin=" + profile.Variant +
+                        " renderer=" + stableIndex + " hash=" + hash.ToString("x8"));
                 bundleAssets.Add(path);
+                generated++;
             }
         }
+
+        if (sourceIndex == 0 || expected == 0 || generated != expected)
+            throw new InvalidOperationException("Overlay mesh contract failed skin=" + profile.Variant +
+                " renderers=" + sourceIndex + " expected=" + expected + " generated=" + generated);
     }
 
-    private static bool IsOverlaySource(SkinnedMeshRenderer renderer)
+    private static bool IsOverlaySourceStructure(SkinnedMeshRenderer renderer)
     {
-        if (renderer == null || !renderer.enabled || renderer.sharedMesh == null) return false;
+        if (renderer == null || renderer.sharedMesh == null) return false;
         string name = renderer.gameObject != null ? renderer.gameObject.name : string.Empty;
         return !name.StartsWith("DariusHidden_", StringComparison.OrdinalIgnoreCase);
     }
