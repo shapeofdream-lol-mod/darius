@@ -20,6 +20,8 @@ $UnityExe = (Resolve-Path $UnityExe).Path
 $BlenderExe = (Resolve-Path $BlenderExe).Path
 $RepoRoot = (Resolve-Path $RepoRoot).Path
 $modelRoot = Join-Path $RepoRoot 'assets\models'
+$bundle = Join-Path $modelRoot 'darius_models.bundle'
+$bundleStamp = $bundle + '.fingerprint'
 $converter = Join-Path $PSScriptRoot 'convert_glb_to_fbx.py'
 $editorSourceDir = Join-Path $PSScriptRoot 'Editor'
 $sharedProfile = Join-Path $RepoRoot 'src\DariusPrototype\Native\DariusNativeSkinProfiles.cs'
@@ -70,6 +72,11 @@ try {
     Copy-Item $sharedProfile (Join-Path $editorDir 'DariusNativeSkinProfiles.cs') -Force
     Copy-Item $sharedAssetContract (Join-Path $editorDir 'DariusNativeAssetContract.cs') -Force
 
+    # The Unity editor writes the final bundle directly into assets/models. Remove any prior
+    # generated bundle/stamp first so a failed or skipped executeMethod cannot be mistaken for a
+    # successful build merely because an older artifact is still present.
+    Remove-Item $bundle, $bundleStamp -Force -ErrorAction SilentlyContinue
+
     $oldRepo = $env:DARIUS_REPO_ROOT; $oldFbx = $env:DARIUS_MODEL_FBX_DIR; $oldWork = $env:DARIUS_NATIVE_WORK_ROOT
     try {
         $env:DARIUS_REPO_ROOT = $RepoRoot
@@ -83,10 +90,9 @@ try {
         $env:DARIUS_REPO_ROOT = $oldRepo; $env:DARIUS_MODEL_FBX_DIR = $oldFbx; $env:DARIUS_NATIVE_WORK_ROOT = $oldWork
     }
 
-    $bundle = Join-Path $modelRoot 'darius_models.bundle'
     if (-not (Test-Path $bundle -PathType Leaf)) { throw "Unity produced no bundle: $bundle" }
     $fingerprint = Get-DariusNativeFingerprint -RepoRoot $RepoRoot -ProfilePath $sharedProfile -Profiles $models
-    [System.IO.File]::WriteAllText($bundle + '.fingerprint', $fingerprint + "`n", (New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllText($bundleStamp, $fingerprint + "`n", (New-Object System.Text.UTF8Encoding($false)))
     Write-Host "Native model bundle ready: $bundle"
     Write-Host "Fingerprint: $fingerprint"
 } catch {
