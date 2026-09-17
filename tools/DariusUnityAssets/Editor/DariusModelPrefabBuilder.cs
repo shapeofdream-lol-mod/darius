@@ -30,9 +30,14 @@ internal static class DariusModelPrefabBuilder
         DariusModelMaterialBinder.BindPrefabMaterials(model, assetPath, generatedRoot);
         DariusModelContractValidator.Validate(model, clips, profile);
 
+        string maskPath = DariusNativeAssetContract.LowerBodyMaskAssetPath(profile.Variant);
+        AvatarMask lowerBodyMask = BuildLowerBodyMask(maskPath, model.transform, profile.Variant);
+        bundleAssets.Add(maskPath);
+
         string controllerPath = generatedRoot + "/darius_" +
             DariusNativeAssetContract.NormalizeVariant(profile.Variant) + ".controller";
-        AnimatorController controller = BuildController(controllerPath, clips, profile.Idle, profile.Variant);
+        AnimatorController controller = BuildController(
+            controllerPath, clips, profile.Idle, profile.Variant, lowerBodyMask);
         ConfigureAnimator(model, controller);
         DariusModelMeshProcessor.ProcessPrefab(model, profile, generatedRoot, bundleAssets);
 
@@ -57,11 +62,68 @@ internal static class DariusModelPrefabBuilder
         return clips.ToArray();
     }
 
-    private static AnimatorController BuildController(string path, AnimationClip[] clips, string idleClip, string variant)
+    private static AvatarMask BuildLowerBodyMask(string path, Transform modelRoot, string variant)
+    {
+        if (modelRoot == null) throw new ArgumentNullException(nameof(modelRoot));
+        AssetDatabase.DeleteAsset(path);
+
+        AvatarMask mask = new AvatarMask();
+        mask.name = "Darius_" + variant + "_LowerBody";
+        mask.AddTransformPath(modelRoot, true);
+
+        int active = 0;
+        for (int i = 0; i < mask.transformCount; i++)
+        {
+            string transformPath = mask.GetTransformPath(i) ?? string.Empty;
+            int slash = transformPath.LastIndexOf('/');
+            string name = slash >= 0 ? transformPath.Substring(slash + 1) : transformPath;
+            bool enabled = DariusNativeAssetContract.IsLowerBodyLocomotionName(name);
+            mask.SetTransformActive(i, enabled);
+            if (enabled) active++;
+        }
+        if (active == 0)
+        {
+            UnityEngine.Object.DestroyImmediate(mask);
+            throw new InvalidOperationException("Lower-body AvatarMask found no leg transforms skin=" + variant);
+        }
+
+        AssetDatabase.CreateAsset(mask, path);
+        EditorUtility.SetDirty(mask);
+        return mask;
+    }
+
+    private static AnimatorController BuildController(
+        string path,
+        AnimationClip[] clips,
+        string idleClip,
+        string variant,
+        AvatarMask lowerBodyMask)
     {
         AssetDatabase.DeleteAsset(path);
         AnimatorController controller = AnimatorController.CreateAnimatorControllerAtPath(path);
-        AnimatorStateMachine stateMachine = controller.layers[0].stateMachine;
+        PopulateStateMachine(controller.layers[0].stateMachine, clips, idleClip, variant, "base");
+
+        controller.AddLayer(DariusNativeAssetContract.LowerBodyAnimatorLayerName);
+        AnimatorControllerLayer[] layers = controller.layers;
+        AnimatorControllerLayer lower = layers[layers.Length - 1];
+        lower.avatarMask = lowerBodyMask;
+        lower.blendingMode = AnimatorLayerBlendingMode.Override;
+        lower.defaultWeight = 0f;
+        PopulateStateMachine(lower.stateMachine, clips, idleClip, variant, "lower-body");
+        layers[layers.Length - 1] = lower;
+        controller.layers = layers;
+
+        EditorUtility.SetDirty(controller);
+        return controller;
+    }
+
+    private static void PopulateStateMachine(
+        AnimatorStateMachine stateMachine,
+        AnimationClip[] clips,
+        string idleClip,
+        string variant,
+        string layerLabel)
+    {
         HashSet<string> stateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         AnimatorState defaultState = null;
 
@@ -70,7 +132,8 @@ internal static class DariusModelPrefabBuilder
             AnimationClip clip = clips[i];
             string stateName = DariusNativeAssetContract.AnimatorStateName(clip.name);
             if (!stateNames.Add(stateName))
-                throw new InvalidOperationException("Animator state collision skin=" + variant + " state=" + stateName);
+                throw new InvalidOperationException("Animator state collision skin=" + variant +
+                    " layer=" + layerLabel + " state=" + stateName);
             AnimatorState state = stateMachine.AddState(stateName);
             state.motion = clip;
             state.speed = 1f;
@@ -78,10 +141,9 @@ internal static class DariusModelPrefabBuilder
         }
 
         if (defaultState == null)
-            throw new InvalidOperationException("Required idle animation missing skin=" + variant + " clip=" + idleClip);
+            throw new InvalidOperationException("Required idle animation missing skin=" + variant +
+                " layer=" + layerLabel + " clip=" + idleClip);
         stateMachine.defaultState = defaultState;
-        EditorUtility.SetDirty(controller);
-        return controller;
     }
 
     private static void ConfigureAnimator(GameObject model, RuntimeAnimatorController controller)
