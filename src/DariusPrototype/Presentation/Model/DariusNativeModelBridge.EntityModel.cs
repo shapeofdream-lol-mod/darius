@@ -66,10 +66,21 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         if (death != null) _entityModel.death = ClipWithSpeed(death, 1f);
         if (run != null) _entityModel.runForwardClip = run;
 
-        Transform health = GetAnchor("C_BuffBone_Glb_Chest_Loc") ?? GetAnchor("Chest") ?? GetAnchor("Spine");
-        Transform weapon = GetAnchor("BuffBone_Glb_Weapon_1") ?? GetAnchor("Weapon") ?? GetAnchor("R_Hand");
+        Transform health = FindAnchor(DariusNativeAssetContract.HealthAnchorNames);
+        Transform weapon = FindAnchor(DariusNativeAssetContract.WeaponAnchorNames);
         if (health != null) _entityModel.healthBarPosition = health;
         if (weapon != null) _entityModel.weapon = weapon;
+    }
+
+    private Transform FindAnchor(string[] names)
+    {
+        if (names == null) return null;
+        for (int i = 0; i < names.Length; i++)
+        {
+            Transform anchor = GetAnchor(names[i]);
+            if (anchor != null) return anchor;
+        }
+        return null;
     }
 
     private static AnimationClipWithSpeed ClipWithSpeed(AnimationClip clip, float speed)
