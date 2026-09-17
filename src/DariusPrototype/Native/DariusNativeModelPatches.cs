@@ -19,13 +19,3 @@ internal static class DariusLegacyModelFallbackGuardPatch
         return false;
     }
 }
-
-[HarmonyPatch(typeof(DariusTravelerRegistry), nameof(DariusTravelerRegistry.UnregisterRuntimeOnly))]
-internal static class DariusNativeModelUnloadPatch
-{
-    [HarmonyPostfix]
-    private static void Postfix()
-    {
-        DariusNativeModelAssets.Unload();
-    }
-}
