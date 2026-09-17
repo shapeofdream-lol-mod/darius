@@ -15,81 +15,109 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     public void SetWArmed(bool armed)
     {
         if (_wArmedPresentation == armed) return;
+        bool moving = IsRunningState();
+
+        if (IsGodKingSkin && !armed && _wSwingActive)
+        {
+            ApplyWLocomotionOverrides(false);
+            _wArmedPresentation = false;
+            return;
+        }
+
+        if (IsGodKingSkin) StopSequence();
+        ApplyWLocomotionOverrides(armed);
         _wArmedPresentation = armed;
 
-        if (!IsGodKingSkin)
-        {
-            ApplyWLocomotionOverrides();
-            return;
-        }
-
-        if (!armed && _wSwingActive)
-        {
-            ApplyWLocomotionOverrides();
-            return;
-        }
-
-        bool moving = IsRunningState();
-        StopSequence();
-        _sequence = StartCoroutine(PlayGodKingWTransition(armed, moving));
+        if (IsGodKingSkin)
+            _sequence = StartCoroutine(PlayGodKingWTransition(armed, moving));
     }
 
     private IEnumerator PlayGodKingWTransition(bool armed, bool moving)
     {
         DariusNativeSkinProfile profile = DariusNativeSkinProfiles.Find(VariantKey);
         if (profile == null) throw new InvalidOperationException("Native skin profile missing: " + VariantKey);
-        if (!armed) ApplyWLocomotionOverrides();
         BeginAnimatorAction();
-
-        if (armed)
+        try
         {
-            string activate = moving ? profile.WActivateRun : profile.WActivateIdle;
-            if (PlayState(activate, 0.04f, 1f))
-                yield return new WaitForSeconds(ClipLength(activate, 0.25f));
-
-            if (!moving && _wArmedPresentation)
+            if (armed)
             {
-                _wIdleInAlt = !_wIdleInAlt;
-                string entry = _wIdleInAlt ? profile.WIdleInAlt : profile.WIdleIn;
-                if (PlayState(entry, 0.04f, 1f))
-                    yield return new WaitForSeconds(ClipLength(entry, 0.2f));
+                string activate = moving ? profile.WActivateRun : profile.WActivateIdle;
+                if (PlayState(activate, 0.04f, 1f))
+                    yield return WaitForActionDuration(ClipLength(activate, 0.25f));
+
+                if (!moving && _wArmedPresentation)
+                {
+                    _wIdleInAlt = !_wIdleInAlt;
+                    string entry = _wIdleInAlt ? profile.WIdleInAlt : profile.WIdleIn;
+                    if (PlayState(entry, 0.04f, 1f))
+                        yield return WaitForActionDuration(ClipLength(entry, 0.2f));
+                }
+            }
+            else
+            {
+                _wDeactivateAlt = !_wDeactivateAlt;
+                string deactivate = _wDeactivateAlt ? profile.WDeactivateAlt : profile.WDeactivate;
+                if (PlayState(deactivate, 0.04f, 1f))
+                    yield return WaitForActionDuration(ClipLength(deactivate, 0.2f));
             }
         }
-        else
+        finally
         {
-            _wDeactivateAlt = !_wDeactivateAlt;
-            string deactivate = _wDeactivateAlt ? profile.WDeactivateAlt : profile.WDeactivate;
-            if (PlayState(deactivate, 0.04f, 1f))
-                yield return new WaitForSeconds(ClipLength(deactivate, 0.2f));
+            EndAnimatorAction();
+            _sequence = null;
         }
-
-        EndAnimatorAction();
-        _sequence = null;
-        if (armed && _wArmedPresentation) ApplyWLocomotionOverrides();
     }
 
-    private void ApplyWLocomotionOverrides()
+    private void ApplyWLocomotionOverrides(bool armed)
     {
-        if (_entityAnimation == null) return;
+        if (_entityAnimation == null)
+            throw new InvalidOperationException("EntityAnimation is unavailable for W locomotion replacement.");
         EnsureWLocomotionSlots();
-        DariusNativeSkinProfile profile = DariusNativeSkinProfiles.Find(VariantKey);
-        string armedIdle = profile != null && !string.IsNullOrEmpty(profile.WIdle) ? profile.WIdle : "Spell2_Idle";
-        string armedRun = profile != null && !string.IsNullOrEmpty(profile.WRun) ? profile.WRun : "Spell2_Run";
-        AnimationClip idle = _wArmedPresentation
-            ? (FindClip(armedIdle) ?? FindClip(IdleClipName))
-            : FindClip(IdleClipName);
-        AnimationClip run = _wArmedPresentation
-            ? (FindClip(armedRun) ?? FindClip(RunClipName))
-            : FindClip(RunClipName);
 
-        int idleBindings = ReplaceLocomotionSlots(_wIdleSlots, idle);
-        int runBindings = ReplaceLocomotionSlots(_wRunSlots, run);
-        if (idleBindings == 0 || runBindings == 0)
-            throw new InvalidOperationException("EntityAnimation W locomotion replacement contract failed skin=" + VariantKey +
-                " idle=" + idleBindings + " run=" + runBindings);
-        DariusLog.DebugInfo("NATIVE-W", "armed=" + _wArmedPresentation +
-            " idle=" + (idle != null ? idle.name : "<null>") + " run=" + (run != null ? run.name : "<null>") +
-            " replaceableIdle=" + idleBindings + " replaceableRun=" + runBindings);
+        AnimationClip baseIdle = FindClip(IdleClipName);
+        AnimationClip baseRun = FindClip(RunClipName);
+        DariusNativeSkinProfile profile = DariusNativeSkinProfiles.Find(VariantKey);
+        string armedIdleName = profile != null && !string.IsNullOrEmpty(profile.WIdle) ? profile.WIdle : "Spell2_Idle";
+        string armedRunName = profile != null && !string.IsNullOrEmpty(profile.WRun) ? profile.WRun : "Spell2_Run";
+        AnimationClip armedIdle = FindClip(armedIdleName) ?? baseIdle;
+        AnimationClip armedRun = FindClip(armedRunName) ?? baseRun;
+        if (baseIdle == null || baseRun == null || armedIdle == null || armedRun == null)
+            throw new InvalidOperationException("Native W locomotion clips are incomplete skin=" + VariantKey);
+
+        try
+        {
+            if (armed)
+            {
+                PushWSlots(_wIdleSlots, armedIdle, baseIdle);
+                PushWSlots(_wRunSlots, armedRun, baseRun);
+            }
+            else
+            {
+                PopWSlots(_wIdleSlots);
+                PopWSlots(_wRunSlots);
+            }
+        }
+        catch
+        {
+            if (armed)
+            {
+                DariusNativeAnimationReplacementLedger.ForceRelease(_entityAnimation);
+            }
+            else
+            {
+                try
+                {
+                    PushWSlots(_wIdleSlots, armedIdle, baseIdle);
+                    PushWSlots(_wRunSlots, armedRun, baseRun);
+                }
+                catch { }
+            }
+            throw;
+        }
+
+        DariusLog.DebugInfo("NATIVE-W", "armed=" + armed +
+            " idle=" + armedIdle.name + " run=" + armedRun.name +
+            " replaceableIdle=" + _wIdleSlots.Length + " replaceableRun=" + _wRunSlots.Length);
     }
 
     private void EnsureWLocomotionSlots()
@@ -103,8 +131,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             EntityAnimation.ReplaceableAnimationType type =
                 (EntityAnimation.ReplaceableAnimationType)values.GetValue(i);
             string name = type.ToString();
-            if (name.IndexOf("Idle", StringComparison.OrdinalIgnoreCase) >= 0) idle.Add(type);
-            if (name.IndexOf("Run", StringComparison.OrdinalIgnoreCase) >= 0) run.Add(type);
+            if (IsLocomotionSlot(name, "Idle")) idle.Add(type);
+            if (IsLocomotionSlot(name, "Run")) run.Add(type);
         }
         if (idle.Count == 0 || run.Count == 0)
             throw new InvalidOperationException("EntityAnimation.ReplaceableAnimationType exposes no Idle/Run locomotion slots.");
@@ -112,17 +140,44 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         _wRunSlots = run.ToArray();
     }
 
-    private int ReplaceLocomotionSlots(EntityAnimation.ReplaceableAnimationType[] slots, AnimationClip clip)
+    private static bool IsLocomotionSlot(string name, string prefix)
     {
-        if (_entityAnimation == null || clip == null || slots == null) return 0;
-        for (int i = 0; i < slots.Length; i++) _entityAnimation.ReplaceAnimation(slots[i], clip);
-        return slots.Length;
+        return !string.IsNullOrEmpty(name) &&
+               name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void PushWSlots(
+        EntityAnimation.ReplaceableAnimationType[] slots,
+        AnimationClip replacement,
+        AnimationClip fallback)
+    {
+        for (int i = 0; i < slots.Length; i++)
+            DariusNativeAnimationReplacementLedger.PushOverride(_entityAnimation, slots[i], replacement, fallback);
+    }
+
+    private void PopWSlots(EntityAnimation.ReplaceableAnimationType[] slots)
+    {
+        for (int i = 0; i < slots.Length; i++)
+            DariusNativeAnimationReplacementLedger.PopOverride(_entityAnimation, slots[i]);
     }
 
     private void ResetWLocomotionOverrides()
     {
-        if (!_wArmedPresentation) return;
+        if (_entityAnimation == null)
+        {
+            _wArmedPresentation = false;
+            return;
+        }
+        try
+        {
+            if (_wArmedPresentation) ApplyWLocomotionOverrides(false);
+            else DariusNativeAnimationReplacementLedger.ForceRelease(_entityAnimation);
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("NATIVE-W", e, "Failed restoring W locomotion overrides skin=" + VariantKey);
+            DariusNativeAnimationReplacementLedger.ForceRelease(_entityAnimation);
+        }
         _wArmedPresentation = false;
-        ApplyWLocomotionOverrides();
     }
 }
