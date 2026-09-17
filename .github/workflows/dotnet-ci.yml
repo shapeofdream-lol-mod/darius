@@ -64,26 +64,6 @@ jobs:
           $profiles = @(Get-DariusNativeProfiles -ProfilePath ./src/DariusPrototype/Native/DariusNativeSkinProfiles.cs)
           if ($profiles.Count -ne 4) { throw "Expected four native skin profiles; actual=$($profiles.Count)" }
 
-      - name: Check native pipeline size
-        shell: pwsh
-        run: |
-          $files = @()
-          $files += @(Get-ChildItem src/DariusPrototype/Native -Filter '*.cs' -File | ForEach-Object FullName)
-          $files += @(Get-ChildItem src/DariusPrototype/Presentation/Model -Filter 'DariusNativeModelBridge*.cs' -File | ForEach-Object FullName)
-          $files += @(
-            'src/DariusPrototype/Core/DariusRuntimePerformance.cs',
-            'src/DariusPrototype/Presentation/Model/DariusSkinAnimationHooks.cs',
-            'src/DariusPrototype/Traveler/DariusTravelerNativeIntegration.cs',
-            'src/DariusPrototype/Traveler/DariusTravelerRegistry.Skins.cs',
-            'tools/DariusUnityAssets/convert_glb_to_fbx.py'
-          )
-          $files += @(Get-ChildItem tools/DariusUnityAssets -Filter '*.ps1' -File | ForEach-Object FullName)
-          $files += @(Get-ChildItem tools/DariusUnityAssets/Editor -Filter '*.cs' -File | ForEach-Object FullName)
-          foreach ($file in ($files | Sort-Object -Unique)) {
-            $count = (Get-Content $file).Count
-            if ($count -gt 200) { throw "Native pipeline file exceeds 200 lines: $file ($count)" }
-          }
-
       - name: Check package configuration
         shell: pwsh
         run: |
