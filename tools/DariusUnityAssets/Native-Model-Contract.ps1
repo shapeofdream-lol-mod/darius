@@ -39,6 +39,7 @@ function Get-DariusNativeFingerprint {
     )
 
     $repo = (Resolve-Path $RepoRoot).Path
+    $repoPrefix = $repo.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
     $inputs = New-Object System.Collections.Generic.List[string]
     $inputs.Add((Resolve-Path $ProfilePath).Path)
     foreach ($relative in @(
@@ -59,7 +60,11 @@ function Get-DariusNativeFingerprint {
 
     $records = foreach ($path in ($inputs | Sort-Object -Unique)) {
         if (-not (Test-Path $path -PathType Leaf)) { throw "Native fingerprint input missing: $path" }
-        $relative = [System.IO.Path]::GetRelativePath($repo, $path).Replace('\', '/')
+        $fullPath = [System.IO.Path]::GetFullPath($path)
+        if (-not $fullPath.StartsWith($repoPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Native fingerprint input is outside repository root: $fullPath"
+        }
+        $relative = $fullPath.Substring($repoPrefix.Length).Replace('\', '/')
         $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
         "$relative`t$hash"
     }
