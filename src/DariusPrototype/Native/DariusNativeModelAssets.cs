@@ -9,7 +9,6 @@ internal static partial class DariusNativeModelAssets
 
     private static object _bundle;
     private static bool _loadAttempted;
-    private static string[] _assetNames;
     private static readonly Dictionary<string, GameObject> Prefabs =
         new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
 
@@ -80,24 +79,7 @@ internal static partial class DariusNativeModelAssets
         if (Prefabs.TryGetValue(variantKey, out cached)) return cached;
         if (!EnsureBundle()) return null;
 
-        string suffix = "/darius_" + variantKey.Replace(" ", string.Empty).ToLowerInvariant() + ".prefab";
-        string assetName = null;
-        for (int i = 0; i < _assetNames.Length; i++)
-        {
-            string candidate = _assetNames[i];
-            if (candidate != null && candidate.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-            {
-                assetName = candidate;
-                break;
-            }
-        }
-        if (assetName == null)
-        {
-            DariusLog.Error("NATIVE-MODEL", "AssetBundle has no prefab suffix=" + suffix);
-            Prefabs[variantKey] = null;
-            return null;
-        }
-
+        string assetName = DariusNativeAssetContract.PrefabAssetPath(variantKey);
         GameObject prefab = DariusUnityAssetBundleApi.LoadGameObject(_bundle, assetName);
         if (prefab == null)
             DariusLog.Error("NATIVE-MODEL", "AssetBundle prefab load returned null asset=" + assetName);
@@ -124,8 +106,7 @@ internal static partial class DariusNativeModelAssets
         {
             _bundle = DariusUnityAssetBundleApi.LoadFromFile(path);
             if (_bundle == null) throw new InvalidOperationException("AssetBundle.LoadFromFile returned null path=" + path);
-            _assetNames = DariusUnityAssetBundleApi.GetAllAssetNames(_bundle);
-            DariusLog.Info("NATIVE-MODEL", "Loaded native Unity model bundle assets=" + _assetNames.Length + " path=" + path);
+            DariusLog.Info("NATIVE-MODEL", "Loaded native Unity model bundle path=" + path);
             return true;
         }
         catch (Exception e)
@@ -142,7 +123,6 @@ internal static partial class DariusNativeModelAssets
         DariusNativeEntityAnimationLease.Clear();
         Prefabs.Clear();
         ClearOverlayMeshes();
-        _assetNames = null;
         _loadAttempted = false;
         if (_bundle != null)
         {
