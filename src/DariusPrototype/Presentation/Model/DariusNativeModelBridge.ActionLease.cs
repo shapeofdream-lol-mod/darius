@@ -14,6 +14,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     {
         if (_ownsAnimatorAction) return;
         _ownsAnimatorAction = true;
+        BeginActionMovementTracking();
         SyncAnimatorLease();
         if (_entityAnimation != null)
         {
@@ -39,6 +40,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         DariusNativeEntityAnimationLease.Release(_leasedEntityAnimation);
         _leasedEntityAnimation = null;
         _ownsAnimatorAction = false;
+        EndActionMovementTracking();
         if (_animator != null) _animator.speed = 1f;
     }
 }
