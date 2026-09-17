@@ -36,7 +36,12 @@ public sealed class Hero_Darius : Hero
             DariusTravelerModelInstance legacy = native == null
                 ? GetComponentInChildren<DariusTravelerModelInstance>(true)
                 : null;
-            if (legacy != null) legacy.BindHero(this);
+            if (legacy != null)
+            {
+                if (legacy.enabled) legacy.enabled = false;
+                legacy.enabled = true;
+                legacy.BindHero(this);
+            }
 
             DariusBasicAttackVisualRuntime attackVisual = GetComponent<DariusBasicAttackVisualRuntime>();
             if (attackVisual == null) attackVisual = gameObject.AddComponent<DariusBasicAttackVisualRuntime>();
