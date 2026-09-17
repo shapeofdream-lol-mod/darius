@@ -64,7 +64,19 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _entityModel.lobby = ClipWithSpeed(idle, 1f);
         }
         if (death != null) _entityModel.death = ClipWithSpeed(death, 1f);
-        if (run != null) _entityModel.runForwardClip = run;
+        if (run != null)
+        {
+            // Darius assets expose one authored Run clip. Populate every directional slot so the
+            // stock EntityModel locomotion mode inherited from the template can always resolve it.
+            _entityModel.runForwardClip = run;
+            _entityModel.runBackwardClip = run;
+            _entityModel.runLeftClip = run;
+            _entityModel.runRightClip = run;
+            _entityModel.runForwardLeftClip = run;
+            _entityModel.runForwardRightClip = run;
+            _entityModel.runBackwardLeftClip = run;
+            _entityModel.runBackwardRightClip = run;
+        }
 
         Transform health = FindAnchor(DariusNativeAssetContract.HealthAnchorNames);
         Transform weapon = FindAnchor(DariusNativeAssetContract.WeaponAnchorNames);
