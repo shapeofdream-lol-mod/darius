@@ -116,8 +116,8 @@ public sealed partial class DariusGlbRuntimeModel
         EnforcePoseSafety();
     }
 
-    // Final invariant after animation sampling AND crossfade. A malformed source frame or a blend
-    // captured from an unsafe pose must never be able to leave the skinned humanoid collapsed.
+    // Legacy fallback normalization after sampling and blending. Core body scale stays at bind pose;
+    // non-finite or implausibly distant transforms fall back to their bind values.
     private void EnforcePoseSafety()
     {
         if (_nodes == null) return;
@@ -140,7 +140,6 @@ public sealed partial class DariusGlbRuntimeModel
     {
         if (_blendDuration <= 0f || _nodes == null || _blendFromPos == null) return;
         float t = Mathf.Clamp01(_blendTime / _blendDuration);
-        // SmoothStep reduces the visible knee/weapon snap at attack -> run and run -> attack boundaries.
         t = t * t * (3f - 2f * t);
         for (int i = 0; i < _nodes.Length; i++)
         {
