@@ -74,7 +74,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         for (int i = 0; i < materials.Length; i++)
         {
             Material material = materials[i];
-            if (material != null && DariusNativeOverlayContract.MaterialHash(material.name) == materialHash) return true;
+            if (material != null && DariusNativeAssetContract.MaterialHash(material.name) == materialHash) return true;
         }
         return false;
     }
@@ -109,7 +109,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             for (int i = 0; i < count; i++)
             {
                 Material sourceMaterial = i < sourceMaterials.Length ? sourceMaterials[i] : null;
-                if (sourceMaterial != null && DariusNativeOverlayContract.MaterialHash(sourceMaterial.name) == selectedMaterialHash)
+                if (sourceMaterial != null && DariusNativeAssetContract.MaterialHash(sourceMaterial.name) == selectedMaterialHash)
                     materials[i] = material;
             }
         }
