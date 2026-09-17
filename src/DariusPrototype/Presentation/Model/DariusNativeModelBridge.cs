@@ -5,12 +5,13 @@ using System.IO;
 using UnityEngine;
 
 // Thin presentation bridge for Unity-native prefabs. Shape of Dreams EntityAnimation owns
-// locomotion/death; this bridge only dispatches Darius-specific action clips and presentation props.
+// ordinary locomotion/death; this bridge owns Darius action presentation and W-armed presentation.
 public sealed partial class DariusNativeModelBridge : MonoBehaviour
 {
     private DariusSkinModelBinding _binding;
     private GameObject _modelRoot;
     private Animator _animator;
+    private int _lowerBodyLayer = -1;
     private EntityModel _entityModel;
     private Hero _hero;
     private EntityAnimation _entityAnimation;
@@ -45,6 +46,10 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         if (_animator == null)
             throw new InvalidDataException("Native Darius prefab has no Animator: " + VariantKey);
 
+        _lowerBodyLayer = _animator.GetLayerIndex(DariusNativeAssetContract.LowerBodyAnimatorLayerName);
+        if (_lowerBodyLayer < 0)
+            throw new InvalidDataException("Native Darius Animator is missing lower-body layer: " + VariantKey);
+        _animator.SetLayerWeight(_lowerBodyLayer, 0f);
         _animator.applyRootMotion = false;
         _animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
         CacheClips();
@@ -105,7 +110,13 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
                 throw new InvalidOperationException("EntityAnimation.SetupModel produced no animator.");
             _entityAnimationModelSetup = true;
             _setupFailed = false;
-            if (_wArmedPresentation) ApplyWLocomotionOverrides(true);
+            if (_wArmedPresentation)
+            {
+                bool moving = IsRunningState();
+                BeginWLocomotionTracking(moving);
+                SyncAnimatorLease();
+                PlayWLocomotionState(moving, true);
+            }
             DariusLog.Info("NATIVE-MODEL", "EntityAnimation.SetupModel completed skin=" + VariantKey + " animator=true");
         }
         catch (Exception e)
