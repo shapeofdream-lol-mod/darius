@@ -16,12 +16,10 @@ internal static class DariusModelMeshProcessor
     {
         if (root == null || profile == null) return;
 
-        // Main's runtime GLB path only builds the skinned champion mesh. FBX import can additionally
-        // surface unskinned helper/authoring meshes from the source scene; leaving their MeshRenderer
-        // components in the native prefab changes presentation semantics and can expose texture cards
-        // during action clips. Keep the hierarchy for animation/anchor paths, but remove rendering for
-        // geometry that main never displayed.
-        RemoveNonSkinnedRenderers(root);
+        // FBX import can surface unskinned helper/authoring geometry that is not part of the
+        // runtime champion mesh. Keep its transforms for animation/anchor paths, but remove both
+        // rendering and mesh references so the generated prefab does not retain unused geometry.
+        RemoveNonSkinnedGeometry(root);
 
         SkinnedMeshRenderer[] renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
         for (int i = 0; i < renderers.Length; i++)
@@ -35,15 +33,18 @@ internal static class DariusModelMeshProcessor
         DariusModelOverlayMeshBuilder.Build(root, profile, bundleAssets);
     }
 
-    private static void RemoveNonSkinnedRenderers(GameObject root)
+    private static void RemoveNonSkinnedGeometry(GameObject root)
     {
         MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>(true);
         for (int i = 0; i < renderers.Length; i++)
         {
             MeshRenderer renderer = renderers[i];
             if (renderer == null) continue;
-            Debug.Log("[DariusNativeAssets] removed non-skinned source renderer object=" + renderer.gameObject.name);
+            GameObject owner = renderer.gameObject;
+            MeshFilter filter = owner.GetComponent<MeshFilter>();
+            Debug.Log("[DariusNativeAssets] removed non-skinned source geometry object=" + owner.name);
             UnityEngine.Object.DestroyImmediate(renderer);
+            if (filter != null) UnityEngine.Object.DestroyImmediate(filter);
         }
     }
 
