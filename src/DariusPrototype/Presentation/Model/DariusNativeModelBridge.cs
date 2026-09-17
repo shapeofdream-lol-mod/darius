@@ -120,17 +120,10 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         }
     }
 
-    private string IdleClipName { get { return FirstExisting(_binding != null ? _binding.idleClip : null, "Idle1_Base", "Idle1"); } }
-    private string RunClipName { get { return FirstExisting(_binding != null ? _binding.runClip : null, "Run_Normal", "Run"); } }
-    private string DeathClipName { get { return FirstExisting(_binding != null ? _binding.deathClip : null, "Death"); } }
-    private string Attack1ClipName { get { return FirstExisting(_binding != null ? _binding.attack1Clip : null, "Attack1"); } }
-    private string Attack2ClipName { get { return FirstExisting(_binding != null ? _binding.attack2Clip : null, "Attack2"); } }
-    private string CritClipName { get { return FirstExisting(_binding != null ? _binding.critClip : null, "Crit"); } }
-
-    private string FirstExisting(params string[] candidates)
-    {
-        for (int i = 0; i < candidates.Length; i++)
-            if (!string.IsNullOrEmpty(candidates[i]) && _clips.ContainsKey(candidates[i])) return candidates[i];
-        return candidates.Length > 0 ? candidates[0] : null;
-    }
+    private string IdleClipName { get { return _binding != null ? _binding.idleClip : null; } }
+    private string RunClipName { get { return _binding != null ? _binding.runClip : null; } }
+    private string DeathClipName { get { return _binding != null ? _binding.deathClip : null; } }
+    private string Attack1ClipName { get { return _binding != null ? _binding.attack1Clip : null; } }
+    private string Attack2ClipName { get { return _binding != null ? _binding.attack2Clip : null; } }
+    private string CritClipName { get { return _binding != null ? _binding.critClip : null; } }
 }
