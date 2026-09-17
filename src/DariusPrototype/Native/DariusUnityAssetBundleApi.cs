@@ -3,7 +3,7 @@ using System.Reflection;
 using UnityEngine;
 
 // Thin compile-boundary adapter. The CI reference pack currently omits AssetBundleModule, so this
-// isolates late binding to four cold-path Unity calls instead of leaking reflection through runtime code.
+// isolates late binding to three cold-path Unity calls instead of leaking reflection through runtime code.
 internal static class DariusUnityAssetBundleApi
 {
     private static Type _bundleType;
@@ -13,14 +13,6 @@ internal static class DariusUnityAssetBundleApi
         MethodInfo method = RequireMethod(
             "LoadFromFile", BindingFlags.Public | BindingFlags.Static, new[] { typeof(string) });
         return method.Invoke(null, new object[] { path });
-    }
-
-    public static string[] GetAllAssetNames(object bundle)
-    {
-        if (bundle == null) return Array.Empty<string>();
-        MethodInfo method = RequireMethod(
-            "GetAllAssetNames", BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes);
-        return method.Invoke(bundle, null) as string[] ?? Array.Empty<string>();
     }
 
     public static GameObject LoadGameObject(object bundle, string assetName)
