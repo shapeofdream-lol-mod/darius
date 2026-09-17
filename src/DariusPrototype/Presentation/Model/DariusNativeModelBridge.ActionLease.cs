@@ -51,9 +51,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     {
         if (!IsReady || _hero == null) return;
 
-        // Main interrupts its custom animation sequence immediately on death. Native presentation
-        // must do the same so EntityAnimation can take over Death instead of waiting for a Q/W/E/R
-        // or attack coroutine to finish while FrameUpdate is leased.
         if ((_ownsAnimatorAction || _wArmedPresentation) && IsHeroInDeathState())
         {
             _wArmedPresentation = false;
