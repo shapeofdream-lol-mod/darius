@@ -99,6 +99,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         if (_entityAnimation == null)
         {
             _setupFailed = true;
+            if (_modelRoot != null) _modelRoot.SetActive(false);
             DariusLog.Error("NATIVE-MODEL", "Hero has no EntityAnimation; native gameplay presentation disabled skin=" + VariantKey);
             return;
         }
@@ -120,6 +121,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             ResetWLocomotionOverrides();
             StopSequence();
             DariusNativeAnimationReplacementLedger.Forget(_entityAnimation);
+            if (_modelRoot != null) _modelRoot.SetActive(false);
             DariusLog.Exception("NATIVE-MODEL", e,
                 "EntityAnimation.SetupModel failed skin=" + VariantKey + "; native gameplay presentation disabled");
         }
