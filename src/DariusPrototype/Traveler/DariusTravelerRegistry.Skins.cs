@@ -113,10 +113,21 @@ public static partial class DariusTravelerRegistry
     {
         DariusNativeSkinProfile profile = spec.native;
         if (profile == null) throw new InvalidOperationException("Darius skin has no native profile: " + spec.name);
-        GameObject go = new GameObject(spec.name);
+        bool officialFreshModel = UsesOfficialFreshEntityModel(spec);
+        GameObject go = officialFreshModel
+            ? DariusNativeModelAssets.InstantiateFreshEntityModelTemplate(profile.Variant, _resourceRoot.transform)
+            : new GameObject(spec.name);
+        if (go == null)
+            throw new InvalidOperationException("Failed creating skin model template: " + spec.name);
+        go.name = spec.name;
         go.transform.SetParent(_resourceRoot.transform, false);
         go.SetActive(true);
         go.hideFlags = HideFlags.None;
+        if (officialFreshModel)
+        {
+            DariusOfficialEntityModelMarker marker = go.AddComponent<DariusOfficialEntityModelMarker>();
+            marker.variantKey = profile.Variant;
+        }
 
         Skin skin = go.AddComponent<Skin>();
         skin.name = spec.name;
@@ -147,18 +158,121 @@ public static partial class DariusTravelerRegistry
         RestoreUnitySerializedFields(model, CaptureUnitySerializedFields(sourceModel, typeof(EntityModel)));
         model.name = spec.name; model.bodyRenderers = new Renderer[0]; model.fxLoop = null; model.fxDeath = null; model.fxTakeDamage = null;
         model.customMappings = new List<EntityModelCustomMapping>();
-        model.healthBarPosition = CreateSkinAnchor(go.transform, spec.name + "_HealthBarAnchor", new Vector3(0f, 2.75f, 0f));
-        model.weapon = CreateSkinAnchor(go.transform, spec.name + "_WeaponAnchor", new Vector3(0f, 1.25f, 0.45f));
-        model.holsteredWeapon = CreateSkinAnchor(go.transform, spec.name + "_HolsteredWeaponAnchor", new Vector3(0f, 1.2f, -0.25f));
-
-        if (go.GetComponent<DariusNativeModelHost>() == null) go.AddComponent<DariusNativeModelHost>();
-        if (DariusNativeModelAssets.CanUseLegacyFallback(go) && go.GetComponent<DariusTravelerModelInstance>() == null)
-            go.AddComponent<DariusTravelerModelInstance>();
+        if (officialFreshModel)
+        {
+            ConfigureOfficialFreshEntityModel(go, model, profile);
+        }
+        else
+        {
+            model.healthBarPosition = CreateSkinAnchor(go.transform, spec.name + "_HealthBarAnchor", new Vector3(0f, 2.75f, 0f));
+            model.weapon = CreateSkinAnchor(go.transform, spec.name + "_WeaponAnchor", new Vector3(0f, 1.25f, 0.45f));
+            model.holsteredWeapon = CreateSkinAnchor(go.transform, spec.name + "_HolsteredWeaponAnchor", new Vector3(0f, 1.2f, -0.25f));
+            if (go.GetComponent<DariusNativeModelHost>() == null) go.AddComponent<DariusNativeModelHost>();
+            if (DariusNativeModelAssets.CanUseLegacyFallback(go) && go.GetComponent<DariusTravelerModelInstance>() == null)
+                go.AddComponent<DariusTravelerModelInstance>();
+        }
         OwnedObjects.Add(go);
         RegisterNamedResource(skin, go, spec.name, spec.guid);
         DariusLog.Info("TRAVELER-SKIN", "Created runtime skin=" + spec.name + " guid=" + spec.guid +
             " model=" + profile.GlbFile + " profile=" + profile.Variant + " display=" + spec.displayName);
         return skin;
+    }
+
+    private static bool UsesOfficialFreshEntityModel(DariusSkinSpec spec)
+    {
+        return spec != null && string.Equals(spec.name, DefaultSkinName, StringComparison.Ordinal);
+    }
+
+    private static void ConfigureOfficialFreshEntityModel(
+        GameObject root,
+        EntityModel model,
+        DariusNativeSkinProfile profile)
+    {
+        Animator animator = root != null ? root.GetComponentInChildren<Animator>(true) : null;
+        if (animator == null || animator.runtimeAnimatorController == null)
+            throw new InvalidOperationException("Official EntityModel template has no native Animator/controller.");
+
+        Dictionary<string, AnimationClip> clips =
+            new Dictionary<string, AnimationClip>(StringComparer.OrdinalIgnoreCase);
+        AnimationClip[] controllerClips = animator.runtimeAnimatorController.animationClips;
+        for (int i = 0; i < controllerClips.Length; i++)
+        {
+            AnimationClip clip = controllerClips[i];
+            if (clip != null && !clips.ContainsKey(clip.name)) clips.Add(clip.name, clip);
+        }
+
+        AnimationClip idle = RequireOfficialClip(clips, profile.Idle, "idle");
+        AnimationClip run = RequireOfficialClip(clips, profile.Run, "run");
+        AnimationClip death = RequireOfficialClip(clips, profile.Death, "death");
+        AnimationClipWithSpeed idleWithSpeed = new AnimationClipWithSpeed { clip = idle, speed = 1f };
+        model.idle = idleWithSpeed;
+        model.lobby = idleWithSpeed;
+        model.stagger = idleWithSpeed;
+        model.death = new AnimationClipWithSpeed { clip = death, speed = 1f };
+
+        model.runForwardClip = run;
+        model.runBackwardClip = run;
+        model.runLeftClip = run;
+        model.runRightClip = run;
+        model.runForwardLeftClip = run;
+        model.runForwardRightClip = run;
+        model.runBackwardLeftClip = run;
+        model.runBackwardRightClip = run;
+
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+        model.bodyRenderers = renderers ?? new Renderer[0];
+        for (int i = 0; i < model.bodyRenderers.Length; i++)
+        {
+            SkinnedMeshRenderer skinned = model.bodyRenderers[i] as SkinnedMeshRenderer;
+            if (skinned != null) skinned.updateWhenOffscreen = false;
+        }
+
+        Transform health = FindOfficialAnchor(root.transform, DariusNativeAssetContract.HealthAnchorNames);
+        Transform weapon = FindOfficialAnchor(root.transform, DariusNativeAssetContract.WeaponAnchorNames);
+        if (health == null || weapon == null)
+            throw new InvalidOperationException("Official EntityModel template is missing required health/weapon anchors.");
+        model.healthBarPosition = health;
+        model.weapon = weapon;
+        model.holsteredWeapon = weapon;
+
+        DariusLog.Info("OFFICIAL-ENTITYMODEL",
+            "Prepared fresh Classic EntityModel template initialized=" + model.isInitialized +
+            " locomotion=" + model.locomotion +
+            " walkSpeed=" + model.walkAnimationSpeed.ToString("0.###") +
+            " renderers=" + model.bodyRenderers.Length +
+            " support4=" + model.support4Directions + " support8=" + model.support8Directions +
+            " animator=" + animator.gameObject.name);
+        if (model.isInitialized)
+            throw new InvalidOperationException("Official EntityModel template was initialized before EntityVisual.LoadModelLocal.");
+    }
+
+    private static AnimationClip RequireOfficialClip(
+        Dictionary<string, AnimationClip> clips,
+        string name,
+        string slot)
+    {
+        AnimationClip clip;
+        if (string.IsNullOrEmpty(name) || clips == null || !clips.TryGetValue(name, out clip) || clip == null)
+            throw new InvalidOperationException("Official EntityModel template missing " + slot + " clip=" + (name ?? "<null>"));
+        return clip;
+    }
+
+    private static Transform FindOfficialAnchor(Transform root, string[] names)
+    {
+        if (root == null || names == null) return null;
+        Transform[] all = root.GetComponentsInChildren<Transform>(true);
+        for (int ni = 0; ni < names.Length; ni++)
+        {
+            string name = names[ni];
+            if (string.IsNullOrEmpty(name)) continue;
+            for (int ti = 0; ti < all.Length; ti++)
+            {
+                Transform t = all[ti];
+                if (t != null && string.Equals(t.name, name, StringComparison.OrdinalIgnoreCase))
+                    return t;
+            }
+        }
+        return null;
     }
 
     private static Transform CreateSkinAnchor(Transform parent, string name, Vector3 localPosition)
