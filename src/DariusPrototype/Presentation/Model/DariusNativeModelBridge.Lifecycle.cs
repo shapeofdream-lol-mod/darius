@@ -25,11 +25,13 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     {
         ResetWLocomotionOverrides();
         StopSequence();
+        ReleaseAnimatorLease();
     }
 
     private void OnDestroy()
     {
         ResetWLocomotionOverrides();
         StopSequence();
+        ReleaseAnimatorLease();
     }
 }
