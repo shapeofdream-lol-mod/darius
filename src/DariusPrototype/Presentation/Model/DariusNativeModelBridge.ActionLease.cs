@@ -4,6 +4,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 {
     private bool _ownsAnimatorAction;
     private EntityAnimation _leasedEntityAnimation;
+    private bool _animatorSpeedCaptured;
+    private float _animatorSpeedBeforeAction = 1f;
 
     internal bool OwnsAnimatorAction
     {
@@ -19,9 +21,13 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     {
         if (_ownsAnimatorAction) return;
         _ownsAnimatorAction = true;
+        if (_animator != null)
+        {
+            _animatorSpeedBeforeAction = _animator.speed;
+            _animatorSpeedCaptured = true;
+        }
         BeginActionMovementTracking();
         SyncAnimatorLease();
-        RefreshActionLowerBody();
     }
 
     private void SyncAnimatorLease()
@@ -40,10 +46,12 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
 
     private void EndAnimatorAction()
     {
-        DisableActionLowerBody();
         _ownsAnimatorAction = false;
         EndActionMovementTracking();
-        if (_animator != null) _animator.speed = 1f;
+        if (_animatorSpeedCaptured && _animator != null)
+            _animator.speed = _animatorSpeedBeforeAction;
+        _animatorSpeedCaptured = false;
+        _animatorSpeedBeforeAction = 1f;
         SyncAnimatorLease();
     }
 
@@ -56,7 +64,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _wArmedPresentation = false;
             _wSwingActive = false;
             EndWLocomotionTracking();
-            DisableActionLowerBody();
             StopSequence();
             SyncAnimatorLease();
             return;
