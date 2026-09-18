@@ -54,7 +54,7 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         }
     }
 
-    private IEnumerator PlayGodKingWTransition(bool armed, bool moving)
+    private IEnumerator PlayGodKingWTransition(bool armed, bool moving, bool alternateDeactivate = true)
     {
         DariusNativeSkinProfile profile = DariusNativeSkinProfiles.Find(VariantKey);
         if (profile == null) throw new InvalidOperationException("Native skin profile missing: " + VariantKey);
@@ -77,8 +77,12 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             }
             else
             {
-                _wDeactivateAlt = !_wDeactivateAlt;
-                string deactivate = _wDeactivateAlt ? profile.WDeactivateAlt : profile.WDeactivate;
+                string deactivate = profile.WDeactivate;
+                if (alternateDeactivate)
+                {
+                    _wDeactivateAlt = !_wDeactivateAlt;
+                    deactivate = _wDeactivateAlt ? profile.WDeactivateAlt : profile.WDeactivate;
+                }
                 if (PlayState(deactivate, 0.04f, 1f))
                     yield return WaitForActionDuration(ClipLength(deactivate, 0.2f));
             }
