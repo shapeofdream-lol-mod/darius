@@ -60,13 +60,19 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         AnimationClip run = FindClip(RunClipName);
         if (idle != null)
         {
-            _entityModel.idle = ClipWithSpeed(idle, 1f);
-            _entityModel.lobby = ClipWithSpeed(idle, 1f);
+            AnimationClipWithSpeed idleWithSpeed = ClipWithSpeed(idle, 1f);
+            _entityModel.idle = idleWithSpeed;
+            _entityModel.lobby = idleWithSpeed;
+            // SoD exposes PlayStaggerAnimation() against EntityModel.stagger. Darius has no
+            // identified authored stagger clip, so use Darius' own stable Idle as a safe no-op
+            // fallback instead of inheriting Vesper's foreign clip or leaving the slot empty.
+            _entityModel.stagger = idleWithSpeed;
+        }
+        else
+        {
+            _entityModel.stagger = default(AnimationClipWithSpeed);
         }
         if (death != null) _entityModel.death = ClipWithSpeed(death, 1f);
-
-        // Do not reuse the template skin's stagger clip on Darius' imported skeleton.
-        _entityModel.stagger = default(AnimationClipWithSpeed);
 
         if (run != null)
         {
