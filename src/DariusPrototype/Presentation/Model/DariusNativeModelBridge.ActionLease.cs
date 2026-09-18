@@ -35,13 +35,20 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         bool wantsLease = WantsAnimatorLease && _entityAnimation != null;
         if (wantsLease && ReferenceEquals(_leasedEntityAnimation, _entityAnimation)) return;
 
-        DariusNativeEntityAnimationLease.Release(_leasedEntityAnimation);
-        _leasedEntityAnimation = null;
+        ReleaseAnimatorLease();
         if (wantsLease)
         {
             _leasedEntityAnimation = _entityAnimation;
             DariusNativeEntityAnimationLease.Acquire(_leasedEntityAnimation);
         }
+    }
+
+    private void ReleaseAnimatorLease()
+    {
+        EntityAnimation leased = _leasedEntityAnimation;
+        _leasedEntityAnimation = null;
+        if (!ReferenceEquals(leased, null))
+            DariusNativeEntityAnimationLease.Release(leased);
     }
 
     private void EndAnimatorAction()
