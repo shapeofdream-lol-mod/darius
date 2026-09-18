@@ -11,7 +11,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
     private DariusSkinModelBinding _binding;
     private GameObject _modelRoot;
     private Animator _animator;
-    private int _lowerBodyLayer = -1;
     private EntityModel _entityModel;
     private Hero _hero;
     private EntityAnimation _entityAnimation;
@@ -46,10 +45,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         if (_animator == null)
             throw new InvalidDataException("Native Darius prefab has no Animator: " + VariantKey);
 
-        _lowerBodyLayer = _animator.GetLayerIndex(DariusNativeAssetContract.LowerBodyAnimatorLayerName);
-        if (_lowerBodyLayer < 0)
-            throw new InvalidDataException("Native Darius Animator is missing lower-body layer: " + VariantKey);
-        _animator.SetLayerWeight(_lowerBodyLayer, 0f);
         _animator.applyRootMotion = false;
         _animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
         CacheClips();
@@ -116,6 +111,11 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
                 BeginWLocomotionTracking(moving);
                 SyncAnimatorLease();
                 PlayWLocomotionState(moving, true);
+            }
+            else if (IsGodKingSkin && FindClip("Idle_In") != null)
+            {
+                StopSequence();
+                _sequence = StartCoroutine(PlayTimedAction("Idle_In", null));
             }
             DariusLog.Info("NATIVE-MODEL", "EntityAnimation.SetupModel completed skin=" + VariantKey + " animator=true");
         }
