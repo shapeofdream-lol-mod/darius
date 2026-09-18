@@ -63,6 +63,18 @@ internal static partial class DariusNativeModelAssets
         return bridge != null && bridge.IsReady;
     }
 
+    internal static GameObject InstantiateFreshEntityModelTemplate(string variantKey, Transform parent)
+    {
+        GameObject prefab = GetPrefab(variantKey);
+        if (prefab == null) return null;
+        GameObject instance = UnityEngine.Object.Instantiate(prefab, parent, false);
+        instance.name = "Darius_OfficialEntityModel_" + DariusNativeAssetContract.NormalizeVariant(variantKey);
+        instance.transform.localPosition = Vector3.zero;
+        instance.transform.localRotation = Quaternion.identity;
+        instance.transform.localScale = Vector3.one;
+        return instance;
+    }
+
     public static bool CanUseLegacyFallback(GameObject owner)
     {
         if (owner == null) return false;
