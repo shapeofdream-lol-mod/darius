@@ -2,6 +2,12 @@ using System;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
+using UnityEngine;
+
+public sealed class DariusOfficialEntityModelMarker : MonoBehaviour
+{
+    public string variantKey;
+}
 
 // Independent traveler implementation for Hero_Darius.
 // Runtime-created Hero/Skin resources remain necessary because the stock mod loader does not
@@ -26,14 +32,15 @@ public sealed class Hero_Darius : Hero
         base.OnModelLoaded();
         try
         {
-            DariusNativeModelBridge native = NativeModelBridge;
+            bool officialFresh = DariusNativeAnimationMode.IsOfficialFreshModel(this);
+            DariusNativeModelBridge native = officialFresh ? null : NativeModelBridge;
             if (native != null)
             {
                 native.BindHero(this);
                 if (!native.IsReady) native = null;
             }
 
-            DariusTravelerModelInstance legacy = native == null
+            DariusTravelerModelInstance legacy = native == null && !officialFresh
                 ? GetComponentInChildren<DariusTravelerModelInstance>(true)
                 : null;
             if (legacy != null)
@@ -46,8 +53,14 @@ public sealed class Hero_Darius : Hero
             DariusBasicAttackVisualRuntime attackVisual = GetComponent<DariusBasicAttackVisualRuntime>();
             if (attackVisual == null) attackVisual = gameObject.AddComponent<DariusBasicAttackVisualRuntime>();
             attackVisual.Bind(this);
-            DariusLog.Info("TRAVELER-MODEL", "Hero_Darius.OnModelLoaded native=" + (native != null) +
-                " legacy=" + (legacy != null) + " attackVisual=" + (attackVisual != null));
+            EntityAnimation animation = GetComponent<EntityAnimation>();
+            EntityModel loadedModel = Visual != null ? Visual.model : null;
+            DariusLog.Info("TRAVELER-MODEL", "Hero_Darius.OnModelLoaded officialFresh=" + officialFresh +
+                " native=" + (native != null) + " legacy=" + (legacy != null) +
+                " entityModel=" + (loadedModel != null ? loadedModel.name : "<null>") +
+                " initialized=" + (loadedModel != null && loadedModel.isInitialized) +
+                " animator=" + (animation != null && animation.animator != null ? animation.animator.gameObject.name : "<null>") +
+                " attackVisual=" + (attackVisual != null));
         }
         catch (Exception e)
         {
@@ -68,6 +81,22 @@ internal static class DariusNativeAnimationMode
     {
         Hero_Darius hero = FindHero(visual);
         return hero != null && hero.NativeModelBridge != null;
+    }
+
+    public static bool IsOfficialFreshModel(Hero_Darius hero)
+    {
+        if (hero == null) return false;
+        try
+        {
+            EntityVisual visual = hero.Visual;
+            EntityModel model = visual != null ? visual.model : null;
+            if (model != null && model.GetComponent<DariusOfficialEntityModelMarker>() != null) return true;
+            return hero.GetComponentInChildren<DariusOfficialEntityModelMarker>(true) != null;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     internal static Hero_Darius FindHero(UnityEngine.Component component)
@@ -102,7 +131,8 @@ internal static class DariusEntityVisualLoadModelFinalizerPatch
         if (!(__exception is NullReferenceException)) return __exception;
 
         Hero_Darius hero = DariusNativeAnimationMode.FindHero(__instance);
-        if (hero == null || hero.NativeModelBridge != null) return __exception;
+        if (hero == null || hero.NativeModelBridge != null ||
+            DariusNativeAnimationMode.IsOfficialFreshModel(hero)) return __exception;
 
         DariusLog.DebugInfoThrottled("MODEL-NATIVE-GUARD", "legacy-load-model-tail",
             "Suppressed stock EntityVisual.LoadModelLocal tail NullReference for legacy GLB fallback.", 20.0);
@@ -124,7 +154,8 @@ internal static class DariusEntityAnimationReplaceAnimationLocalPatch
     private static bool Prefix(EntityAnimation __instance)
     {
         Hero_Darius hero = DariusNativeAnimationMode.FindHero(__instance);
-        if (hero == null || hero.NativeModelBridge != null) return true;
+        if (hero == null || hero.NativeModelBridge != null ||
+            DariusNativeAnimationMode.IsOfficialFreshModel(hero)) return true;
 
         DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "legacy-replace-local",
             "Skipped stock ReplaceAnimationLocal only because Hero_Darius is using the legacy GLB fallback.", 20.0);
@@ -148,7 +179,7 @@ internal static class DariusEntityAnimationAbilityRpcPatch
     private static bool Prefix(EntityAnimation __instance)
     {
         Hero_Darius hero = DariusNativeAnimationMode.FindHero(__instance);
-        if (hero == null) return true;
+        if (hero == null || DariusNativeAnimationMode.IsOfficialFreshModel(hero)) return true;
 
         DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "darius-ability-rpc",
             "Skipped stock ability-animation RPC for Hero_Darius; Darius presentation hooks own ability clips.", 20.0);
