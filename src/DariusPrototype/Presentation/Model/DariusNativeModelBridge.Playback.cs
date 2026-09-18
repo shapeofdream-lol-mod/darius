@@ -221,6 +221,6 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
         if (_wArmedPresentation)
             RestoreWLocomotionAfterAction();
         else if (finishW && IsGodKingSkin)
-            _sequence = StartCoroutine(PlayGodKingWTransition(false, false));
+            _sequence = StartCoroutine(PlayGodKingWTransition(false, false, false));
     }
 }
