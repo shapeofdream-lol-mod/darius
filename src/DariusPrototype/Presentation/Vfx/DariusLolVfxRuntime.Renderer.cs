@@ -67,6 +67,20 @@ public static partial class DariusLolVfxRuntime
         Material material = MaterialFor(textureRel, blend);
         if (material == null) { r.enabled = false; return; }
 
+        // Base Darius Q uses dark-backed luminous ring textures. Riot's particle shader makes the
+        // dark texels disappear, while Unity alpha/opaque fallbacks expose the source quad itself.
+        // Keep this correction scoped to the reported base-Q quad/projection emitters.
+        bool baseQRing = string.Equals(systemName, "Darius_Base_Q_Ring", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(systemName, "Darius_Base_Q_Ring_Windup", StringComparison.OrdinalIgnoreCase);
+        bool qQuadLike = string.Equals(primitive, "VfxPrimitiveArbitraryQuad", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(primitive, "VfxPrimitiveCameraQuad", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(primitive, "VfxPrimitivePlanarProjection", StringComparison.OrdinalIgnoreCase);
+        if (baseQRing && qQuadLike && (blend == 1 || blend == 3))
+        {
+            Material additive = MaterialFor(textureRel, 0);
+            if (additive != null) material = additive;
+        }
+
         // Skin67 R_Trail uses mesh UV offsets/scrolling as part of the authored weapon-streak
         // shader. The previous converter ignored all three fields, so the broad white part of the
         // mask stayed fixed across the enormous slash mesh. Clone only these materials (leaving
