@@ -103,6 +103,19 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             _entityAnimation.SetupModel();
             if (_entityAnimation.animator == null)
                 throw new InvalidOperationException("EntityAnimation.SetupModel produced no animator.");
+
+            if (!ReferenceEquals(_entityAnimation.animator, _animator))
+            {
+                string previousName = _entityAnimation.animator.gameObject != null
+                    ? _entityAnimation.animator.gameObject.name
+                    : "<unknown>";
+                DariusLog.Warn("NATIVE-MODEL", "EntityAnimation bound a different Animator skin=" + VariantKey +
+                    " sod=" + previousName + " native=" + _animator.gameObject.name +
+                    "; rebinding SoD presentation to the native prefab Animator.");
+                _entityAnimation.animator = _animator;
+            }
+
+            BindEntityAnimationLocomotion();
             _entityAnimationModelSetup = true;
             _setupFailed = false;
             if (_wArmedPresentation)
@@ -117,7 +130,8 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
                 StopSequence();
                 _sequence = StartCoroutine(PlayTimedAction("Idle_In", null));
             }
-            DariusLog.Info("NATIVE-MODEL", "EntityAnimation.SetupModel completed skin=" + VariantKey + " animator=true");
+            DariusLog.Info("NATIVE-MODEL", "EntityAnimation.SetupModel completed skin=" + VariantKey +
+                " animator=native locomotion=bound");
         }
         catch (Exception e)
         {
@@ -129,6 +143,40 @@ public sealed partial class DariusNativeModelBridge : MonoBehaviour
             DariusLog.Exception("NATIVE-MODEL", e,
                 "EntityAnimation.SetupModel failed skin=" + VariantKey + "; native gameplay presentation disabled");
         }
+    }
+
+    private void BindEntityAnimationLocomotion()
+    {
+        AnimationClip idle = FindClip(IdleClipName);
+        AnimationClip run = FindClip(RunClipName);
+        if (idle == null || run == null)
+            throw new InvalidOperationException("Native locomotion clips are incomplete skin=" + VariantKey);
+
+        int idleBindings = ReplaceLocomotionFamily("Idle", idle);
+        int runBindings = ReplaceLocomotionFamily("Run", run);
+        if (idleBindings == 0 || runBindings == 0)
+            throw new InvalidOperationException("EntityAnimation exposes no replaceable Idle/Run slots skin=" +
+                VariantKey + " idle=" + idleBindings + " run=" + runBindings);
+
+        DariusLog.Info("NATIVE-MODEL", "Bound SoD locomotion replacements skin=" + VariantKey +
+            " idle=" + idle.name + " slots=" + idleBindings +
+            " run=" + run.name + " slots=" + runBindings);
+    }
+
+    private int ReplaceLocomotionFamily(string prefix, AnimationClip clip)
+    {
+        Array values = Enum.GetValues(typeof(EntityAnimation.ReplaceableAnimationType));
+        int replaced = 0;
+        for (int i = 0; i < values.Length; i++)
+        {
+            EntityAnimation.ReplaceableAnimationType type =
+                (EntityAnimation.ReplaceableAnimationType)values.GetValue(i);
+            string name = type.ToString();
+            if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+            _entityAnimation.ReplaceAnimationLocal(type, clip);
+            replaced++;
+        }
+        return replaced;
     }
 
     private string IdleClipName { get { return _binding != null ? _binding.idleClip : null; } }
