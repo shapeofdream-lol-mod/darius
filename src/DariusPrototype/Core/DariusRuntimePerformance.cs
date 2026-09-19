@@ -83,10 +83,17 @@ internal static class DariusRuntimePerformance
             catch { }
         }
 
+        string renderType = material.GetTag("RenderType", false, string.Empty);
         bool transparent =
             material.renderQueue >= 3000 ||
-            string.Equals(material.GetTag("RenderType", false, string.Empty), "Transparent", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(renderType, "Transparent", StringComparison.OrdinalIgnoreCase) ||
             (material.HasProperty("_Surface") && material.GetFloat("_Surface") > 0.5f);
+        bool alphaClip =
+            !transparent &&
+            (material.renderQueue == 2450 ||
+             string.Equals(renderType, "TransparentCutout", StringComparison.OrdinalIgnoreCase) ||
+             (material.HasProperty("_AlphaClip") && material.GetFloat("_AlphaClip") > 0.5f));
+        float alphaCutoff = material.HasProperty("_Cutoff") ? material.GetFloat("_Cutoff") : 0.5f;
 
         Color tint = Color.white;
         if (material.HasProperty("_BaseColor")) tint = material.GetColor("_BaseColor");
@@ -125,6 +132,20 @@ internal static class DariusRuntimePerformance
             material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
             material.renderQueue = 3000;
         }
+        else if (alphaClip)
+        {
+            material.SetOverrideTag("RenderType", "TransparentCutout");
+            if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 0f);
+            if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 1f);
+            if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", 1f);
+            if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", 0f);
+            if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip", 1f);
+            if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff", alphaCutoff);
+            material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.EnableKeyword("_ALPHATEST_ON");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.renderQueue = 2450;
+        }
         else
         {
             material.SetOverrideTag("RenderType", "Opaque");
@@ -145,7 +166,8 @@ internal static class DariusRuntimePerformance
         DariusLog.DebugInfo("NATIVE-MATERIAL", "material=" + material.name +
             " shader=" + previousShader + " -> " + shader.name +
             " texture=" + (texture != null ? texture.name : "<null>") + " tint=" + tint +
-            " transparent=" + transparent);
+            " transparent=" + transparent + " alphaClip=" + alphaClip +
+            " cutoff=" + alphaCutoff.ToString("0.###"));
         return !string.Equals(previousShader, shader.name, StringComparison.Ordinal);
     }
 
