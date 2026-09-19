@@ -41,7 +41,9 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
             bool warFervor = warFervorLevel > 0;
             int maxStacks = currentMaxStacks;
             state.stacks = mightBefore ? maxStacks : Mathf.Clamp(state.stacks + stacks, 1, maxStacks);
-            state.expiresAt = Time.time + Duration + DariusConstellationRuntime.GetHemorrhageDurationBonus(_owner);
+            float bleedDuration = Duration + DariusConstellationRuntime.GetHemorrhageDurationBonus(_owner);
+            state.expiresAt = Time.time + bleedDuration;
+            SyncHemorrhageStatus(target, state, maxStacks, bleedDuration);
 
             DariusLog.Info("HEM-APPLY", "target=" + DariusLog.EntityLabel(target) +
                 " source=" + (source ?? "<unknown>") + " created=" + created +
@@ -82,6 +84,46 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
         {
             DariusLog.Exception("HEM-APPLY", e, "Apply failed source=" + (source ?? "<unknown>"));
         }
+    }
+
+    private void SyncHemorrhageStatus(Entity target, BleedState state, int maxStacks, float duration)
+    {
+        if (!NetworkServer.active || target == null || state == null ||
+            DariusFormalRegistry.HemorrhageStatus == null) return;
+
+        try
+        {
+            if (state.status == null || !state.status.isActive)
+            {
+                state.status = _owner.CreateStatusEffect<Se_Darius_Hemorrhage>(
+                    DariusFormalRegistry.HemorrhageStatus,
+                    target,
+                    default(CastInfo),
+                    null);
+            }
+
+            if (state.status == null) return;
+            state.status.maxStack = Mathf.Max(1, maxStacks);
+            state.status.SetStack(Mathf.Clamp(state.stacks, 1, state.status.maxStack));
+            state.status.numberDisplay = state.stacks;
+            state.status.SetTimer(duration);
+            DariusLog.DebugInfo("HEM-STATUS", "Synced native Hemorrhage status target=" +
+                DariusLog.EntityLabel(target) + " stacks=" + state.stacks + "/" + maxStacks +
+                " duration=" + duration.ToString("0.##"));
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("HEM-STATUS", e, "Failed syncing native Hemorrhage status target=" +
+                DariusLog.EntityLabel(target));
+            state.status = null;
+        }
+    }
+
+    private static void DestroyHemorrhageStatus(BleedState state)
+    {
+        if (state == null || state.status == null) return;
+        try { state.status.DestroyIfActive(); } catch { }
+        state.status = null;
     }
 
     public int GetStacks(Entity target)
@@ -156,6 +198,7 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
             BleedState state;
             if (_states.TryGetValue(_remove[i], out state) && state != null)
             {
+                DestroyHemorrhageStatus(state);
                 if (state.stackVfx != null) try { UnityEngine.Object.Destroy(state.stackVfx); } catch { }
                 if (state.fiveStackVfx != null) try { UnityEngine.Object.Destroy(state.fiveStackVfx); } catch { }
             }
