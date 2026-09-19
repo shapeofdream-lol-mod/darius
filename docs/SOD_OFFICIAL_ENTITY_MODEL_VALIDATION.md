@@ -210,6 +210,33 @@ rather than:
 
 The current renderer/material visibility issue is independent and remains unresolved.
 
+
+### Runtime evidence — material/PropertyBlock diagnostics
+
+In the 2026-09-19 material diagnostic pass, the Darius renderer's shared material remained stable
+through spawn and movement:
+
+- shader: `Standard`
+- RenderType: `Opaque`
+- render queue: `2000`
+- `_Color=(0.8,0.8,0.8,1)`
+- `_SrcBlend=1`
+- `_DstBlend=0`
+- `_ZWrite=1`
+- Darius texture remained assigned
+
+The renderer nevertheless carried a `MaterialPropertyBlock` throughout the same lifecycle. The
+queried common color/alpha/visibility values read as zero, although Unity's getter semantics do not
+by themselves prove that every queried property is explicitly present in the block.
+
+At the same time the renderer was enabled, active, reported visible, had sane bounds, cast a visible
+shadow, and the Animator switched between Darius Idle and Run. This further separates the remaining
+problem from model loading, animation, transforms, bounds, and ordinary renderer enablement.
+
+The next isolated experiment therefore reuses the stock Traveler material/shader template while
+preserving the Darius texture. This tests whether `EntityVisual` runtime shader/property updates
+require the stock visual shader contract.
+
 ## Next isolated experiment — stock AnimatorController
 
 Keep the validated fresh EntityModel lifecycle and stock controller path.
