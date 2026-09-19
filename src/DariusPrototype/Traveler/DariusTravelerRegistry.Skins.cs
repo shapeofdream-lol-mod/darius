@@ -255,7 +255,12 @@ public static partial class DariusTravelerRegistry
                 // EntityVisual renderer collection or it may re-enable them globally.
                 if (DariusNativeAssetContract.IsHiddenObjectName(renderer.gameObject.name))
                 {
+                    // EntityVisual may rebuild/enable its internal renderer collection after model
+                    // load. Renderer.enabled=false alone is therefore not a stable hidden-prop
+                    // contract for God-King. Keep the authored wolf/throne object itself inactive
+                    // until a future action-specific presentation path explicitly opts it in.
                     renderer.enabled = false;
+                    renderer.gameObject.SetActive(false);
                     continue;
                 }
 
