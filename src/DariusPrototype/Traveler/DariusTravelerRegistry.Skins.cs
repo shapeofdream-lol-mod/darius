@@ -323,20 +323,13 @@ public static partial class DariusTravelerRegistry
                 replacement.name = (native != null ? native.name : "Darius") + "_SOD";
                 replacement.renderQueue = stockTemplate.renderQueue;
 
-                // glTF baseColor is texture * baseColorFactor. The imported Unity material keeps
-                // that factor in its main colour; forcing white here discards authored Darius
-                // colour information even though the correct texture is preserved.
-                Color sourceColor = Color.white;
-                if (native != null)
-                {
-                    if (native.HasProperty("_BaseColor")) sourceColor = native.GetColor("_BaseColor");
-                    else if (native.HasProperty("_Color")) sourceColor = native.GetColor("_Color");
-                    else sourceColor = native.color;
-                }
-                if (replacement.HasProperty("_Color"))
-                    replacement.SetColor("_Color", sourceColor);
-                if (replacement.HasProperty("_BaseColor"))
-                    replacement.SetColor("_BaseColor", sourceColor);
+                // The pre-native Darius renderer deliberately treated the Riot model as
+                // texture-dominant/unlit. The Blender->FBX sidecar currently preserves the
+                // base-color texture but not the GLB baseColorFactor/PBR factors, so the imported
+                // FBX material colour (0.8 for Classic in runtime diagnostics) is not an
+                // authoritative Riot value. Keep SoD's Entity shader contract, but configure it
+                // as a neutral matte surface so the authored base texture remains the visual source.
+                ConfigureTextureDominantEntitySurface(replacement);
 
                 if (texture != null)
                 {
@@ -366,6 +359,83 @@ public static partial class DariusTravelerRegistry
             " sourceMaterial=" + stockTemplate.name +
             " shader=" + stockShader.name +
             " targets=" + targetRenderers.Length);
+    }
+
+    private static void ConfigureTextureDominantEntitySurface(Material material)
+    {
+        if (material == null) return;
+
+        SetMaterialColorIfPresent(material, "_Color", Color.white);
+        SetMaterialColorIfPresent(material, "_BaseColor", Color.white);
+        SetMaterialColorIfPresent(material, "_SpecColor", Color.black);
+        SetMaterialColorIfPresent(material, "_SpecularColor", Color.black);
+
+        // Common lit/PBR controls. Dew/Dew Entity is a custom shader, so every write is guarded by
+        // HasProperty; unsupported names are simply ignored.
+        SetMaterialFloatIfPresent(material, "_Metallic", 0f);
+        SetMaterialFloatIfPresent(material, "_MetallicFactor", 0f);
+        SetMaterialFloatIfPresent(material, "_Smoothness", 0f);
+        SetMaterialFloatIfPresent(material, "_Glossiness", 0f);
+        SetMaterialFloatIfPresent(material, "_GlossMapScale", 0f);
+        SetMaterialFloatIfPresent(material, "_Shininess", 0f);
+        SetMaterialFloatIfPresent(material, "_SpecularHighlights", 0f);
+        SetMaterialFloatIfPresent(material, "_EnvironmentReflections", 0f);
+        SetMaterialFloatIfPresent(material, "_Roughness", 1f);
+        SetMaterialFloatIfPresent(material, "_RoughnessFactor", 1f);
+
+        ClearMaterialTextureIfPresent(material, "_MetallicGlossMap");
+        ClearMaterialTextureIfPresent(material, "_SpecGlossMap");
+        ClearMaterialTextureIfPresent(material, "_BumpMap");
+        ClearMaterialTextureIfPresent(material, "_NormalMap");
+        ClearMaterialTextureIfPresent(material, "_OcclusionMap");
+        ClearMaterialTextureIfPresent(material, "_ParallaxMap");
+        ClearMaterialTextureIfPresent(material, "_DetailNormalMap");
+
+        material.DisableKeyword("_METALLICSPECGLOSSMAP");
+        material.DisableKeyword("_SPECGLOSSMAP");
+        material.DisableKeyword("_NORMALMAP");
+        material.DisableKeyword("_OCCLUSIONMAP");
+        material.DisableKeyword("_PARALLAXMAP");
+        material.DisableKeyword("_DETAIL_MULX2");
+        material.DisableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+        if (material.HasProperty("_EnvironmentReflections"))
+            material.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+
+        DariusLog.Info("OFFICIAL-ENTITYMODEL",
+            "Configured texture-dominant matte entity surface material=" + material.name +
+            " shader=" + (material.shader != null ? material.shader.name : "<null>") +
+            " color=" + (material.HasProperty("_Color") ? material.GetColor("_Color").ToString() : "<none>") +
+            " metallic=" + MaterialFloatOrMissing(material, "_Metallic") +
+            " smoothness=" + MaterialFloatOrMissing(material, "_Smoothness") +
+            " glossiness=" + MaterialFloatOrMissing(material, "_Glossiness") +
+            " roughness=" + MaterialFloatOrMissing(material, "_Roughness") +
+            " specularHighlights=" + MaterialFloatOrMissing(material, "_SpecularHighlights") +
+            " environmentReflections=" + MaterialFloatOrMissing(material, "_EnvironmentReflections"));
+    }
+
+    private static void SetMaterialFloatIfPresent(Material material, string property, float value)
+    {
+        if (material != null && material.HasProperty(property))
+            material.SetFloat(property, value);
+    }
+
+    private static void SetMaterialColorIfPresent(Material material, string property, Color value)
+    {
+        if (material != null && material.HasProperty(property))
+            material.SetColor(property, value);
+    }
+
+    private static void ClearMaterialTextureIfPresent(Material material, string property)
+    {
+        if (material != null && material.HasProperty(property))
+            material.SetTexture(property, null);
+    }
+
+    private static string MaterialFloatOrMissing(Material material, string property)
+    {
+        return material != null && material.HasProperty(property)
+            ? material.GetFloat(property).ToString("0.###")
+            : "<none>";
     }
 
     private static AnimationClip RequireOfficialClip(
