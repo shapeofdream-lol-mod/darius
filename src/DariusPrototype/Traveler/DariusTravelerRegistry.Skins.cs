@@ -160,7 +160,7 @@ public static partial class DariusTravelerRegistry
         model.customMappings = new List<EntityModelCustomMapping>();
         if (officialFreshModel)
         {
-            ConfigureOfficialFreshEntityModel(go, model, profile);
+            ConfigureOfficialFreshEntityModel(go, model, sourceModel, profile);
         }
         else
         {
@@ -186,6 +186,7 @@ public static partial class DariusTravelerRegistry
     private static void ConfigureOfficialFreshEntityModel(
         GameObject root,
         EntityModel model,
+        EntityModel sourceModel,
         DariusNativeSkinProfile profile)
     {
         Animator animator = root != null ? root.GetComponentInChildren<Animator>(true) : null;
@@ -204,6 +205,17 @@ public static partial class DariusTravelerRegistry
         AnimationClip idle = RequireOfficialClip(clips, profile.Idle, "idle");
         AnimationClip run = RequireOfficialClip(clips, profile.Run, "run");
         AnimationClip death = RequireOfficialClip(clips, profile.Death, "death");
+
+        Animator sourceAnimator = sourceModel != null
+            ? sourceModel.GetComponentInChildren<Animator>(true)
+            : null;
+        RuntimeAnimatorController stockController =
+            sourceAnimator != null ? sourceAnimator.runtimeAnimatorController : null;
+        if (stockController == null)
+            throw new InvalidOperationException("Stock EntityModel template has no Animator/controller.");
+        RuntimeAnimatorController nativeController = animator.runtimeAnimatorController;
+        animator.runtimeAnimatorController = stockController;
+
         AnimationClipWithSpeed idleWithSpeed = new AnimationClipWithSpeed { clip = idle, speed = 1f };
         model.idle = idleWithSpeed;
         model.lobby = idleWithSpeed;
@@ -241,7 +253,10 @@ public static partial class DariusTravelerRegistry
             " walkSpeed=" + model.walkAnimationSpeed.ToString("0.###") +
             " renderers=" + model.bodyRenderers.Length +
             " support4=" + model.support4Directions + " support8=" + model.support8Directions +
-            " animator=" + animator.gameObject.name);
+            " animator=" + animator.gameObject.name +
+            " nativeController=" + (nativeController != null ? nativeController.name : "<null>") +
+            " stockController=" + stockController.name +
+            " sourceAnimator=" + sourceAnimator.gameObject.name);
         if (model.isInitialized)
             throw new InvalidOperationException("Official EntityModel template was initialized before EntityVisual.LoadModelLocal.");
     }
