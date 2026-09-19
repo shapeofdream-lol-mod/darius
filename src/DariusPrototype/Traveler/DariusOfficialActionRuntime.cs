@@ -46,6 +46,11 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
     private bool _wIdleInAlt;
     private bool _wDeactivateAlt;
 
+    private Transform _facingPivot;
+    private bool _attackFacingActive;
+    private Vector3 _attackFacingDirection = Vector3.forward;
+    private int _attackFacingSerial;
+
     public bool IsReady
     {
         get { return _animator != null && _binding != null && _clipMap.Count != 0; }
@@ -90,6 +95,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         BuildClipMap();
         BuildLowerBodyMap();
         BuildGodKingWolfMap();
+        BuildFacingPivot();
 
         if (_hero != null)
         {
@@ -116,7 +122,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         return true;
     }
 
-    public bool PlayAttack(bool alternate, bool critical)
+    public bool PlayAttack(bool alternate, bool critical, Vector3 direction)
     {
         if (!IsReady || _binding == null) return false;
         string actionName = critical ? _binding.critClip : (alternate ? _binding.attack2Clip : _binding.attack1Clip);
@@ -124,7 +130,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
             (alternate ? _binding.attack2ToIdleClip : _binding.attack1ToIdleClip);
         AnimationClip action = FindClip(actionName);
         if (action == null) return false;
-        RestartSequence(PlayAttackSequence(action, tailName));
+        RestartSequence(PlayAttackSequence(action, tailName, direction));
         return true;
     }
 
@@ -133,7 +139,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         if (!IsReady || _binding == null) return false;
         AnimationClip action = FindClip(_binding.wClip);
         if (action == null) return false;
-        RestartSequence(PlayWAttackSequence(action));
+        RestartSequence(PlayWAttackSequence(action, direction));
         return true;
     }
 
@@ -222,6 +228,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
             StartAction(q, raw / Mathf.Max(0.05f, duration));
             yield return new WaitForSeconds(duration);
             ClearAction();
+            EndAttackFacing(facingSerial);
             RestorePersistentAfterAction();
             _sequence = null;
             yield break;
@@ -262,8 +269,9 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         _sequence = null;
     }
 
-    private IEnumerator PlayAttackSequence(AnimationClip action, string idleTailName)
+    private IEnumerator PlayAttackSequence(AnimationClip action, string idleTailName, Vector3 direction)
     {
+        int facingSerial = BeginAttackFacing(direction);
         bool movingAtStart = _moving;
         float duration = movingAtStart ? 0.76f : 0.82f;
         float raw = Mathf.Max(0.05f, action.length);
@@ -288,12 +296,14 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         }
 
         ClearAction();
+        EndAttackFacing(facingSerial);
         RestorePersistentAfterAction();
         _sequence = null;
     }
 
-    private IEnumerator PlayWAttackSequence(AnimationClip action)
+    private IEnumerator PlayWAttackSequence(AnimationClip action, Vector3 direction)
     {
+        int facingSerial = BeginAttackFacing(direction);
         _wSwingActive = true;
         _persistentClip = null;
         _persistentTime = 0f;
@@ -303,6 +313,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         ClearAction();
 
         _wSwingActive = false;
+        EndAttackFacing(facingSerial);
         if (_wArmed)
         {
             RefreshWPersistentClip();
@@ -431,6 +442,8 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
     {
         if (_sequence != null) StopCoroutine(_sequence);
         _sequence = null;
+        _wSwingActive = false;
+        CancelAttackFacing();
         SetGodKingWolfVisible(false);
         ClearAction();
         _persistentClip = null;
@@ -479,6 +492,8 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
     {
         if (_animator == null || !_animator.gameObject.activeInHierarchy) return;
 
+        UpdateFacingPivot();
+
         AnimationClip clip = _actionClip;
         if (clip != null)
         {
@@ -498,7 +513,8 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
 
     private void SampleOverlay(AnimationClip clip, float sampleTime)
     {
-        CaptureLowerBodyPose();
+        bool preserveLowerBodyLocomotion = _moving;
+        if (preserveLowerBodyLocomotion) CaptureLowerBodyPose();
 
         Transform animatorTransform = _animator.transform;
         Vector3 rootPosition = animatorTransform.localPosition;
@@ -524,7 +540,75 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         animatorTransform.localRotation = rootRotation;
         animatorTransform.localScale = rootScale;
 
-        RestoreLowerBodyPose();
+        if (preserveLowerBodyLocomotion) RestoreLowerBodyPose();
+    }
+
+    private void BuildFacingPivot()
+    {
+        if (_animator == null || _facingPivot != null) return;
+
+        Transform model = _animator.transform;
+        Transform parent = model.parent;
+        Vector3 localPosition = model.localPosition;
+        Quaternion localRotation = model.localRotation;
+        Vector3 localScale = model.localScale;
+
+        GameObject pivotObject = new GameObject("DariusOfficialFacingPivot");
+        _facingPivot = pivotObject.transform;
+        _facingPivot.SetParent(parent, false);
+        _facingPivot.localPosition = Vector3.zero;
+        _facingPivot.localRotation = Quaternion.identity;
+        _facingPivot.localScale = Vector3.one;
+
+        model.SetParent(_facingPivot, false);
+        model.localPosition = localPosition;
+        model.localRotation = localRotation;
+        model.localScale = localScale;
+    }
+
+    private int BeginAttackFacing(Vector3 direction)
+    {
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.001f && _hero != null) direction = _hero.transform.forward;
+        if (direction.sqrMagnitude < 0.001f) direction = Vector3.forward;
+        _attackFacingDirection = direction.normalized;
+        _attackFacingActive = true;
+        return ++_attackFacingSerial;
+    }
+
+    private void EndAttackFacing(int serial)
+    {
+        if (!_attackFacingActive || serial != _attackFacingSerial) return;
+        _attackFacingActive = false;
+    }
+
+    private void CancelAttackFacing()
+    {
+        _attackFacingActive = false;
+    }
+
+    private void UpdateFacingPivot()
+    {
+        if (_facingPivot == null) return;
+
+        Quaternion wantedLocal = Quaternion.identity;
+        if (_attackFacingActive)
+        {
+            Vector3 desired = _attackFacingDirection;
+            desired.y = 0f;
+            if (desired.sqrMagnitude > 0.001f)
+            {
+                Transform parent = _facingPivot.parent;
+                Vector3 localDirection = parent != null ? parent.InverseTransformDirection(desired.normalized) : desired.normalized;
+                localDirection.y = 0f;
+                if (localDirection.sqrMagnitude > 0.001f)
+                    wantedLocal = Quaternion.LookRotation(localDirection.normalized, Vector3.up);
+            }
+        }
+
+        float responsiveness = _attackFacingActive ? 48f : 22f;
+        float t = 1f - Mathf.Exp(-responsiveness * Mathf.Max(Time.deltaTime, 0.0001f));
+        _facingPivot.localRotation = Quaternion.Slerp(_facingPivot.localRotation, wantedLocal, t);
     }
 
     private void BuildClipMap()
@@ -650,6 +734,8 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
     private void OnDisable()
     {
         StopAction();
+        CancelAttackFacing();
+        if (_facingPivot != null) _facingPivot.localRotation = Quaternion.identity;
         _wArmed = false;
         _persistentClip = null;
         _persistentTime = 0f;
