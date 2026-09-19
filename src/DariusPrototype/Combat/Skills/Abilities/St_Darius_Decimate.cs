@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 public sealed class St_Darius_Decimate : SkillTrigger
@@ -75,6 +76,7 @@ public sealed class St_Darius_Decimate : SkillTrigger
             {
                 DariusLog.Info("Q-TRIGGER", "Native AbilityInstance spawned=" + result.name +
                     " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(info.caster));
+                StartCoroutine(LogRecoveryState());
                 return result;
             }
             DariusLog.Warn("Q-TRIGGER", "Native completion returned no AbilityInstance; using compatibility fallback execution.");
@@ -96,5 +98,43 @@ public sealed class St_Darius_Decimate : SkillTrigger
             DariusLog.Exception("Q-FALLBACK", e, "Compatibility fallback failed to start");
         }
         return result;
+    }
+
+    private IEnumerator LogRecoveryState()
+    {
+        LogCastState("after-cast");
+        yield return new WaitForSeconds(0.25f);
+        LogCastState("post-delay");
+
+        float cooldownWait = Mathf.Max(0.25f, currentConfigMaxCooldownTime + 0.25f);
+        yield return new WaitForSeconds(cooldownWait);
+        LogCastState("cooldown-expired");
+    }
+
+    private void LogCastState(string phase)
+    {
+        try
+        {
+            bool abilityLocked = false;
+            EntityAbility ability = owner != null ? owner.GetComponent<EntityAbility>() : null;
+            if (ability != null && abilityIndex >= 0)
+                abilityLocked = ability.IsAbilityCastLocked(abilityIndex);
+
+            DariusLog.Info("Q-STATE",
+                "phase=" + phase +
+                " owner=" + DariusLog.EntityLabel(owner) +
+                " config=" + currentConfigIndex +
+                " charge=" + currentConfigCurrentCharge +
+                " cooldown=" + currentConfigCooldownTime.ToString("0.###") +
+                " minDelay=" + currentConfigCurrentMinimumDelay.ToString("0.###") +
+                " maxCooldown=" + currentConfigMaxCooldownTime.ToString("0.###") +
+                " canCast=" + CanBeCast() +
+                " abilityIndex=" + abilityIndex +
+                " abilityLocked=" + abilityLocked);
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("Q-STATE", e, "Failed reading Q recovery state phase=" + phase);
+        }
     }
 }
