@@ -67,6 +67,10 @@ public static class DariusSkinAnimationHooks
 
     public static bool IsGodKing(Hero hero)
     {
+        string freshVariant = GetOfficialFreshVariant(hero);
+        if (!string.IsNullOrEmpty(freshVariant))
+            return string.Equals(freshVariant, "GodKing", System.StringComparison.OrdinalIgnoreCase);
+
         DariusNativeModelBridge native = FindNative(hero);
         if (native != null && native.IsReady) return native.IsGodKingSkin;
         DariusTravelerModelInstance traveler = FindTraveler(hero);
@@ -75,6 +79,9 @@ public static class DariusSkinAnimationHooks
 
     public static string GetVariantKey(Hero hero)
     {
+        string freshVariant = GetOfficialFreshVariant(hero);
+        if (!string.IsNullOrEmpty(freshVariant)) return freshVariant;
+
         DariusNativeModelBridge native = FindNative(hero);
         if (native != null && native.IsReady) return native.VariantKey;
         DariusTravelerModelInstance traveler = FindTraveler(hero);
@@ -117,6 +124,15 @@ public static class DariusSkinAnimationHooks
         if (native != null && native.IsReady) return native.CreateFullMeshOverlay(material, label);
         DariusTravelerModelInstance traveler = FindTraveler(hero);
         return traveler != null ? traveler.CreateFullMeshOverlay(material, label) : null;
+    }
+
+    private static string GetOfficialFreshVariant(Hero hero)
+    {
+        Hero_Darius darius = hero as Hero_Darius;
+        if (darius == null || darius.Visual == null || darius.Visual.model == null) return null;
+        DariusOfficialEntityModelMarker marker =
+            darius.Visual.model.GetComponent<DariusOfficialEntityModelMarker>();
+        return marker != null ? marker.variantKey : null;
     }
 
     private static DariusNativeModelBridge FindNative(Hero hero)
