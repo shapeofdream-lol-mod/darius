@@ -19,6 +19,19 @@ public static partial class DariusFormalRegistry
             return;
         }
 
+        NoxianMightStatus = RegisterPrefab<Se_Darius_NoxianMight>("Se_Darius_NoxianMight", GuidNoxianMightStatus, status =>
+        {
+            status.showIcon = true;
+            status.icon = DariusPrototypeIcons.Get("H");
+            status.isBeneficialBuff = true;
+            status.hideOnWorldHealthBar = true;
+            status.isCleansable = false;
+            status.isKilledByCrowdControlImmunity = false;
+            status.scaleDurationByTenacity = false;
+            status.topColor = new Color(0.92f, 0.08f, 0.10f, 1f);
+            status.bottomColor = new Color(0.28f, 0.02f, 0.03f, 1f);
+        });
+
         // Register clean, warm-initialized AbilityInstance prefabs first. The engineering audit confirmed
         // that Gem/Essence compatibility depends on the stock SkillTrigger -> AbilityInstance ->
         // PrepareAndSpawn chain. These templates live activeSelf=true under an inactive resource root,
@@ -113,7 +126,7 @@ public static partial class DariusFormalRegistry
         // Runtime maps are updated precisely by RegisterObject; do not rebuild the global database here.
 
         _registered = true;
-        DariusLog.Info("REG", "Formal Darius resources registered: Q/W/E/R + Flash/Ghost + Hemorrhage + 38 native constellation/equipment stars + legacy Essence + 4 AbilityInstances.");
+        DariusLog.Info("REG", "Formal Darius resources registered: Q/W/E/R + Flash/Ghost + Hemorrhage + Noxian Might status + 38 native constellation/equipment stars + legacy Essence + 4 AbilityInstances.");
     }
 
     public static void DropTestPack(DewPlayer player, bool force)
