@@ -45,6 +45,8 @@ public static partial class DariusFormalRegistry
 
     public static Se_Darius_NoxianMight NoxianMightStatus { get; private set; }
 
+    public static Se_Darius_Hemorrhage HemorrhageStatus { get; private set; }
+
     public static Ai_Darius_Decimate DecimateAbility { get; private set; }
 
     public static Ai_Darius_CripplingStrike CripplingStrikeAbility { get; private set; }
@@ -72,6 +74,7 @@ public static partial class DariusFormalRegistry
 
     private const string GuidGem = DariusResourceIds.LegacyGem; // legacy v0.11 Essence only
     private const string GuidNoxianMightStatus = DariusResourceIds.StatusNoxianMight;
+    private const string GuidHemorrhageStatus = DariusResourceIds.StatusHemorrhage;
     private const string GuidAiQ = DariusResourceIds.AbilityQ;
 
     private const string GuidAiW = DariusResourceIds.AbilityW;
