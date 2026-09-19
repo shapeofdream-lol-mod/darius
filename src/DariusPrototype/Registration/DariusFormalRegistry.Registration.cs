@@ -19,6 +19,24 @@ public static partial class DariusFormalRegistry
             return;
         }
 
+        HemorrhageStatus = RegisterPrefab<Se_Darius_Hemorrhage>("Se_Darius_Hemorrhage", GuidHemorrhageStatus, status =>
+        {
+            status.showIcon = true;
+            status.icon = DariusPrototypeIcons.Get("H");
+            status.isBeneficialBuff = false;
+            status.hideOnWorldHealthBar = false;
+            status.isCleansable = false;
+            status.isKilledByCrowdControlImmunity = false;
+            status.scaleDurationByTenacity = false;
+            status.topColor = new Color(0.72f, 0.05f, 0.07f, 1f);
+            status.bottomColor = new Color(0.22f, 0.01f, 0.02f, 1f);
+            status.autoDecay = false;
+            status.decayAllAtOnce = true;
+            status.killOnZeroStack = true;
+            status.maxStack = DariusHemorrhageRuntime.MaxStacks;
+            status.resetTimerOnStackChange = false;
+        });
+
         NoxianMightStatus = RegisterPrefab<Se_Darius_NoxianMight>("Se_Darius_NoxianMight", GuidNoxianMightStatus, status =>
         {
             status.showIcon = false;
@@ -126,7 +144,7 @@ public static partial class DariusFormalRegistry
         // Runtime maps are updated precisely by RegisterObject; do not rebuild the global database here.
 
         _registered = true;
-        DariusLog.Info("REG", "Formal Darius resources registered: Q/W/E/R + Flash/Ghost + Hemorrhage + Noxian Might status + 38 native constellation/equipment stars + legacy Essence + 4 AbilityInstances.");
+        DariusLog.Info("REG", "Formal Darius resources registered: Q/W/E/R + Flash/Ghost + Hemorrhage identity/status + Noxian Might status + 38 native constellation/equipment stars + legacy Essence + 4 AbilityInstances.");
     }
 
     public static void DropTestPack(DewPlayer player, bool force)
