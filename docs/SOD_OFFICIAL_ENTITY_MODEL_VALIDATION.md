@@ -8,6 +8,22 @@ should be treated as proven until the runtime acceptance criteria below pass.
 
 ## Official API evidence
 
+## API documentation/version caveat
+
+The online API documentation can be newer than the game assemblies used by a released build.
+During the 2026-09-19 experiment, the online `EntityVisual` documentation exposed
+`public IReadOnlyList<Material> materials`, but the locally referenced game assembly used for the
+Release build did not expose that member to C# and compilation failed when it was referenced
+directly.
+
+Reusable rule:
+
+- treat the online docs as the preferred API reference,
+- but compile against the target game's actual assemblies before promoting an API member into
+  reusable integration code,
+- record version mismatches instead of adding reflection-based dependencies unless the missing
+  member is required for functionality.
+
 The Shape of Dreams API documents the following public contracts:
 
 - `EntityVisual.LoadModelLocal(EntityModel)` locally changes an entity model. The provided
