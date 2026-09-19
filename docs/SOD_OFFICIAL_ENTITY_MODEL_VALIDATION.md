@@ -492,23 +492,53 @@ reference. Main reads the GLB material `alphaMode` and configures BLEND material
 URP/Unlit surfaces. The native FBX sidecar previously discarded `alphaMode`, and runtime material
 rebinding then forced every visible material to Opaque.
 
-The native asset pipeline now:
-- exports GLB material alpha mode into the generated material map;
-- marks BLEND materials transparent during Unity material binding;
-- preserves that transparent contract when runtime swaps the material to URP/Unlit.
+A static review then found that the first alpha-sidecar revision was incomplete: the converter
+emitted a five-column manifest while the Unity binder still validated four columns before reading
+the fifth. CI did not catch this because it compiles the editor source but does not execute Unity's
+native bundle build.
+
+The corrected native material contract is deliberately small and mirrors the useful parts of the
+working `main` path:
+
+- the sidecar now has seven explicit fields:
+  `renderer / slot / material / texture / alphaMode / alphaCutoff / authoredVisible`;
+- `BLEND` is preserved as transparent URP/Unlit;
+- `MASK` is preserved as alpha-cutout with the authored/default cutoff;
+- GLB `extras.visible=false` participates in the existing hidden-submesh split instead of being
+  left in EntityVisual's normal body renderer set;
+- the hidden split now runs for every skin rather than being hard-coded to God-King;
+- runtime URP/Unlit rebinding preserves both transparent and alpha-cutout state.
 
 Implementation:
-- `d69b1708b77ea9dda378f71ce9109f854ad81c8c` — preserve GLB alpha mode in material map
-- `f44a89e5cfb6a8cb6a04253f1e6a904a150f62db` — bind native material alpha mode
-- `9beeb4b3202f837b9d83154e7b3e8b606a586c7f` — preserve authored alpha on runtime URP/Unlit
+- `4de67a8ff13e21e8af839881539d6d0a13d3fe0f` — complete native material visibility contract
+- `b5fc0ee3292f9630bcec50328f9c8de342a9bca6` — parse complete native material contract
+- `098110400641dcec543b8ebcfe4bf29c838b901f` — keep authored-hidden submeshes out of body renderers
+- `7d6dc258d010bf5200085b15791f50173548ff61` — preserve alpha cutout through runtime material rebind
+- `ff59a29afa94829e10966c60c26784271904ce42` — run authored-hidden split for every skin
 
-Unlike recent C#-only presentation changes, the alpha fix changes native bundle inputs and therefore
-requires rebuilding `darius_models.bundle`; the existing fingerprint contract already includes the
-converter and all Unity editor pipeline files, so DeployMod will reject the stale bundle.
+The same review compared the fresh action layer against the working `main` behavior and corrected
+three over-broad simplifications without changing gameplay rules:
 
-Both the repository/build-tooling contracts and Release build pass at
-`9beeb4b3202f837b9d83154e7b3e8b606a586c7f`. Runtime behavior remains unvalidated until the
-bundle is rebuilt and repeated Q/R/basic attacks are tested.
+- lower-body locomotion is restored only while the Hero is actually moving during an action;
+  stationary Q/R/basic attacks keep their authored full-body pose;
+- interrupting/restarting an action clears the W-swing state and attack-facing ownership;
+- basic attacks and W preserve the direction supplied by gameplay and use a lightweight visual
+  facing pivot, matching main's separation between gameplay facing and model presentation.
+
+Implementation:
+- `86718dbd462fb73fe4e7dc1f976631ec4e06d3c2` — align fresh action layering with main runtime
+- `efb419945f293e91b1aa472d20e3fff1cfcedffc` — release fresh attack facing on every exit
+- `764c964b06d629781e6752c9eb6624cafc24d354` — preserve fresh attack facing direction
+- `776d4855d95c6f6a64e83ec43bd4b0e530a69050` — remove stray Q facing cleanup after CI caught it
+
+Unlike recent C#-only presentation changes, the material-contract fix changes native bundle inputs
+and therefore requires rebuilding `darius_models.bundle`; the existing fingerprint contract
+already includes the converter and all Unity editor pipeline files, so DeployMod will reject the
+stale bundle.
+
+Repository contracts, build tooling checks, package configuration, and the Release build all pass at
+`776d4855d95c6f6a64e83ec43bd4b0e530a69050`. Runtime behavior remains unvalidated until the
+bundle is rebuilt and repeated Q/R/basic attacks plus God-King alpha/hidden-prop behavior are tested.
 
 ## Validated knowledge
 
