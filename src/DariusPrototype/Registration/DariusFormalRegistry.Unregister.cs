@@ -84,6 +84,7 @@ public static partial class DariusFormalRegistry
         Flash = null;
         Ghost = null;
         Hemorrhage = null;
+        NoxianMightStatus = null;
         LegacyHemorrhage = null;
         DecimateAbility = null;
         CripplingStrikeAbility = null;
