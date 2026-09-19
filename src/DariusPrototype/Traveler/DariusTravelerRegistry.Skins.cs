@@ -233,6 +233,7 @@ public static partial class DariusTravelerRegistry
 
         Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
         model.bodyRenderers = renderers ?? new Renderer[0];
+        ApplyOfficialStockMaterialContract(model.bodyRenderers, sourceModel);
         for (int i = 0; i < model.bodyRenderers.Length; i++)
         {
             SkinnedMeshRenderer skinned = model.bodyRenderers[i] as SkinnedMeshRenderer;
@@ -259,6 +260,88 @@ public static partial class DariusTravelerRegistry
             " sourceAnimator=" + sourceAnimator.gameObject.name);
         if (model.isInitialized)
             throw new InvalidOperationException("Official EntityModel template was initialized before EntityVisual.LoadModelLocal.");
+    }
+
+    private static void ApplyOfficialStockMaterialContract(Renderer[] targetRenderers, EntityModel sourceModel)
+    {
+        if (targetRenderers == null || targetRenderers.Length == 0)
+            throw new InvalidOperationException("Official EntityModel template has no target renderers.");
+
+        Renderer stockRenderer = null;
+        if (sourceModel != null && sourceModel.bodyRenderers != null)
+        {
+            for (int i = 0; i < sourceModel.bodyRenderers.Length; i++)
+            {
+                Renderer candidate = sourceModel.bodyRenderers[i];
+                if (candidate != null && candidate.sharedMaterial != null)
+                {
+                    stockRenderer = candidate;
+                    break;
+                }
+            }
+        }
+        if (stockRenderer == null && sourceModel != null)
+        {
+            Renderer[] sourceRenderers = sourceModel.GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < sourceRenderers.Length; i++)
+            {
+                Renderer candidate = sourceRenderers[i];
+                if (candidate != null && candidate.sharedMaterial != null)
+                {
+                    stockRenderer = candidate;
+                    break;
+                }
+            }
+        }
+        if (stockRenderer == null || stockRenderer.sharedMaterial == null)
+            throw new InvalidOperationException("Stock EntityModel template has no material contract.");
+
+        Material stockTemplate = stockRenderer.sharedMaterial;
+        for (int ri = 0; ri < targetRenderers.Length; ri++)
+        {
+            Renderer renderer = targetRenderers[ri];
+            if (renderer == null) continue;
+            Material[] nativeMaterials = renderer.sharedMaterials;
+            if (nativeMaterials == null || nativeMaterials.Length == 0) continue;
+
+            Material[] replacements = new Material[nativeMaterials.Length];
+            for (int mi = 0; mi < nativeMaterials.Length; mi++)
+            {
+                Material native = nativeMaterials[mi];
+                Texture texture = native != null ? native.mainTexture : null;
+                Vector2 scale = native != null ? native.mainTextureScale : Vector2.one;
+                Vector2 offset = native != null ? native.mainTextureOffset : Vector2.zero;
+
+                Material replacement = new Material(stockTemplate);
+                replacement.name = (native != null ? native.name : "Darius") + "_SOD";
+                if (texture != null)
+                {
+                    replacement.mainTexture = texture;
+                    replacement.mainTextureScale = scale;
+                    replacement.mainTextureOffset = offset;
+                    if (replacement.HasProperty("_MainTex"))
+                    {
+                        replacement.SetTexture("_MainTex", texture);
+                        replacement.SetTextureScale("_MainTex", scale);
+                        replacement.SetTextureOffset("_MainTex", offset);
+                    }
+                    if (replacement.HasProperty("_BaseMap"))
+                    {
+                        replacement.SetTexture("_BaseMap", texture);
+                        replacement.SetTextureScale("_BaseMap", scale);
+                        replacement.SetTextureOffset("_BaseMap", offset);
+                    }
+                }
+                replacements[mi] = replacement;
+            }
+            renderer.sharedMaterials = replacements;
+        }
+
+        DariusLog.Info("OFFICIAL-ENTITYMODEL",
+            "Applied stock material contract sourceRenderer=" + stockRenderer.name +
+            " sourceMaterial=" + stockTemplate.name +
+            " shader=" + (stockTemplate.shader != null ? stockTemplate.shader.name : "<null>") +
+            " targets=" + targetRenderers.Length);
     }
 
     private static AnimationClip RequireOfficialClip(
