@@ -412,6 +412,15 @@ Implementation commits:
 - `78b762b6613c765f01e4cd3770204e3475927ce8` — bind overlay and enforce one action owner
 - `aef4a1e48a11a9d8e57b44bdd06fbd6c5932fd92` — Q recovery diagnostics
 - `f675ab6996bfbf9a17bcdd75c345a350262ed947` — preserve fresh-skin variant identity
+- `2a29c7d1ad3a1664e72b4b4f73e211a7b3a37fd8` — keep God-King hidden wolf/throne objects inactive
+
+God-King runtime testing also showed that excluding authored hidden renderers from
+`EntityModel.bodyRenderers` and setting `Renderer.enabled=false` was not a stable enough contract:
+the fresh EntityVisual lifecycle can still enumerate/re-enable renderers from the loaded hierarchy.
+The native prefab already splits wolf/throne geometry into dedicated `DariusHidden_*` objects, so
+the fresh registration path now keeps those GameObjects inactive as well as disabling their
+renderers. This avoids a per-frame guard and keeps the hidden objects available for a later,
+explicit God-King action-specific opt-in path.
 
 The code passes repository contracts and the Release build against the SoD reference pack. Runtime
 behavior remains **unvalidated** until a moving Q, repeated attacks, and a second Q after cooldown are
