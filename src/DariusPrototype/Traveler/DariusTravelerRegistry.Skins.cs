@@ -180,7 +180,8 @@ public static partial class DariusTravelerRegistry
 
     private static bool UsesOfficialFreshEntityModel(DariusSkinSpec spec)
     {
-        return spec != null && string.Equals(spec.name, DefaultSkinName, StringComparison.Ordinal);
+        // All shipped Darius skins now use the runtime-validated fresh EntityModel path.
+        return spec != null && spec.native != null;
     }
 
     private static void ConfigureOfficialFreshEntityModel(
@@ -237,12 +238,29 @@ public static partial class DariusTravelerRegistry
         // the remaining Classic-only "plastic" reflection seen in runtime.
         DariusRuntimePerformance.OptimizeSkinnedRenderers(root, true);
         Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
-        model.bodyRenderers = renderers ?? new Renderer[0];
-        for (int i = 0; i < model.bodyRenderers.Length; i++)
+        List<Renderer> visibleRenderers = new List<Renderer>(renderers != null ? renderers.Length : 0);
+        if (renderers != null)
         {
-            SkinnedMeshRenderer skinned = model.bodyRenderers[i] as SkinnedMeshRenderer;
-            if (skinned != null) skinned.updateWhenOffscreen = false;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Renderer renderer = renderers[i];
+                if (renderer == null) continue;
+
+                // God-King contains authored wolf/throne presentation meshes. Keep them in the
+                // prefab hierarchy for future action integration, but never hand them to the stock
+                // EntityVisual renderer collection or it may re-enable them globally.
+                if (DariusNativeAssetContract.IsHiddenObjectName(renderer.gameObject.name))
+                {
+                    renderer.enabled = false;
+                    continue;
+                }
+
+                SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
+                if (skinned != null) skinned.updateWhenOffscreen = false;
+                visibleRenderers.Add(renderer);
+            }
         }
+        model.bodyRenderers = visibleRenderers.ToArray();
 
         Transform health = FindOfficialAnchor(root.transform, DariusNativeAssetContract.HealthAnchorNames);
         Transform weapon = FindOfficialAnchor(root.transform, DariusNativeAssetContract.WeaponAnchorNames);
@@ -253,7 +271,7 @@ public static partial class DariusTravelerRegistry
         model.holsteredWeapon = weapon;
 
         DariusLog.Info("OFFICIAL-ENTITYMODEL",
-            "Prepared fresh Classic EntityModel template initialized=" + model.isInitialized +
+            "Prepared fresh " + profile.Variant + " EntityModel template initialized=" + model.isInitialized +
             " locomotion=" + model.locomotion +
             " walkSpeed=" + model.walkAnimationSpeed.ToString("0.###") +
             " renderers=" + model.bodyRenderers.Length +
