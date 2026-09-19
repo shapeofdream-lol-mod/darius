@@ -73,6 +73,12 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         }
         _clipNames = names.ToArray();
         _clips = values.ToArray();
+
+        // Fail during skin registration rather than silently degrading to full-body action
+        // sampling at runtime if a skin's native skeleton no longer matches the lower-body contract.
+        BuildLowerBodyMap();
+        if (_lowerBodyNodes.Length == 0)
+            throw new InvalidOperationException("Fresh action template has no lower-body locomotion nodes.");
     }
 
     public void Bind(Hero_Darius hero)
