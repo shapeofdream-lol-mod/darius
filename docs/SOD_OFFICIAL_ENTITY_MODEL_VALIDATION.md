@@ -1,6 +1,6 @@
 # Shape of Dreams Official EntityModel Integration Validation
 
-Status: **Lifecycle validated; locomotion/render integration still under investigation**
+Status: **Lifecycle, stock locomotion, and stock entity-shader visibility contracts validated; material parity and action integration remain in progress**
 
 This document records the reusable validation path for integrating a custom traveler model through
 Shape of Dreams' public model/animation lifecycle. Nothing in the "Validated knowledge" section
@@ -237,6 +237,31 @@ The next isolated experiment therefore reuses the stock Traveler material/shader
 preserving the Darius texture. This tests whether `EntityVisual` runtime shader/property updates
 require the stock visual shader contract.
 
+
+## Runtime evidence — stock Entity shader restored body visibility
+
+The following Classic runtime test confirmed that the missing-body problem was part of the visual
+shader contract rather than mesh loading or animation:
+
+- replacing the Standard material with the stock Traveler `Dew/Dew Entity` shader path made the
+  Darius body visible in the normal gameplay camera;
+- locomotion continued to use the Darius Idle/Run clips through the stock AnimatorController;
+- the first implementation cloned Vesper's entire `M_Vesper_Body` material and replaced only the
+  main texture;
+- runtime diagnostics showed that this clone retained Vesper-specific
+  `_METALLICSPECGLOSSMAP`, `_NORMALMAP`, and `_OCCLUSIONMAP` keywords/data, and the visible
+  Darius body consequently had incorrect colour/lighting.
+
+Reusable rule:
+
+> Reuse the game's **entity shader/property contract**, not another character's full material
+> instance. A custom traveler should bind its own textures/surface data to the stock entity shader
+> instead of inheriting unrelated normal/metallic/occlusion content.
+
+The next material pass therefore constructs a neutral material from the stock
+`Dew/Dew Entity` shader itself, keeps neutral white base colour, and binds only the Darius texture.
+This neutral-material correction still requires runtime visual confirmation.
+
 ## Next isolated experiment — stock AnimatorController
 
 Keep the validated fresh EntityModel lifecycle and stock controller path.
@@ -284,6 +309,12 @@ This diagnostic is observational only and must not change renderer or animation 
    speed rose to approximately 4.9. The Animator remained on `Run` throughout sustained movement.
    This validates that the official locomotion path depends on the stock AnimatorController
    contract/state machine, while custom clips can still be supplied through the custom EntityModel.
+
+5. **The stock entity shader contract is required for normal gameplay visibility.** The Classic body
+   remained invisible with Unity Standard despite an active/visible renderer and valid bounds, but
+   became visible when using SoD's `Dew/Dew Entity` shader path. Reusing the shader contract is
+   therefore part of the validated native presentation baseline. Copying another Traveler's full
+   material is not part of that baseline because it also copies character-specific surface maps.
 
 Only items backed by runtime evidence should be promoted into this section. Future successful
 animation/render findings should record the game build, mod commit, bundle fingerprint, exact
