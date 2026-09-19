@@ -30,6 +30,9 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
                     state.fiveStackVfx = DariusPrototypeVfx.CreateBleedFiveMark(_owner, target.transform);
                 else if (state.stacks > 0)
                     state.stackVfx = DariusPrototypeVfx.CreateBleedStackMarker(_owner, target.transform, state.stacks);
+
+                if (state.stacks > 0 && Time.time < state.expiresAt)
+                    SyncHemorrhageStatus(target, state, maxStacks, Mathf.Max(0.01f, state.expiresAt - Time.time));
             }
             catch (Exception e)
             {
