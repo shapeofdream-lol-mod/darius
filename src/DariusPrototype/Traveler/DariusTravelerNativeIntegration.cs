@@ -85,6 +85,13 @@ public sealed class DariusOfficialEntityModelDiagnostics : MonoBehaviour
             }
 
             Transform modelTransform = _visual != null ? _visual.modelTransform : null;
+            string modelTransformData = modelTransform != null
+                ? " modelWorld=" + DariusLog.Vec(modelTransform.position) +
+                  " modelLocal=" + DariusLog.Vec(modelTransform.localPosition) +
+                  " modelScale=" + DariusLog.Vec(modelTransform.localScale) +
+                  " modelLossyScale=" + DariusLog.Vec(modelTransform.lossyScale) +
+                  " modelEuler=" + DariusLog.Vec(modelTransform.localEulerAngles)
+                : string.Empty;
             DariusLog.Info("OFFICIAL-ENTITYMODEL-DIAG",
                 "reason=" + reason + " sample=" + _sample +
                 " pos=" + DariusLog.Vec(position) +
@@ -92,10 +99,12 @@ public sealed class DariusOfficialEntityModelDiagnostics : MonoBehaviour
                 " visualOff=" + (_visual != null && _visual.isRendererOff) +
                 " visualRenderers=" + (_visual != null && _visual.renderers != null ? _visual.renderers.Count : -1) +
                 " solidRenderers=" + (_visual != null && _visual.solidRenderers != null ? _visual.solidRenderers.Count : -1) +
+                " materialCount=" + (_visual != null && _visual.materials != null ? _visual.materials.Count : -1) +
                 " model=" + (_model != null ? _model.name : "<null>") +
                 " modelActive=" + (_model != null && _model.gameObject.activeInHierarchy) +
                 " modelTransform=" + (modelTransform != null ? modelTransform.name : "<null>") +
                 " modelLayer=" + (modelTransform != null ? modelTransform.gameObject.layer.ToString() : "<null>") +
+                modelTransformData +
                 " animatorActive=" + (animator != null && animator.gameObject.activeInHierarchy) +
                 " animatorEnabled=" + (animator != null && animator.enabled) +
                 " controller=" + (animator != null && animator.runtimeAnimatorController != null
@@ -124,14 +133,37 @@ public sealed class DariusOfficialEntityModelDiagnostics : MonoBehaviour
                             ? material.name + "/" + (material.shader != null ? material.shader.name : "<no-shader>")
                             : "<null>";
                     }
+                    Bounds bounds = renderer.bounds;
+                    string skinnedSummary = string.Empty;
+                    SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
+                    if (skinned != null)
+                    {
+                        Bounds localBounds = skinned.localBounds;
+                        skinnedSummary =
+                            " updateOffscreen=" + skinned.updateWhenOffscreen +
+                            " rootBone=" + (skinned.rootBone != null ? skinned.rootBone.name : "<null>") +
+                            " rootBoneWorld=" + (skinned.rootBone != null ? DariusLog.Vec(skinned.rootBone.position) : "<null>") +
+                            " localBoundsCenter=" + DariusLog.Vec(localBounds.center) +
+                            " localBoundsSize=" + DariusLog.Vec(localBounds.size) +
+                            " meshBoundsCenter=" + (skinned.sharedMesh != null ? DariusLog.Vec(skinned.sharedMesh.bounds.center) : "<null>") +
+                            " meshBoundsSize=" + (skinned.sharedMesh != null ? DariusLog.Vec(skinned.sharedMesh.bounds.size) : "<null>");
+                    }
                     DariusLog.Info("OFFICIAL-ENTITYMODEL-RENDER",
                         "sample=" + _sample + " index=" + i +
                         " name=" + renderer.name +
                         " enabled=" + renderer.enabled +
                         " active=" + renderer.gameObject.activeInHierarchy +
+                        " visible=" + renderer.isVisible +
                         " layer=" + renderer.gameObject.layer +
                         " forceOff=" + renderer.forceRenderingOff +
                         " shadow=" + renderer.shadowCastingMode +
+                        " world=" + DariusLog.Vec(renderer.transform.position) +
+                        " local=" + DariusLog.Vec(renderer.transform.localPosition) +
+                        " localScale=" + DariusLog.Vec(renderer.transform.localScale) +
+                        " lossyScale=" + DariusLog.Vec(renderer.transform.lossyScale) +
+                        " boundsCenter=" + DariusLog.Vec(bounds.center) +
+                        " boundsSize=" + DariusLog.Vec(bounds.size) +
+                        skinnedSummary +
                         " materials=" + materialSummary);
                 }
             }
