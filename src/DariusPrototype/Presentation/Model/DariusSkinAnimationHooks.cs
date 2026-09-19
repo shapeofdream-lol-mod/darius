@@ -93,6 +93,9 @@ public static class DariusSkinAnimationHooks
 
     public static Transform GetAnchor(Hero hero, params string[] names)
     {
+        Transform fresh = DariusOfficialPresentationSurface.FindAnchor(hero, names);
+        if (fresh != null) return fresh;
+
         DariusNativeModelBridge native = FindNative(hero);
         if (native != null && native.IsReady)
             for (int i = 0; i < names.Length; i++)
@@ -112,6 +115,9 @@ public static class DariusSkinAnimationHooks
 
     public static GameObject CreateSubmeshOverlay(Hero hero, uint hash, Material material)
     {
+        GameObject fresh = DariusOfficialPresentationSurface.CreateSubmeshOverlay(hero, hash, material);
+        if (fresh != null) return fresh;
+
         DariusNativeModelBridge native = FindNative(hero);
         if (native != null && native.IsReady) return native.CreateSubmeshOverlay(hash, material);
         DariusTravelerModelInstance traveler = FindTraveler(hero);
@@ -120,6 +126,9 @@ public static class DariusSkinAnimationHooks
 
     public static GameObject CreateFullMeshOverlay(Hero hero, Material material, string label)
     {
+        GameObject fresh = DariusOfficialPresentationSurface.CreateFullMeshOverlay(hero, material, label);
+        if (fresh != null) return fresh;
+
         DariusNativeModelBridge native = FindNative(hero);
         if (native != null && native.IsReady) return native.CreateFullMeshOverlay(material, label);
         DariusTravelerModelInstance traveler = FindTraveler(hero);
