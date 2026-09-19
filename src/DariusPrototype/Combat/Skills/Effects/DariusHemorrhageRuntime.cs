@@ -76,9 +76,7 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
 
     private GameObject _noxianMightVfx;
 
-    private int _lastHudStackCount = -1;
-
-    private int _lastHudDurationStep = -1;
+    private Se_Darius_NoxianMight _noxianMightStatus;
 
     private readonly Dictionary<Entity, BleedState> _states = new Dictionary<Entity, BleedState>();
 
@@ -102,7 +100,6 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
             DariusLog.Info("HEM", "Owner changed from " + (_owner != null ? _owner.name : "<null>") + " to " + (owner != null ? owner.name : "<null>"));
             UnsubscribeAttack();
             _owner = owner;
-            EnsureHud();
         }
 
         bool before = _identityEquipped;
@@ -135,7 +132,6 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
             DariusLog.Info("HEM", "Legacy owner changed from " + (_owner != null ? _owner.name : "<null>") + " to " + (owner != null ? owner.name : "<null>"));
             UnsubscribeAttack();
             _owner = owner;
-            EnsureHud();
         }
         _legacyEssenceSources++;
         DariusLog.Info("HEM", "Legacy Essence source added. count=" + _legacyEssenceSources + " owner=" + DariusLog.EntityLabel(_owner));
