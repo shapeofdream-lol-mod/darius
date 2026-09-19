@@ -17,7 +17,8 @@ public static partial class DariusFormalRegistry
         return key == "St_Darius_Decimate" || key == "St_Darius_CripplingStrike" ||
                key == "St_Darius_Apprehend" || key == "St_Darius_NoxianGuillotine" ||
                key == "St_Darius_Flash" || key == "St_Darius_Ghost" ||
-               key == "St_D_Darius_Hemorrhage" || key == "Gem_Darius_Hemorrhage" || key == "Ai_Darius_Decimate" ||
+               key == "St_D_Darius_Hemorrhage" || key == "Gem_Darius_Hemorrhage" ||
+               key == "Se_Darius_NoxianMight" || key == "Ai_Darius_Decimate" ||
                key == "Ai_Darius_CripplingStrike" || key == "Ai_Darius_Apprehend" ||
                key == "Ai_Darius_NoxianGuillotine" || key.StartsWith("Se_Star_Darius_", StringComparison.Ordinal);
     }
@@ -54,6 +55,7 @@ public static partial class DariusFormalRegistry
                DariusConstellationLocalization.IsDariusStarKey(obj.GetType().Name) ||
                obj.name == "St_D_Darius_Hemorrhage" || obj is St_D_Darius_Hemorrhage ||
                obj.name == "Gem_Darius_Hemorrhage" || obj is Gem_Darius_Hemorrhage ||
+               obj.name == "Se_Darius_NoxianMight" || obj is Se_Darius_NoxianMight ||
                obj is Ai_Darius_Decimate || obj is Ai_Darius_CripplingStrike ||
                obj is Ai_Darius_Apprehend || obj is Ai_Darius_NoxianGuillotine;
     }
