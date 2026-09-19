@@ -164,7 +164,5 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
 
         if (_noxianMightBonus != null && Time.time >= _noxianMightUntil)
             RemoveNoxianMight();
-
     }
-
 }
