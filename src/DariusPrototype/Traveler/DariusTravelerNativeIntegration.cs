@@ -301,11 +301,17 @@ public sealed class Hero_Darius : Hero
             attackVisual.Bind(this);
             EntityAnimation animation = GetComponent<EntityAnimation>();
             EntityModel loadedModel = Visual != null ? Visual.model : null;
+            DariusOfficialActionRuntime officialAction = officialFresh && loadedModel != null
+                ? loadedModel.GetComponent<DariusOfficialActionRuntime>()
+                : null;
+            if (officialAction != null) officialAction.Bind(this);
+
             DariusLog.Info("TRAVELER-MODEL", "Hero_Darius.OnModelLoaded officialFresh=" + officialFresh +
                 " native=" + (native != null) + " legacy=" + (legacy != null) +
                 " entityModel=" + (loadedModel != null ? loadedModel.name : "<null>") +
                 " initialized=" + (loadedModel != null && loadedModel.isInitialized) +
                 " animator=" + (animation != null && animation.animator != null ? animation.animator.gameObject.name : "<null>") +
+                " actionOverlay=" + (officialAction != null && officialAction.IsReady) +
                 " attackVisual=" + (attackVisual != null));
 
             if (officialFresh)
@@ -433,10 +439,18 @@ internal static class DariusEntityAnimationAbilityRpcPatch
     private static bool Prefix(EntityAnimation __instance)
     {
         Hero_Darius hero = DariusNativeAnimationMode.FindHero(__instance);
-        if (hero == null || DariusNativeAnimationMode.IsOfficialFreshModel(hero)) return true;
+        if (hero == null) return true;
+
+        if (DariusNativeAnimationMode.IsOfficialFreshModel(hero))
+        {
+            EntityModel model = hero.Visual != null ? hero.Visual.model : null;
+            DariusOfficialActionRuntime action =
+                model != null ? model.GetComponent<DariusOfficialActionRuntime>() : null;
+            if (action == null || !action.IsReady) return true;
+        }
 
         DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "darius-ability-rpc",
-            "Skipped stock ability-animation RPC for Hero_Darius; Darius presentation hooks own ability clips.", 20.0);
+            "Skipped stock ability-animation RPC because the active Darius presentation path owns combat actions.", 20.0);
         return false;
     }
 }
