@@ -16,6 +16,8 @@ public static class DariusModelMaterialBinder
         public string Name;
         public string TextureFile;
         public string AlphaMode;
+        public float AlphaCutoff;
+        public bool AuthoredVisible;
     }
 
     public static void BindPrefabMaterials(GameObject model, string assetPath, string generatedRoot)
@@ -72,15 +74,30 @@ public static class DariusModelMaterialBinder
                     material.mainTexture = texture;
                 }
 
-                if (string.Equals(binding.AlphaMode, "BLEND", StringComparison.OrdinalIgnoreCase))
+                material.SetOverrideTag("DariusAuthoredVisible", binding.AuthoredVisible ? "1" : "0");
+                if (string.Equals(binding.AlphaMode, "BLEND", StringComparison.OrdinalIgnoreCase) ||
+                    !binding.AuthoredVisible)
                 {
                     material.SetOverrideTag("RenderType", "Transparent");
                     if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 1f);
                     if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
                     if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", 5f);
                     if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", 10f);
+                    if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip", 0f);
                     material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                    material.DisableKeyword("_ALPHATEST_ON");
                     material.renderQueue = 3000;
+                }
+                else if (string.Equals(binding.AlphaMode, "MASK", StringComparison.OrdinalIgnoreCase))
+                {
+                    material.SetOverrideTag("RenderType", "TransparentCutout");
+                    if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 0f);
+                    if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 1f);
+                    if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip", 1f);
+                    if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff", binding.AlphaCutoff);
+                    material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                    material.EnableKeyword("_ALPHATEST_ON");
+                    material.renderQueue = 2450;
                 }
 
                 string materialPath = generatedRoot + "/" + modelStem + "_mat_" +
@@ -170,9 +187,15 @@ public static class DariusModelMaterialBinder
             if (string.IsNullOrWhiteSpace(line)) continue;
             string[] parts = line.Split('\t');
             int slot;
-            if (parts.Length != 4 || string.IsNullOrWhiteSpace(parts[0]) ||
+            float alphaCutoff;
+            int authoredVisibleInt;
+            if (parts.Length != 7 || string.IsNullOrWhiteSpace(parts[0]) ||
                 !int.TryParse(parts[1], out slot) || slot < 0 ||
-                string.IsNullOrWhiteSpace(parts[2]) || string.IsNullOrWhiteSpace(parts[3]))
+                string.IsNullOrWhiteSpace(parts[2]) || string.IsNullOrWhiteSpace(parts[3]) ||
+                !float.TryParse(parts[5], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out alphaCutoff) ||
+                !int.TryParse(parts[6], out authoredVisibleInt) ||
+                (authoredVisibleInt != 0 && authoredVisibleInt != 1))
                 throw new InvalidDataException("Malformed native material manifest line=" + (i + 1) +
                     " file=" + manifestPath);
 
@@ -195,7 +218,9 @@ public static class DariusModelMaterialBinder
                 Slot = slot,
                 Name = material,
                 TextureFile = textureFile,
-                AlphaMode = alphaMode
+                AlphaMode = alphaMode,
+                AlphaCutoff = alphaCutoff,
+                AuthoredVisible = authoredVisibleInt != 0
             });
         }
         if (result.Count == 0) throw new InvalidDataException("Native material manifest is empty: " + manifestPath);
