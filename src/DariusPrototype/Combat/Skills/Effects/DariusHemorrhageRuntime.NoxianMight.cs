@@ -133,7 +133,11 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
             if (_noxianMightStatus != null)
             {
                 _noxianMightStatus.SetTimer(duration);
-                DariusLog.Info("NOXIAN-MIGHT-BUFF", "Native buff timer set duration=" + duration.ToString("0.##") +
+                _noxianMightStatus.ShowOnScreenTimer(
+                    null,
+                    new Color(0.85f, 0.08f, 0.08f, 1f),
+                    false);
+                DariusLog.Info("NOXIAN-MIGHT-BUFF", "Native on-screen timer set duration=" + duration.ToString("0.##") +
                     " victim=" + DariusLog.EntityLabel(_owner));
             }
         }
@@ -185,6 +189,7 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
         _noxianMightUntil = 0f;
         if (_noxianMightStatus != null)
         {
+            try { _noxianMightStatus.HideOnScreenTimer(); } catch { }
             try { _noxianMightStatus.DestroyIfActive(); } catch { }
             _noxianMightStatus = null;
         }
