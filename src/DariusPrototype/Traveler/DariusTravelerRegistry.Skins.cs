@@ -197,6 +197,10 @@ public static partial class DariusTravelerRegistry
         Dictionary<string, AnimationClip> clips =
             new Dictionary<string, AnimationClip>(StringComparer.OrdinalIgnoreCase);
         AnimationClip[] controllerClips = animator.runtimeAnimatorController.animationClips;
+        DariusOfficialActionRuntime actionRuntime = root.GetComponent<DariusOfficialActionRuntime>();
+        if (actionRuntime == null) actionRuntime = root.AddComponent<DariusOfficialActionRuntime>();
+        actionRuntime.ConfigureTemplate(animator, controllerClips);
+
         for (int i = 0; i < controllerClips.Length; i++)
         {
             AnimationClip clip = controllerClips[i];
