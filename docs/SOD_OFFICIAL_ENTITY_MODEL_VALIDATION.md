@@ -1,6 +1,6 @@
 # Shape of Dreams Official EntityModel Integration Validation
 
-Status: **Lifecycle, stock locomotion, and stock entity-shader visibility contracts validated; material parity and action integration remain in progress**
+Status: **Fresh EntityModel lifecycle, stock-controller locomotion, and URP/Unlit native material presentation validated; action integration remains in progress**
 
 This document records the reusable validation path for integrating a custom traveler model through
 Shape of Dreams' public model/animation lifecycle. Nothing in the "Validated knowledge" section
@@ -238,29 +238,56 @@ preserving the Darius texture. This tests whether `EntityVisual` runtime shader/
 require the stock visual shader contract.
 
 
-## Runtime evidence — stock Entity shader restored body visibility
+## Runtime evidence — material path resolution
 
-The following Classic runtime test confirmed that the missing-body problem was part of the visual
-shader contract rather than mesh loading or animation:
+The material experiments established that renderer visibility and the official EntityModel lifecycle
+must be treated as separate concerns.
 
-- replacing the Standard material with the stock Traveler `Dew/Dew Entity` shader path made the
-  Darius body visible in the normal gameplay camera;
-- locomotion continued to use the Darius Idle/Run clips through the stock AnimatorController;
-- the first implementation cloned Vesper's entire `M_Vesper_Body` material and replaced only the
-  main texture;
-- runtime diagnostics showed that this clone retained Vesper-specific
-  `_METALLICSPECGLOSSMAP`, `_NORMALMAP`, and `_OCCLUSIONMAP` keywords/data, and the visible
-  Darius body consequently had incorrect colour/lighting.
+First, replacing Unity Standard with the stock Traveler `Dew/Dew Entity` shader made the Classic
+body visible, proving that the earlier invisibility was material/shader-related rather than a model,
+Animator, bounds, or EntityModel lifecycle failure. However, even after common metallic,
+smoothness, specular-highlight, and environment-reflection controls were neutralized, the Classic
+body retained a pronounced lit/plastic response that the other Darius skins did not show.
+
+A later isolated test at commit
+`b2d3d6690938e55941f3111d45ed5b7e947b1705` kept the already validated fresh EntityModel and
+stock AnimatorController path, but rebound Classic through the same existing
+`DariusRuntimePerformance.OptimizeSkinnedRenderers()` path used by the other Darius skins.
+
+Runtime evidence from that build:
+
+- Classic remained visible in normal gameplay;
+- the renderer used `Universal Render Pipeline/Unlit`;
+- the Darius base texture remained assigned;
+- the tester reported that the plastic reflection disappeared;
+- the tester also reported that the model colour returned to the expected appearance;
+- `Hero_Darius.OnModelLoaded` still reported:
+  - `officialFresh=True`
+  - `native=False`
+  - `legacy=False`
+  - `initialized=True`
+  - `animator=Model`;
+- locomotion remained alive, with diagnostics showing Darius Idle and Run clips on the stock
+  AnimatorController path;
+- no `NullReferenceException` or model/Animator setup failure was observed in that run.
+
+The same run also contained three lobby-loadout `KeyNotFoundException` entries from
+`UI_Lobby_Loadout_SkillSlot.UpdateHasNewStatus()` for Darius skill resource names. These are
+tracked as a separate registration/UI issue and are not evidence against the model/material path.
 
 Reusable rule:
 
-> Reuse the game's **entity shader/property contract**, not another character's full material
-> instance. A custom traveler should bind its own textures/surface data to the stock entity shader
-> instead of inheriting unrelated normal/metallic/occlusion content.
+> A fresh custom EntityModel does **not** require `Dew/Dew Entity` specifically. The renderer
+> material may use a compatible alternative such as URP/Unlit while the official
+> EntityModel/EntityAnimation lifecycle and stock AnimatorController remain authoritative.
 
-The next material pass therefore constructs a neutral material from the stock
-`Dew/Dew Entity` shader itself, keeps neutral white base colour, and binds only the Darius texture.
-This neutral-material correction still requires runtime visual confirmation.
+For League-style models whose visual source is primarily the authored base-colour texture, the
+tested Darius baseline is therefore a texture-dominant URP/Unlit material path rather than forcing
+the stock Traveler lit shader.
+
+Performance note: the tester reported no obvious performance problem in normal play after this
+change. This is qualitative runtime observation only; no profiler capture or benchmark was taken,
+so no quantitative performance claim is promoted to validated knowledge.
 
 ## Next isolated experiment — stock AnimatorController
 
@@ -310,11 +337,13 @@ This diagnostic is observational only and must not change renderer or animation 
    This validates that the official locomotion path depends on the stock AnimatorController
    contract/state machine, while custom clips can still be supplied through the custom EntityModel.
 
-5. **The stock entity shader contract is required for normal gameplay visibility.** The Classic body
-   remained invisible with Unity Standard despite an active/visible renderer and valid bounds, but
-   became visible when using SoD's `Dew/Dew Entity` shader path. Reusing the shader contract is
-   therefore part of the validated native presentation baseline. Copying another Traveler's full
-   material is not part of that baseline because it also copies character-specific surface maps.
+5. **Renderer material choice is separable from the official model/animation lifecycle.** The
+   Classic body remained fully compatible with the fresh EntityModel + stock AnimatorController
+   path after rebinding its renderer to `Universal Render Pipeline/Unlit`. Runtime testing at
+   `b2d3d6690938e55941f3111d45ed5b7e947b1705` confirmed normal body visibility, working
+   Idle/Run animation, removal of the Classic-only plastic reflection, and corrected colour. This
+   supersedes the earlier hypothesis that `Dew/Dew Entity` itself was required for custom
+   Traveler visibility.
 
 Only items backed by runtime evidence should be promoted into this section. Future successful
 animation/render findings should record the game build, mod commit, bundle fingerprint, exact
