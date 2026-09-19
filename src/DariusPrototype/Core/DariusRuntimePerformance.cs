@@ -83,6 +83,11 @@ internal static class DariusRuntimePerformance
             catch { }
         }
 
+        bool transparent =
+            material.renderQueue >= 3000 ||
+            string.Equals(material.GetTag("RenderType", false, string.Empty), "Transparent", StringComparison.OrdinalIgnoreCase) ||
+            (material.HasProperty("_Surface") && material.GetFloat("_Surface") > 0.5f);
+
         Color tint = Color.white;
         if (material.HasProperty("_BaseColor")) tint = material.GetColor("_BaseColor");
         else if (material.HasProperty("_Color")) tint = material.GetColor("_Color");
@@ -107,23 +112,40 @@ internal static class DariusRuntimePerformance
         if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", tint);
         if (material.HasProperty("_Color")) material.SetColor("_Color", tint);
 
-        material.SetOverrideTag("RenderType", "Opaque");
-        if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 0f);
-        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 1f);
-        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", 1f);
-        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", 0f);
-        if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip", 0f);
+        if (transparent)
+        {
+            material.SetOverrideTag("RenderType", "Transparent");
+            if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 1f);
+            if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
+            if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", 5f);
+            if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", 10f);
+            if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip", 0f);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.renderQueue = 3000;
+        }
+        else
+        {
+            material.SetOverrideTag("RenderType", "Opaque");
+            if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 0f);
+            if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 1f);
+            if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", 1f);
+            if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", 0f);
+            if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip", 0f);
+            material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.renderQueue = 2000;
+        }
         if (material.HasProperty("_Cull")) material.SetFloat("_Cull", 0f);
         if (material.HasProperty("_CullMode")) material.SetFloat("_CullMode", 0f);
         if (material.HasProperty("_CullModeForward")) material.SetFloat("_CullModeForward", 0f);
-        material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        material.DisableKeyword("_ALPHATEST_ON");
-        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-        material.renderQueue = 2000;
 
         DariusLog.DebugInfo("NATIVE-MATERIAL", "material=" + material.name +
             " shader=" + previousShader + " -> " + shader.name +
-            " texture=" + (texture != null ? texture.name : "<null>") + " tint=" + tint);
+            " texture=" + (texture != null ? texture.name : "<null>") + " tint=" + tint +
+            " transparent=" + transparent);
         return !string.Equals(previousShader, shader.name, StringComparison.Ordinal);
     }
 
