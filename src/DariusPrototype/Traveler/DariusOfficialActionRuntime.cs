@@ -229,7 +229,6 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
             StartAction(q, raw / Mathf.Max(0.05f, duration));
             yield return new WaitForSeconds(duration);
             ClearAction();
-            EndAttackFacing(facingSerial);
             RestorePersistentAfterAction();
             _sequence = null;
             yield break;
