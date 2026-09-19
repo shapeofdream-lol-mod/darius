@@ -16,6 +16,31 @@ internal static class DariusNativeAnimationAdapter
     public static bool PlayAbility(Hero hero, string animationName, Vector3 direction, bool instant = false)
     {
         if (hero == null || string.IsNullOrEmpty(animationName)) return false;
+
+        DariusOfficialActionRuntime official = GetOfficialActionRuntime(hero);
+        if (official != null && official.IsReady)
+        {
+            try
+            {
+                switch (animationName)
+                {
+                    case "Spell1":
+                        return official.PlayQ(instant);
+                    case "Attack1":
+                        return official.PlayAttack(false, false);
+                    case "Attack2":
+                        return official.PlayAttack(true, false);
+                    case "Crit":
+                        return official.PlayAttack(false, true);
+                }
+            }
+            catch (Exception e)
+            {
+                DariusLog.Exception("OFFICIAL-ACTION", e, "Fresh EntityModel action dispatch failed: " + animationName);
+                return true;
+            }
+        }
+
         DariusNativeModelBridge bridge = GetBridge(hero);
         if (bridge == null) return false;
 
@@ -72,6 +97,13 @@ internal static class DariusNativeAnimationAdapter
             DariusLog.Exception("NATIVE-ANIM", e, "Native bridge StopAbility failed");
             return true;
         }
+    }
+
+    private static DariusOfficialActionRuntime GetOfficialActionRuntime(Hero hero)
+    {
+        Hero_Darius darius = hero as Hero_Darius;
+        if (darius == null || darius.Visual == null || darius.Visual.model == null) return null;
+        return darius.Visual.model.GetComponent<DariusOfficialActionRuntime>();
     }
 
     private static DariusNativeModelBridge GetBridge(Hero hero)
