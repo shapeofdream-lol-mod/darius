@@ -165,12 +165,6 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
         if (_noxianMightBonus != null && Time.time >= _noxianMightUntil)
             RemoveNoxianMight();
 
-        SyncHudState();
     }
 
-    private void EnsureHud()
-    {
-        try { if (_owner != null && _owner.GetComponent<DariusHemorrhageHud>() == null) _owner.gameObject.AddComponent<DariusHemorrhageHud>(); }
-        catch { }
-    }
 }
