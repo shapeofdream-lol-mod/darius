@@ -426,6 +426,48 @@ The code passes repository contracts and the Release build against the SoD refer
 behavior remains **unvalidated** until a moving Q, repeated attacks, and a second Q after cooldown are
 tested on the migrated skins.
 
+## Fresh presentation parity completion — 2026-09-19
+
+Static review after the first all-skin migration showed that the shared Classic baseline had been
+ported, but several presentation contracts from the old native Bridge were still missing from fresh
+EntityModel skins. The follow-up implementation keeps gameplay logic unchanged and completes only
+the presentation layer:
+
+- Q and basic attacks continue to use native Unity clips sampled after stock locomotion;
+- W, E, and R now use the same fresh native action overlay instead of falling through to the generic
+  UniversalRetargeter;
+- authored attack-to-idle clips are restored for skins that provide them;
+- E selects its authored ToIdle/ToRun tail from actual movement state;
+- R selects its authored ToRun tail and God-King explicitly opts its wolf renderer in only for the
+  R action window;
+- God-King Q preserves its stationary Spell1_ToIdle tail;
+- God-King W restores ActivateIdle/ActivateRun, alternating IdleIn entries, persistent armed
+  locomotion clips, and authored Deactivate transitions;
+- the existing stock lower-body locomotion pose remains authoritative while all these action clips
+  own Root/Pelvis/torso/weapon presentation;
+- lower-body bone-mask resolution is validated during fresh skin registration and fails early if no
+  compatible leg-chain nodes exist;
+- fresh EntityModel skins now resolve weapon/chest anchors directly from EntityVisual.model;
+- fresh EntityModel skins now create filtered submesh/full-mesh overlays through the same native
+  overlay mesh cache and material-hash contract previously available only through the Bridge;
+- legacy Bridge/GLB fallbacks remain available only for their existing compatibility path and are
+  not reintroduced into fresh skin model loading.
+
+Implementation commits:
+
+- `950028ee1a9f933d2aa266bdd82b953a3736a872` — restore authored fresh-skin action transitions
+- `7eefd4241e4af3239b90b08ced1c60d0e368fa29` — route fresh W/E/R through native action overlay
+- `615869552e3a82b3be4c2b6d628051b37a6d34c1` — expose fresh model anchors and overlays
+- `5380a052d410bac93a2c7c48dd5dcf15ddfeaf1c` — use fresh presentation surface helpers
+- `b6aae8662479abae45e2bda5e236a9bcb1ef6b31` — validate lower-body mask during registration
+
+The changes are intentionally presentation-only. They do not change Q/W/E/R damage, targeting,
+cooldown, charge, Hemorrhage, displacement, or execute/reset gameplay rules.
+
+Runtime validation is still required before promoting complete all-skin action parity into the
+validated section. Test repeated attacks, moving/stationary Q, W arm/consume/expire, moving E,
+R, fresh VFX anchors/overlays, and God-King hidden/wolf behavior.
+
 ## Validated knowledge
 
 1. **Freshness matters and is observable.** A custom `EntityModel` template can be registered with
