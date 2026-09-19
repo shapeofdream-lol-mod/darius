@@ -147,6 +147,51 @@ loaded model.
   an arbitrary custom AnimatorController satisfies SoD's locomotion controller contract.
 - Do not document the current generated Darius AnimatorController as stock-compatible.
 
+## Runtime evidence — 2026-09-19 renderer/Animator diagnostics
+
+With the diagnostic build after the first experiment:
+
+- During actual movement, measured Hero world speed reached approximately `4.9`.
+- Across all samples, Animator layer 0 remained on `Idle1`.
+- `transition=False` and no next Animator state/clip was observed while moving.
+- Therefore Run was not merely invisible: the generated custom controller never entered a Run
+  transition under stock `EntityAnimation` driving.
+- The temporary `EntityVisual.isRendererOff=True` state correlated with spawn/teleport staging,
+  including the Hero temporarily being positioned around `(-5000,-5000,0)`.
+- After returning to the playable map, `isRendererOff=False`.
+- The Darius mesh renderer remained:
+  - enabled,
+  - active in hierarchy,
+  - `forceRenderingOff=False`,
+  - layer 0,
+  - shadow casting On,
+  - using the Standard shader.
+- The loaded model and Animator both remained active/enabled.
+
+This rules out the simplest visibility causes (persistent EntityVisual renderer shutdown, disabled
+GameObject/Renderer, force-render-off, or an unexpected layer) and separates the remaining rendering
+problem from the locomotion-controller problem.
+
+## Next isolated experiment — stock AnimatorController
+
+Keep the already validated fresh EntityModel lifecycle, but replace only the generated Darius
+AnimatorController with the runtime controller from the stock EntityModel template.
+
+Purpose:
+
+> Test whether SoD locomotion is implemented through a stock AnimatorController graph/parameter
+> contract rather than direct state selection against arbitrary controllers.
+
+Darius Idle/Run/Death clips remain referenced by the custom EntityModel. No custom locomotion
+sampler, action lease, or Darius Animator state switching is added.
+
+If locomotion begins working with the stock controller, future traveler integrations should prefer
+the game's controller/state-machine contract and official animation replacement APIs instead of
+reimplementing locomotion transitions.
+
+A concurrent observational diagnostic records model transform scale/rotation and SkinnedMeshRenderer
+world/local bounds to investigate the still-invisible main body without changing visibility behavior.
+
 The next diagnostic pass records:
 
 - `EntityVisual.isRendererOff`
