@@ -441,16 +441,15 @@ internal static class DariusEntityAnimationAbilityRpcPatch
         Hero_Darius hero = DariusNativeAnimationMode.FindHero(__instance);
         if (hero == null) return true;
 
-        if (DariusNativeAnimationMode.IsOfficialFreshModel(hero))
-        {
-            EntityModel model = hero.Visual != null ? hero.Visual.model : null;
-            DariusOfficialActionRuntime action =
-                model != null ? model.GetComponent<DariusOfficialActionRuntime>() : null;
-            if (action == null || !action.IsReady) return true;
-        }
+        // Fresh EntityModel skins must preserve SoD's own ability-animation RPC lifecycle.
+        // The native action overlay is a late presentation layer only; suppressing the RPC here
+        // can prevent stock action/cast state from completing even though our overlay coroutine ends.
+        // This matches the working main branch principle: gameplay/SoD lifecycle remains
+        // authoritative while Darius owns only the final model pose.
+        if (DariusNativeAnimationMode.IsOfficialFreshModel(hero)) return true;
 
         DariusLog.DebugInfoThrottled("ANIM-NATIVE-GUARD", "darius-ability-rpc",
-            "Skipped stock ability-animation RPC because the active Darius presentation path owns combat actions.", 20.0);
+            "Skipped stock ability-animation RPC only for legacy/native-bridge presentation.", 20.0);
         return false;
     }
 }
