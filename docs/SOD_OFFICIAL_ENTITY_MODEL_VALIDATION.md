@@ -361,8 +361,61 @@ Runtime acceptance for the three newly migrated skins:
 - God-King wolf/throne hidden presentation meshes do not become permanently visible;
 - no model-load / Animator exception occurs.
 
-This section is implementation state only until those three skins are runtime tested. Do not promote
-their success into `Validated knowledge` from CI alone.
+This section remains implementation state. The three skins did load through the fresh EntityModel
+baseline at runtime, but action integration exposed the lower-body/full-body ownership regression
+documented below. Do not promote complete all-skin action compatibility into `Validated knowledge`
+until the new native action overlay passes runtime testing.
+
+## All-skin action regression — 2026-09-19
+
+Runtime testing after the all-skin fresh EntityModel migration exposed a presentation-layer
+regression in God-King, Dunkmaster, and Mecha:
+
+- the selected skin loaded successfully through the fresh EntityModel path;
+- stock Idle/Run locomotion remained active;
+- Q gameplay execution reached its normal windup and server-resolution stages;
+- fresh skins had no `DariusNativeModelBridge`, so Q/basic-attack hooks fell through to the
+  generic `UniversalRetargeter`;
+- that retargeter and the stock Animator both wrote the same skeleton while moving;
+- during a moving Mecha Q, diagnostics showed the stock Animator back on `Run_Normal` before
+  the Q gameplay windup had completed, matching the observed visual interruption;
+- repeated basic-attack `OnCastStart` events were present in the same runtime log, so the reported
+  repeated-attack failure is not yet proven to be a native attack cadence lock;
+- only one Q trigger was recorded per newly tested skin and the old diagnostics did not expose
+  charge/cooldown/ability-lock state, so a second-Q gameplay lock remains a separate unknown.
+
+The relevant behavior baseline in `main` is not a full-body locomotion/action race. Its runtime
+model keeps Root/Pelvis/torso/weapon authority on the combat action and independently restores only
+the leg-chain locomotion pose while the Hero moves.
+
+The native fresh-model experiment now ports that ownership rule without restoring raw GLB runtime
+playback:
+
+- each native skin's Unity `AnimationClip` references are captured before the AnimatorController is
+  replaced by the stock SoD controller;
+- Q and basic attacks are sampled in `LateUpdate` through
+  `DariusOfficialActionRuntime`;
+- the stock Animator remains authoritative for Idle/Run;
+- before action sampling, the stock lower-body pose is captured;
+- after the action clip is sampled, only the leg-chain pose is restored;
+- the model GameObject transform is restored after sampling so world/model placement stays SoD-owned;
+- stock ability-animation RPC presentation is suppressed only when this fresh action overlay is
+  available, preserving a single action-animation owner;
+- Q recovery diagnostics now record charge, cooldown, minimum delay, `CanBeCast()`, ability index,
+  and `EntityAbility.IsAbilityCastLocked()` after cast and after cooldown expiry.
+
+Implementation commits:
+
+- `0bb21995a60d967de2ab0318fb146f8a5579ead3` — native lower-body action overlay
+- `a23bf5733adb3500e4762a6fa9ad215a9631073d` — preserve native clips on fresh templates
+- `c9afa4b4bf90c82de532a8a1c858adbb26e49a09` — route Q/basic attacks to the overlay
+- `78b762b6613c765f01e4cd3770204e3475927ce8` — bind overlay and enforce one action owner
+- `aef4a1e48a11a9d8e57b44bdd06fbd6c5932fd92` — Q recovery diagnostics
+- `f675ab6996bfbf9a17bcdd75c345a350262ed947` — preserve fresh-skin variant identity
+
+The code passes repository contracts and the Release build against the SoD reference pack. Runtime
+behavior remains **unvalidated** until a moving Q, repeated attacks, and a second Q after cooldown are
+tested on the migrated skins.
 
 ## Validated knowledge
 
