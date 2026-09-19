@@ -5,13 +5,14 @@ using UnityEngine;
 
 // Fresh EntityModel action presentation.
 //
-// SoD's stock AnimatorController remains authoritative for Idle/Run. Combat actions are sampled
-// from the skin's own native Unity clips in LateUpdate, after stock locomotion has evaluated.
-// Before sampling an action we capture the real leg-chain pose produced by stock locomotion and
-// restore only those lower-body transforms afterwards. This preserves the main-branch invariant:
-// Root/Pelvis/torso/weapon keep the authored combat action while movement continues to animate legs.
+// SoD's stock AnimatorController remains authoritative for Idle/Run. Darius combat actions are
+// sampled from each skin's own native Unity clips in LateUpdate after stock locomotion evaluated.
+// The stock leg-chain pose is captured before action sampling and restored afterwards, matching the
+// main-branch ownership rule without restoring the raw GLB runtime player.
 public sealed class DariusOfficialActionRuntime : MonoBehaviour
 {
+    private const float MovementThreshold = 0.12f;
+
     [SerializeField] private Animator _animator;
     [SerializeField] private string[] _clipNames;
     [SerializeField] private AnimationClip[] _clips;
@@ -21,15 +22,29 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
 
     private Hero_Darius _hero;
     private DariusSkinModelBinding _binding;
+    private DariusNativeSkinProfile _profile;
+
     private Transform[] _lowerBodyNodes = Array.Empty<Transform>();
     private Vector3[] _lowerBodyPositions = Array.Empty<Vector3>();
     private Quaternion[] _lowerBodyRotations = Array.Empty<Quaternion>();
     private Vector3[] _lowerBodyScales = Array.Empty<Vector3>();
+    private Renderer[] _godKingWolfRenderers = Array.Empty<Renderer>();
 
     private AnimationClip _actionClip;
     private float _actionTime;
     private float _actionSpeed = 1f;
+    private AnimationClip _persistentClip;
+    private float _persistentTime;
     private Coroutine _sequence;
+
+    private Vector3 _lastMovementPosition;
+    private float _lastMovementSampleAt;
+    private bool _moving;
+
+    private bool _wArmed;
+    private bool _wSwingActive;
+    private bool _wIdleInAlt;
+    private bool _wDeactivateAlt;
 
     public bool IsReady
     {
@@ -64,15 +79,28 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
     {
         _hero = hero;
         _binding = GetComponent<DariusSkinModelBinding>();
+        _profile = _binding != null ? DariusNativeSkinProfiles.Find(_binding.variantKey) : null;
         if (_animator == null) _animator = GetComponentInChildren<Animator>(true);
         BuildClipMap();
         BuildLowerBodyMap();
+        BuildGodKingWolfMap();
+
+        if (_hero != null)
+        {
+            _lastMovementPosition = _hero.transform.position;
+            _lastMovementSampleAt = Time.time;
+        }
+
+        if (_lowerBodyNodes.Length == 0)
+            DariusLog.Error("OFFICIAL-ACTION", "No lower-body locomotion nodes resolved skin=" +
+                (_binding != null ? _binding.variantKey : "<null>"));
 
         DariusLog.Info("OFFICIAL-ACTION",
             "Bound native action overlay skin=" + (_binding != null ? _binding.variantKey : "<null>") +
             " animator=" + (_animator != null ? _animator.gameObject.name : "<null>") +
             " clips=" + _clipMap.Count +
-            " lowerBodyNodes=" + _lowerBodyNodes.Length);
+            " lowerBodyNodes=" + _lowerBodyNodes.Length +
+            " godKingWolves=" + _godKingWolfRenderers.Length);
     }
 
     public bool PlayQ(bool instant)
@@ -85,10 +113,71 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
     public bool PlayAttack(bool alternate, bool critical)
     {
         if (!IsReady || _binding == null) return false;
-        string name = critical ? _binding.critClip : (alternate ? _binding.attack2Clip : _binding.attack1Clip);
-        AnimationClip clip = FindClip(name);
-        if (clip == null) return false;
-        RestartSequence(PlayAttackSequence(clip));
+        string actionName = critical ? _binding.critClip : (alternate ? _binding.attack2Clip : _binding.attack1Clip);
+        string tailName = critical ? _binding.critToIdleClip :
+            (alternate ? _binding.attack2ToIdleClip : _binding.attack1ToIdleClip);
+        AnimationClip action = FindClip(actionName);
+        if (action == null) return false;
+        RestartSequence(PlayAttackSequence(action, tailName));
+        return true;
+    }
+
+    public bool PlayW(Vector3 direction)
+    {
+        if (!IsReady || _binding == null) return false;
+        AnimationClip action = FindClip(_binding.wClip);
+        if (action == null) return false;
+        RestartSequence(PlayWAttackSequence(action));
+        return true;
+    }
+
+    public bool SetWArmed(bool armed)
+    {
+        if (!IsReady) return false;
+        if (_wArmed == armed && (armed || !_wSwingActive)) return true;
+
+        _wArmed = armed;
+        if (!armed)
+        {
+            _persistentClip = null;
+            _persistentTime = 0f;
+            if (_wSwingActive) return true;
+
+            if (IsGodKing)
+            {
+                RestartSequence(PlayGodKingWDeactivateSequence());
+                return true;
+            }
+            return true;
+        }
+
+        if (IsGodKing)
+        {
+            RestartSequence(PlayGodKingWActivateSequence());
+            return true;
+        }
+
+        RefreshWPersistentClip();
+        return true;
+    }
+
+    public bool PlayE()
+    {
+        if (!IsReady || _binding == null) return false;
+        AnimationClip action = FindClip(_binding.eClip);
+        if (action == null) return false;
+        RestartSequence(PlayLocomotionActionSequence(
+            action, _binding.eToIdleClip, _binding.eToRunClip, false));
+        return true;
+    }
+
+    public bool PlayR()
+    {
+        if (!IsReady || _binding == null) return false;
+        AnimationClip action = FindClip(_binding.rClip);
+        if (action == null) return false;
+        RestartSequence(PlayLocomotionActionSequence(
+            action, null, _binding.rToRunClip, IsGodKing));
         return true;
     }
 
@@ -99,7 +188,15 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
             StopCoroutine(_sequence);
             _sequence = null;
         }
+        _wSwingActive = false;
+        SetGodKingWolfVisible(false);
         ClearAction();
+        if (_wArmed) RefreshWPersistentClip();
+        else
+        {
+            _persistentClip = null;
+            _persistentTime = 0f;
+        }
     }
 
     private IEnumerator PlayQSequence(bool instant)
@@ -119,6 +216,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
             StartAction(q, raw / Mathf.Max(0.05f, duration));
             yield return new WaitForSeconds(duration);
             ClearAction();
+            RestorePersistentAfterAction();
             _sequence = null;
             yield break;
         }
@@ -142,24 +240,195 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
             yield return new WaitForSeconds(duration);
         }
 
+        // Preserve the old God-King authored Q tail only when stationary.
+        if (IsGodKing && !_moving)
+        {
+            AnimationClip tail = FindClip("Spell1_ToIdle");
+            if (tail != null)
+            {
+                StartAction(tail, 1f);
+                yield return new WaitForSeconds(Mathf.Max(0.05f, tail.length));
+            }
+        }
+
         ClearAction();
+        RestorePersistentAfterAction();
         _sequence = null;
     }
 
-    private IEnumerator PlayAttackSequence(AnimationClip clip)
+    private IEnumerator PlayAttackSequence(AnimationClip action, string idleTailName)
     {
-        float raw = Mathf.Max(0.05f, clip.length);
-        const float duration = 0.82f;
-        StartAction(clip, raw / duration);
-        yield return new WaitForSeconds(duration);
+        bool movingAtStart = _moving;
+        float duration = movingAtStart ? 0.76f : 0.82f;
+        float raw = Mathf.Max(0.05f, action.length);
+        StartAction(action, raw / duration);
+
+        if (movingAtStart)
+        {
+            yield return new WaitForSeconds(Mathf.Max(0.08f, duration - 0.08f));
+            ClearAction();
+            RestorePersistentAfterAction();
+            _sequence = null;
+            yield break;
+        }
+
+        yield return new WaitForSeconds(Mathf.Max(0.05f, duration - 0.10f));
+        AnimationClip tail = FindClip(idleTailName);
+        if (tail != null)
+        {
+            float tailRaw = Mathf.Max(0.05f, tail.length);
+            StartAction(tail, tailRaw / 0.22f);
+            yield return new WaitForSeconds(0.08f);
+        }
+
         ClearAction();
+        RestorePersistentAfterAction();
         _sequence = null;
+    }
+
+    private IEnumerator PlayWAttackSequence(AnimationClip action)
+    {
+        _wSwingActive = true;
+        _persistentClip = null;
+        _persistentTime = 0f;
+
+        StartAction(action, 1f);
+        yield return new WaitForSeconds(Mathf.Max(0.05f, action.length));
+        ClearAction();
+
+        _wSwingActive = false;
+        if (_wArmed)
+        {
+            RefreshWPersistentClip();
+        }
+        else if (IsGodKing)
+        {
+            yield return PlayGodKingWDeactivateBody();
+        }
+
+        _sequence = null;
+    }
+
+    private IEnumerator PlayLocomotionActionSequence(
+        AnimationClip action,
+        string idleTailName,
+        string runTailName,
+        bool showGodKingWolf)
+    {
+        if (showGodKingWolf) SetGodKingWolfVisible(true);
+        StartAction(action, 1f);
+        yield return new WaitForSeconds(Mathf.Max(0.05f, action.length));
+        if (showGodKingWolf) SetGodKingWolfVisible(false);
+
+        string tailName = _moving ? runTailName : idleTailName;
+        AnimationClip tail = FindClip(tailName);
+        if (tail != null)
+        {
+            StartAction(tail, 1f);
+            yield return new WaitForSeconds(Mathf.Max(0.05f, tail.length));
+        }
+
+        ClearAction();
+        RestorePersistentAfterAction();
+        _sequence = null;
+    }
+
+    private IEnumerator PlayGodKingWActivateSequence()
+    {
+        _persistentClip = null;
+        _persistentTime = 0f;
+
+        string activateName = _moving
+            ? (_profile != null ? _profile.WActivateRun : null)
+            : (_profile != null ? _profile.WActivateIdle : null);
+        AnimationClip activate = FindClip(activateName);
+        if (activate != null)
+        {
+            StartAction(activate, 1f);
+            yield return new WaitForSeconds(Mathf.Max(0.05f, activate.length));
+        }
+
+        if (!_moving && _wArmed)
+        {
+            _wIdleInAlt = !_wIdleInAlt;
+            string entryName = _profile != null
+                ? (_wIdleInAlt ? _profile.WIdleInAlt : _profile.WIdleIn)
+                : null;
+            AnimationClip entry = FindClip(entryName);
+            if (entry != null)
+            {
+                StartAction(entry, 1f);
+                yield return new WaitForSeconds(Mathf.Max(0.05f, entry.length));
+            }
+        }
+
+        ClearAction();
+        if (_wArmed) RefreshWPersistentClip();
+        _sequence = null;
+    }
+
+    private IEnumerator PlayGodKingWDeactivateSequence()
+    {
+        yield return PlayGodKingWDeactivateBody();
+        _sequence = null;
+    }
+
+    private IEnumerator PlayGodKingWDeactivateBody()
+    {
+        _wDeactivateAlt = !_wDeactivateAlt;
+        string name = _profile != null
+            ? (_wDeactivateAlt && !string.IsNullOrEmpty(_profile.WDeactivateAlt)
+                ? _profile.WDeactivateAlt
+                : _profile.WDeactivate)
+            : null;
+        AnimationClip clip = FindClip(name);
+        if (clip != null)
+        {
+            StartAction(clip, 1f);
+            yield return new WaitForSeconds(Mathf.Max(0.05f, clip.length));
+        }
+        ClearAction();
+        _persistentClip = null;
+        _persistentTime = 0f;
+    }
+
+    private void RestorePersistentAfterAction()
+    {
+        if (_wArmed) RefreshWPersistentClip();
+    }
+
+    private void RefreshWPersistentClip()
+    {
+        if (!_wArmed)
+        {
+            _persistentClip = null;
+            _persistentTime = 0f;
+            return;
+        }
+
+        string preferred = _profile != null ? (_moving ? _profile.WRun : _profile.WIdle) : null;
+        AnimationClip clip = FindClip(preferred);
+        if (clip == null) clip = FindClip(_moving ? "Spell2_Run" : "Spell2_Idle");
+
+        if (clip != _persistentClip)
+        {
+            _persistentClip = clip;
+            _persistentTime = 0f;
+            DariusLog.DebugInfo("OFFICIAL-ACTION",
+                "W persistent skin=" + (_binding != null ? _binding.variantKey : "<null>") +
+                " moving=" + _moving +
+                " clip=" + (_persistentClip != null ? _persistentClip.name : "<stock-locomotion>"));
+        }
     }
 
     private void RestartSequence(IEnumerator routine)
     {
         if (_sequence != null) StopCoroutine(_sequence);
+        _sequence = null;
+        SetGodKingWolfVisible(false);
         ClearAction();
+        _persistentClip = null;
+        _persistentTime = 0f;
         _sequence = StartCoroutine(routine);
     }
 
@@ -181,14 +450,48 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         _actionSpeed = 1f;
     }
 
+    private void Update()
+    {
+        if (_hero == null || _hero.transform == null) return;
+
+        float now = Time.time;
+        float dt = Mathf.Max(0.001f, now - _lastMovementSampleAt);
+        Vector3 position = _hero.transform.position;
+        Vector3 delta = position - _lastMovementPosition;
+        delta.y = 0f;
+        bool moving = delta.magnitude / dt > MovementThreshold;
+        _lastMovementPosition = position;
+        _lastMovementSampleAt = now;
+
+        if (moving == _moving) return;
+        _moving = moving;
+        if (_wArmed && _actionClip == null && !_wSwingActive)
+            RefreshWPersistentClip();
+    }
+
     private void LateUpdate()
     {
+        if (_animator == null || !_animator.gameObject.activeInHierarchy) return;
+
         AnimationClip clip = _actionClip;
-        if (clip == null || _animator == null || !_animator.gameObject.activeInHierarchy) return;
+        if (clip != null)
+        {
+            _actionTime += Mathf.Max(0f, Time.deltaTime) * _actionSpeed;
+            float sampleTime = Mathf.Clamp(_actionTime, 0f, Mathf.Max(0.001f, clip.length));
+            SampleOverlay(clip, sampleTime);
+            return;
+        }
 
-        _actionTime += Mathf.Max(0f, Time.deltaTime) * _actionSpeed;
-        float sampleTime = Mathf.Clamp(_actionTime, 0f, Mathf.Max(0.001f, clip.length));
+        if (_persistentClip != null)
+        {
+            _persistentTime += Mathf.Max(0f, Time.deltaTime);
+            float length = Mathf.Max(0.001f, _persistentClip.length);
+            SampleOverlay(_persistentClip, Mathf.Repeat(_persistentTime, length));
+        }
+    }
 
+    private void SampleOverlay(AnimationClip clip, float sampleTime)
+    {
         CaptureLowerBodyPose();
 
         Transform animatorTransform = _animator.transform;
@@ -198,8 +501,6 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
 
         try
         {
-            // These clips were imported for this exact native prefab hierarchy, so direct Unity
-            // sampling keeps every authored action bone/weapon track without the generic retargeter.
             clip.SampleAnimation(_animator.gameObject, sampleTime);
         }
         catch (Exception e)
@@ -211,8 +512,8 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
             return;
         }
 
-        // Never let authored clip root curves move the Model GameObject itself. Internal Root/Pelvis
-        // bone curves remain untouched; only SoD owns world/model placement.
+        // SoD remains authoritative for model/world placement. Internal Root/Pelvis curves from the
+        // sampled action are preserved; only the Animator GameObject transform itself is restored.
         animatorTransform.localPosition = rootPosition;
         animatorTransform.localRotation = rootRotation;
         animatorTransform.localScale = rootScale;
@@ -260,6 +561,44 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         ResizeLowerBodyBuffers(_lowerBodyNodes.Length);
     }
 
+    private void BuildGodKingWolfMap()
+    {
+        if (!IsGodKing)
+        {
+            _godKingWolfRenderers = Array.Empty<Renderer>();
+            return;
+        }
+
+        Renderer[] all = GetComponentsInChildren<Renderer>(true);
+        List<Renderer> wolves = new List<Renderer>();
+        for (int i = 0; i < all.Length; i++)
+        {
+            Renderer renderer = all[i];
+            if (renderer == null ||
+                !DariusNativeAssetContract.IsWolfHiddenObjectName(renderer.gameObject.name)) continue;
+            renderer.enabled = false;
+            renderer.gameObject.SetActive(false);
+            wolves.Add(renderer);
+        }
+        _godKingWolfRenderers = wolves.ToArray();
+    }
+
+    private void SetGodKingWolfVisible(bool visible)
+    {
+        for (int i = 0; i < _godKingWolfRenderers.Length; i++)
+        {
+            Renderer renderer = _godKingWolfRenderers[i];
+            if (renderer == null) continue;
+            renderer.gameObject.SetActive(visible);
+            renderer.enabled = visible;
+        }
+    }
+
+    private bool IsGodKing
+    {
+        get { return _binding != null && _binding.isGodKingSkin; }
+    }
+
     private void ResizeLowerBodyBuffers(int count)
     {
         _lowerBodyPositions = new Vector3[count];
@@ -305,5 +644,9 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
     private void OnDisable()
     {
         StopAction();
+        _wArmed = false;
+        _persistentClip = null;
+        _persistentTime = 0f;
+        SetGodKingWolfVisible(false);
     }
 }
