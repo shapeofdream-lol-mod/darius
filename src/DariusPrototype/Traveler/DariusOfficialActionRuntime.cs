@@ -201,6 +201,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
             _sequence = null;
         }
         _wSwingActive = false;
+        CancelAttackFacing();
         SetGodKingWolfVisible(false);
         ClearAction();
         if (_wArmed) RefreshWPersistentClip();
@@ -281,6 +282,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         {
             yield return new WaitForSeconds(Mathf.Max(0.08f, duration - 0.08f));
             ClearAction();
+            EndAttackFacing(facingSerial);
             RestorePersistentAfterAction();
             _sequence = null;
             yield break;
