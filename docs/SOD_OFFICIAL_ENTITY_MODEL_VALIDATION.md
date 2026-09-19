@@ -1,6 +1,6 @@
 # Shape of Dreams Official EntityModel Integration Validation
 
-Status: **Pending Runtime Validation**
+Status: **Lifecycle validated; locomotion/render integration still under investigation**
 
 This document records the reusable validation path for integrating a custom traveler model through
 Shape of Dreams' public model/animation lifecycle. Nothing in the "Validated knowledge" section
@@ -103,19 +103,72 @@ judge the first locomotion experiment.
 - If Idle/Run/Death work, the official model lifecycle is validated and should become the default
   architectural baseline before testing `PlayAbilityAnimation(DewAnimationClip)`.
 
+## Runtime evidence — 2026-09-19 Classic experiment
+
+Tested commit: `4e84129fabf3628e9dd9660cc3db00da5ce57997`
+
+Native bundle fingerprint:
+
+`c9267a619c9becc848028dd324fd4bd4ba838fbd3e9e6ba1288ca13ffa20e3a8`
+
+Game runtime reported Unity `6000.0.77f1`.
+
+Observed runtime facts:
+
+- The registered Classic template was fresh before load:
+  - `initialized=False`
+  - `locomotion=EightDirections`
+  - `walkSpeed=0.9`
+  - one body renderer
+  - `support4=True`
+  - `support8=True`
+  - native Animator object `Model`.
+- SoD successfully consumed the template through its ordinary model lifecycle.
+- In `Hero_Darius.OnModelLoaded`, the loaded model was:
+  - `Skin_Darius_Default(Clone)`
+  - `initialized=True`
+  - `officialFresh=True`
+  - `native=False`
+  - `legacy=False`
+  - `EntityAnimation.animator=Model`.
+- No `EntityVisual.LoadModelLocal` / `EntityAnimation.SetupModel` exception was observed during
+  that load.
+
+These facts validate the **fresh EntityModel lifecycle contract**: a custom runtime resource can be
+accepted and initialized by SoD, and `EntityAnimation` can bind to the Animator contained in that
+loaded model.
+
+### Not validated / failed in the same experiment
+
+- The visible Classic body did not render in the normal gameplay view.
+- A standing shadow/reflection remained visible.
+- Moving did not produce a Run animation in that shadow/reflection.
+- Therefore a fresh EntityModel plus populated Idle/Run fields is **not sufficient evidence** that
+  an arbitrary custom AnimatorController satisfies SoD's locomotion controller contract.
+- Do not document the current generated Darius AnimatorController as stock-compatible.
+
+The next diagnostic pass records:
+
+- `EntityVisual.isRendererOff`
+- `EntityVisual.renderers` / `solidRenderers`
+- loaded model active state and layer
+- each renderer's enabled/active/layer/material/shader state
+- Animator current/next clip and state hashes
+- actual Hero world movement speed
+
+This diagnostic is observational only and must not change renderer or animation behavior.
+
 ## Validated knowledge
 
-**None yet.**
+1. **Freshness matters and is observable.** A custom `EntityModel` template can be registered with
+   `isInitialized == false` and later appears as a distinct initialized clone after SoD loads it.
+2. **The official model lifecycle can bind a custom Animator.** In the tested Classic path,
+   `EntityAnimation.animator` resolved to the native `Model` Animator without a Darius bridge
+   rebinding it.
+3. **Model-lifecycle compatibility and locomotion-controller compatibility are separate contracts.**
+   Successful `LoadModelLocal` / initialization does not by itself prove that SoD can drive the
+   custom AnimatorController's Idle/Run states.
 
-After a successful runtime pass, record here:
-
-- game build/version,
-- mod commit SHA,
-- native bundle fingerprint,
-- exact tested behaviors,
-- relevant log excerpts,
-- any required EntityModel fields,
-- any fields that proved unnecessary,
-- known limitations.
-
-Only items backed by a successful runtime test belong in this section.
+Only items backed by runtime evidence should be promoted into this section. Future successful
+animation/render findings should record the game build, mod commit, bundle fingerprint, exact
+behavior, and required EntityModel/controller fields.
