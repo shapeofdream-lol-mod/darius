@@ -19,6 +19,7 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
         {
             if (pair.Value != null)
             {
+                DestroyHemorrhageStatus(pair.Value);
                 if (pair.Value.stackVfx != null) try { UnityEngine.Object.Destroy(pair.Value.stackVfx); } catch { }
                 if (pair.Value.fiveStackVfx != null) try { UnityEngine.Object.Destroy(pair.Value.fiveStackVfx); } catch { }
             }
