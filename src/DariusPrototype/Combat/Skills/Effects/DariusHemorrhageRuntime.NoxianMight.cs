@@ -18,17 +18,6 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
         return Mathf.Clamp(highest, 0, currentMaxStacks);
     }
 
-    private void SyncHudState(bool force = false)
-    {
-        if (!NetworkServer.active || _owner == null || _owner.Skill == null || _owner.Skill.Identity == null) return;
-        int stacks = GetHighestActiveStackCount();
-        float duration = NoxianMightDuration + DariusConstellationRuntime.GetNoxianMightDurationBonus(_owner);
-        int durationStep = hasNoxianMight ? Mathf.Clamp(Mathf.CeilToInt(((_noxianMightUntil - Time.time) / Mathf.Max(0.01f, duration)) * 100f), 0, 100) : 0;
-        if (!force && stacks == _lastHudStackCount && durationStep == _lastHudDurationStep) return;
-        _lastHudStackCount = stacks; _lastHudDurationStep = durationStep;
-        _owner.Skill.Identity.specialOverlayColor = new Color(stacks / (float)Mathf.Max(1, currentMaxStacks), durationStep / 100f, 0.619f, 0f);
-    }
-
     private void RefreshBleedMarkersForCurrentCap()
     {
         int maxStacks = currentMaxStacks;
@@ -108,7 +97,7 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
         float adPercent = NoxianMightAttackDamagePercentAtLevel(identityMemoryLevel, warFervor);
         float flatAd = DariusConstellationRuntime.GetNoxianMightAdBonus(_owner);
         _noxianMightUntil = Time.time + duration;
-        SyncHudState(true);
+        RefreshNoxianMightStatus(duration);
         if (_noxianMightBonus != null)
         {
             if (Mathf.Abs(_noxianMightBonus.attackDamagePercentage - adPercent) > 0.001f ||
@@ -138,6 +127,33 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
         {
             DariusLog.Exception("NOXIAN-MIGHT", e, "Granting stat bonus failed");
             _noxianMightBonus = null;
+        }
+    }
+
+    private void RefreshNoxianMightStatus(float duration)
+    {
+        if (!NetworkServer.active || _owner == null || DariusFormalRegistry.NoxianMightStatus == null) return;
+        try
+        {
+            if (_noxianMightStatus == null || !_noxianMightStatus.isActive)
+            {
+                _noxianMightStatus = _owner.CreateStatusEffect<Se_Darius_NoxianMight>(
+                    DariusFormalRegistry.NoxianMightStatus,
+                    _owner,
+                    default(CastInfo),
+                    null);
+            }
+            if (_noxianMightStatus != null)
+            {
+                _noxianMightStatus.SetTimer(duration);
+                DariusLog.Info("NOXIAN-MIGHT-BUFF", "Native buff timer set duration=" + duration.ToString("0.##") +
+                    " victim=" + DariusLog.EntityLabel(_owner));
+            }
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("NOXIAN-MIGHT-BUFF", e, "Failed creating or refreshing native status effect");
+            _noxianMightStatus = null;
         }
     }
 
@@ -180,7 +196,11 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
         }
         _noxianMightBonus = null;
         _noxianMightUntil = 0f;
-        SyncHudState(true);
+        if (_noxianMightStatus != null)
+        {
+            try { _noxianMightStatus.DestroyIfActive(); } catch { }
+            _noxianMightStatus = null;
+        }
         _warFervorApplications.Clear();
     }
 }
