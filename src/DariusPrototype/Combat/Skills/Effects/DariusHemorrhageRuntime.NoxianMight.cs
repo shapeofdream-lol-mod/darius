@@ -5,19 +5,6 @@ using Mirror;
 
 public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
 {
-    private int GetHighestActiveStackCount()
-    {
-        int highest = 0;
-        float now = Time.time;
-        foreach (KeyValuePair<Entity, BleedState> pair in _states)
-        {
-            Entity target = pair.Key; BleedState state = pair.Value;
-            if (target == null || state == null || now >= state.expiresAt || target.IsNullInactiveDeadOrKnockedOut()) continue;
-            highest = Mathf.Max(highest, state.stacks);
-        }
-        return Mathf.Clamp(highest, 0, currentMaxStacks);
-    }
-
     private void RefreshBleedMarkersForCurrentCap()
     {
         int maxStacks = currentMaxStacks;
