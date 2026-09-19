@@ -29,7 +29,7 @@ internal static class DariusModelMeshProcessor
             renderer.updateWhenOffscreen = false;
             renderer.localBounds = ExpandBounds(renderer, 1.20f);
         }
-        if (profile.GodKing) SplitAuthoredHiddenSubmeshes(renderers, profile, generatedRoot);
+        SplitAuthoredHiddenSubmeshes(renderers, profile, generatedRoot);
         DariusModelOverlayMeshBuilder.Build(root, profile, bundleAssets);
     }
 
