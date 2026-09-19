@@ -80,7 +80,10 @@ def material_sources(document):
             raise RuntimeError(f"Duplicate GLB material name: {name}")
         base_color = material.get("pbrMetallicRoughness", {}).get("baseColorTexture")
         source = None if base_color is None else texture_source(document, base_color.get("index", -1))
-        result[name] = source
+        alpha_mode = str(material.get("alphaMode", "OPAQUE")).upper()
+        if alpha_mode not in {"OPAQUE", "MASK", "BLEND"}:
+            raise RuntimeError(f"Unsupported GLB alphaMode material={name} alphaMode={alpha_mode!r}")
+        result[name] = {"source": source, "alpha_mode": alpha_mode}
     if not result:
         raise RuntimeError("GLB contains no materials")
     return result
@@ -123,7 +126,14 @@ def skinned_material_bindings(document, sources):
                 raise RuntimeError(
                     f"Skinned GLB primitive material is missing from material table: node={renderer} slot={slot}"
                 )
-            result.append((renderer, slot, material, sources[material]))
+            material_source = sources[material]
+            result.append((
+                renderer,
+                slot,
+                material,
+                material_source["source"],
+                material_source["alpha_mode"],
+            ))
 
     if not result:
         raise RuntimeError("GLB contains no skinned material bindings")
@@ -182,7 +192,7 @@ def export_material_map(dst, exported, bindings):
     textured = 0
     untextured = 0
 
-    for renderer, slot, material, source in bindings:
+    for renderer, slot, material, source, alpha_mode in bindings:
         if any(c in material for c in "\t\r\n"):
             raise RuntimeError(f"Material name cannot be represented in TSV manifest: {material!r}")
         if source is None:
@@ -193,7 +203,7 @@ def export_material_map(dst, exported, bindings):
             if filename is None:
                 raise RuntimeError(f"Base-color image was not exported: material={material} source={source}")
             textured += 1
-        lines.append(f"{renderer}\t{slot}\t{material}\t{filename}")
+        lines.append(f"{renderer}\t{slot}\t{material}\t{filename}\t{alpha_mode}")
 
     with open(path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write("\n".join(lines) + "\n")
