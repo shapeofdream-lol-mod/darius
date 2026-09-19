@@ -89,6 +89,7 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
         public int stacks;
         public float expiresAt;
         public float nextTickAt;
+        public Se_Darius_Hemorrhage status;
         public GameObject stackVfx;
         public GameObject fiveStackVfx;
     }
