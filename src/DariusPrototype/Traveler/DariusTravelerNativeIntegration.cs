@@ -164,6 +164,36 @@ public sealed class DariusOfficialEntityModelDiagnostics : MonoBehaviour
                         " boundsSize=" + DariusLog.Vec(bounds.size) +
                         skinnedSummary +
                         " materials=" + materialSummary);
+
+                    for (int mi = 0; mi < materials.Length; mi++)
+                    {
+                        Material material = materials[mi];
+                        if (material == null) continue;
+                        DariusLog.Info("OFFICIAL-ENTITYMODEL-MATERIAL",
+                            "sample=" + _sample + " renderer=" + renderer.name + " slot=" + mi +
+                            " " + DescribeMaterial(material));
+                    }
+
+                    bool hasPropertyBlock = renderer.HasPropertyBlock();
+                    if (hasPropertyBlock)
+                    {
+                        MaterialPropertyBlock block = new MaterialPropertyBlock();
+                        renderer.GetPropertyBlock(block);
+                        DariusLog.Info("OFFICIAL-ENTITYMODEL-MPB",
+                            "sample=" + _sample + " renderer=" + renderer.name +
+                            " hasBlock=True" +
+                            " color=" + DescribeColor(block.GetColor(Shader.PropertyToID("_Color"))) +
+                            " baseColor=" + DescribeColor(block.GetColor(Shader.PropertyToID("_BaseColor"))) +
+                            " alpha=" + block.GetFloat(Shader.PropertyToID("_Alpha")).ToString("0.###") +
+                            " opacity=" + block.GetFloat(Shader.PropertyToID("_Opacity")).ToString("0.###") +
+                            " fade=" + block.GetFloat(Shader.PropertyToID("_Fade")).ToString("0.###") +
+                            " visibility=" + block.GetFloat(Shader.PropertyToID("_Visibility")).ToString("0.###"));
+                    }
+                    else
+                    {
+                        DariusLog.Info("OFFICIAL-ENTITYMODEL-MPB",
+                            "sample=" + _sample + " renderer=" + renderer.name + " hasBlock=False");
+                    }
                 }
             }
             _sample++;
@@ -173,6 +203,55 @@ public sealed class DariusOfficialEntityModelDiagnostics : MonoBehaviour
             DariusLog.Exception("OFFICIAL-ENTITYMODEL-DIAG", e, "Fresh EntityModel diagnostics failed");
             enabled = false;
         }
+    }
+
+    private static string DescribeMaterial(Material material)
+    {
+        if (material == null) return "<null>";
+        string value =
+            "name=" + material.name +
+            " shader=" + (material.shader != null ? material.shader.name : "<null>") +
+            " queue=" + material.renderQueue +
+            " shaderQueue=" + (material.shader != null ? material.shader.renderQueue : -1) +
+            " renderType=" + material.GetTag("RenderType", false, "<none>") +
+            " mainTexture=" + (material.mainTexture != null ? material.mainTexture.name : "<null>");
+
+        value += DescribeMaterialColor(material, "_Color");
+        value += DescribeMaterialColor(material, "_BaseColor");
+        value += DescribeMaterialFloat(material, "_Mode");
+        value += DescribeMaterialFloat(material, "_Surface");
+        value += DescribeMaterialFloat(material, "_SrcBlend");
+        value += DescribeMaterialFloat(material, "_DstBlend");
+        value += DescribeMaterialFloat(material, "_ZWrite");
+        value += DescribeMaterialFloat(material, "_Cull");
+        value += DescribeMaterialFloat(material, "_Cutoff");
+        value += DescribeMaterialFloat(material, "_AlphaClip");
+        value += DescribeMaterialFloat(material, "_Alpha");
+        value += " keywords=" + string.Join(",", material.shaderKeywords ?? Array.Empty<string>());
+        return value;
+    }
+
+    private static string DescribeMaterialColor(Material material, string property)
+    {
+        return material != null && material.HasProperty(property)
+            ? " " + property + "=" + DescribeColor(material.GetColor(property))
+            : " " + property + "=<none>";
+    }
+
+    private static string DescribeMaterialFloat(Material material, string property)
+    {
+        return material != null && material.HasProperty(property)
+            ? " " + property + "=" + material.GetFloat(property).ToString("0.###")
+            : " " + property + "=<none>";
+    }
+
+    private static string DescribeColor(Color color)
+    {
+        return "(" +
+            color.r.ToString("0.###") + "," +
+            color.g.ToString("0.###") + "," +
+            color.b.ToString("0.###") + "," +
+            color.a.ToString("0.###") + ")";
     }
 }
 
