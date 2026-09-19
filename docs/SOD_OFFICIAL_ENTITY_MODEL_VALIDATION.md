@@ -42,9 +42,10 @@ The Shape of Dreams API documents the following public contracts:
 
 ## Experiment scope
 
-The first experiment is deliberately Classic-only.
+The first experiment was deliberately Classic-only. After Classic passed lifecycle, locomotion,
+and URP/Unlit material validation, the same baseline was extended to all four shipped Darius skins.
 
-Classic is registered as a resource whose root directly contains:
+Each migrated skin is registered as a resource whose root directly contains:
 
 - `Skin`
 - a fresh, uninitialized `EntityModel`
@@ -65,7 +66,14 @@ The experiment intentionally does **not** use these systems for Classic:
 - custom `ReplaceAnimationLocal` suppression
 - custom ability-RPC suppression
 
-God-King, Dunkmaster, and Mecha remain on the previous path and serve as a control group.
+As of commit `b6bdb9148d58f8f967ca172564f506679c3f3ef7`, God-King, Dunkmaster, and Mecha no
+longer use the synthetic Host/Bridge model-loading path. They now use the same fresh EntityModel
+baseline as Classic.
+
+God-King retains its authored wolf/throne presentation renderers in the native prefab hierarchy,
+but those `DariusHidden_*` renderers are excluded from `EntityModel.bodyRenderers` and remain
+disabled. Their skill-specific visibility transitions are intentionally deferred to the later
+action-integration phase rather than reintroducing the legacy Bridge.
 
 ## Why this experiment is useful
 
@@ -318,6 +326,43 @@ The next diagnostic pass records:
 - actual Hero world movement speed
 
 This diagnostic is observational only and must not change renderer or animation behavior.
+
+## All-skin migration — runtime validation pending
+
+Implementation commit:
+`b6bdb9148d58f8f967ca172564f506679c3f3ef7`
+
+The following skins now share the Classic baseline:
+
+- Classic
+- God-King
+- Dunkmaster
+- Mecha
+
+For every skin, registration now:
+
+1. instantiates that skin's native Unity prefab as the resource root;
+2. adds a fresh, uninitialized `EntityModel`;
+3. captures Idle/Run/Death clips from the native controller before replacing it;
+4. assigns the stock SoD AnimatorController;
+5. fills the EntityModel Idle/Run/Death contract with that skin's own clips;
+6. applies the shared URP/Unlit native renderer path;
+7. uses the prefab's real health/weapon anchors;
+8. marks the resource with `DariusOfficialEntityModelMarker`;
+9. does not add `DariusNativeModelHost` or `DariusTravelerModelInstance`.
+
+Runtime acceptance for the three newly migrated skins:
+
+- `Hero_Darius.OnModelLoaded officialFresh=True native=False legacy=False`;
+- loaded EntityModel is initialized;
+- Animator is non-null and uses the stock controller;
+- Idle and Run use the selected skin's authored clips;
+- body renderer remains visible with URP/Unlit;
+- God-King wolf/throne hidden presentation meshes do not become permanently visible;
+- no model-load / Animator exception occurs.
+
+This section is implementation state only until those three skins are runtime tested. Do not promote
+their success into `Validated knowledge` from CI alone.
 
 ## Validated knowledge
 
