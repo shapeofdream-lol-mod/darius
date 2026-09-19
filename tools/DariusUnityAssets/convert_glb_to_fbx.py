@@ -83,7 +83,18 @@ def material_sources(document):
         alpha_mode = str(material.get("alphaMode", "OPAQUE")).upper()
         if alpha_mode not in {"OPAQUE", "MASK", "BLEND"}:
             raise RuntimeError(f"Unsupported GLB alphaMode material={name} alphaMode={alpha_mode!r}")
-        result[name] = {"source": source, "alpha_mode": alpha_mode}
+        alpha_cutoff = float(material.get("alphaCutoff", 0.5))
+        authored_visible = material.get("extras", {}).get("visible", True)
+        if not isinstance(authored_visible, bool):
+            raise RuntimeError(
+                f"GLB material extras.visible must be boolean material={name} visible={authored_visible!r}"
+            )
+        result[name] = {
+            "source": source,
+            "alpha_mode": alpha_mode,
+            "alpha_cutoff": alpha_cutoff,
+            "authored_visible": authored_visible,
+        }
     if not result:
         raise RuntimeError("GLB contains no materials")
     return result
@@ -133,6 +144,8 @@ def skinned_material_bindings(document, sources):
                 material,
                 material_source["source"],
                 material_source["alpha_mode"],
+                material_source["alpha_cutoff"],
+                material_source["authored_visible"],
             ))
 
     if not result:
@@ -192,7 +205,7 @@ def export_material_map(dst, exported, bindings):
     textured = 0
     untextured = 0
 
-    for renderer, slot, material, source, alpha_mode in bindings:
+    for renderer, slot, material, source, alpha_mode, alpha_cutoff, authored_visible in bindings:
         if any(c in material for c in "\t\r\n"):
             raise RuntimeError(f"Material name cannot be represented in TSV manifest: {material!r}")
         if source is None:
@@ -203,7 +216,10 @@ def export_material_map(dst, exported, bindings):
             if filename is None:
                 raise RuntimeError(f"Base-color image was not exported: material={material} source={source}")
             textured += 1
-        lines.append(f"{renderer}\t{slot}\t{material}\t{filename}\t{alpha_mode}")
+        lines.append(
+            f"{renderer}\t{slot}\t{material}\t{filename}\t{alpha_mode}\t"
+            f"{alpha_cutoff:.6g}\t{1 if authored_visible else 0}"
+        )
 
     with open(path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write("\n".join(lines) + "\n")
