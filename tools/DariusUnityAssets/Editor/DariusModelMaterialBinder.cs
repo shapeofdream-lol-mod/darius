@@ -15,6 +15,7 @@ public static class DariusModelMaterialBinder
         public int Slot;
         public string Name;
         public string TextureFile;
+        public string AlphaMode;
     }
 
     public static void BindPrefabMaterials(GameObject model, string assetPath, string generatedRoot)
@@ -69,6 +70,17 @@ public static class DariusModelMaterialBinder
                         throw new InvalidOperationException("Mapped color texture missing model=" + modelStem +
                             " material=" + binding.Name + " asset=" + texturePath);
                     material.mainTexture = texture;
+                }
+
+                if (string.Equals(binding.AlphaMode, "BLEND", StringComparison.OrdinalIgnoreCase))
+                {
+                    material.SetOverrideTag("RenderType", "Transparent");
+                    if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 1f);
+                    if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
+                    if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", 5f);
+                    if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", 10f);
+                    material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                    material.renderQueue = 3000;
                 }
 
                 string materialPath = generatedRoot + "/" + modelStem + "_mat_" +
@@ -167,6 +179,11 @@ public static class DariusModelMaterialBinder
             string renderer = parts[0].Trim();
             string material = parts[2].Trim();
             string textureFile = parts[3].Trim();
+            string alphaMode = parts[4].Trim();
+            if (!string.Equals(alphaMode, "OPAQUE", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(alphaMode, "MASK", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(alphaMode, "BLEND", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Invalid alpha mode model=" + modelStem + " alphaMode=" + alphaMode);
             if (!string.Equals(textureFile, NoTexture, StringComparison.Ordinal) &&
                 (!string.Equals(Path.GetFileName(textureFile), textureFile, StringComparison.Ordinal) ||
                  !textureFile.StartsWith(modelStem + "__tex_", StringComparison.OrdinalIgnoreCase)))
@@ -177,7 +194,8 @@ public static class DariusModelMaterialBinder
                 Renderer = renderer,
                 Slot = slot,
                 Name = material,
-                TextureFile = textureFile
+                TextureFile = textureFile,
+                AlphaMode = alphaMode
             });
         }
         if (result.Count == 0) throw new InvalidDataException("Native material manifest is empty: " + manifestPath);
