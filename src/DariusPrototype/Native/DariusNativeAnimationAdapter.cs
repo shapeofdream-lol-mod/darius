@@ -35,11 +35,11 @@ internal static class DariusNativeAnimationAdapter
                     case "Spell4":
                         return official.PlayR();
                     case "Attack1":
-                        return official.PlayAttack(false, false);
+                        return official.PlayAttack(false, false, direction);
                     case "Attack2":
-                        return official.PlayAttack(true, false);
+                        return official.PlayAttack(true, false, direction);
                     case "Crit":
-                        return official.PlayAttack(false, true);
+                        return official.PlayAttack(false, true, direction);
                 }
             }
             catch (Exception e)
