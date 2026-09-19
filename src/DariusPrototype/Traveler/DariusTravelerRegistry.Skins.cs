@@ -231,9 +231,13 @@ public static partial class DariusTravelerRegistry
         model.runBackwardLeftClip = run;
         model.runBackwardRightClip = run;
 
+        // Keep the official fresh EntityModel/EntityAnimation lifecycle, but use the same
+        // texture-dominant URP/Unlit material path already proven by the other Darius skins.
+        // Dew/Dew Entity keeps a lit response even with its common PBR controls zeroed, which is
+        // the remaining Classic-only "plastic" reflection seen in runtime.
+        DariusRuntimePerformance.OptimizeSkinnedRenderers(root, true);
         Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
         model.bodyRenderers = renderers ?? new Renderer[0];
-        ApplyOfficialStockMaterialContract(model.bodyRenderers, sourceModel);
         for (int i = 0; i < model.bodyRenderers.Length; i++)
         {
             SkinnedMeshRenderer skinned = model.bodyRenderers[i] as SkinnedMeshRenderer;
