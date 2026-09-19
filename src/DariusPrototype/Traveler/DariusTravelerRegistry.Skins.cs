@@ -297,6 +297,10 @@ public static partial class DariusTravelerRegistry
             throw new InvalidOperationException("Stock EntityModel template has no material contract.");
 
         Material stockTemplate = stockRenderer.sharedMaterial;
+        Shader stockShader = stockTemplate.shader;
+        if (stockShader == null)
+            throw new InvalidOperationException("Stock EntityModel material has no shader contract.");
+
         for (int ri = 0; ri < targetRenderers.Length; ri++)
         {
             Renderer renderer = targetRenderers[ri];
@@ -312,8 +316,17 @@ public static partial class DariusTravelerRegistry
                 Vector2 scale = native != null ? native.mainTextureScale : Vector2.one;
                 Vector2 offset = native != null ? native.mainTextureOffset : Vector2.zero;
 
-                Material replacement = new Material(stockTemplate);
+                // Reuse only SoD's Entity shader contract. Cloning the whole Vesper material also
+                // copied Vesper-specific normal/metallic/occlusion maps and keywords, which made
+                // Darius visible but produced incorrect surface colour and lighting.
+                Material replacement = new Material(stockShader);
                 replacement.name = (native != null ? native.name : "Darius") + "_SOD";
+                replacement.renderQueue = stockTemplate.renderQueue;
+                if (replacement.HasProperty("_Color"))
+                    replacement.SetColor("_Color", Color.white);
+                if (replacement.HasProperty("_BaseColor"))
+                    replacement.SetColor("_BaseColor", Color.white);
+
                 if (texture != null)
                 {
                     replacement.mainTexture = texture;
@@ -338,9 +351,9 @@ public static partial class DariusTravelerRegistry
         }
 
         DariusLog.Info("OFFICIAL-ENTITYMODEL",
-            "Applied stock material contract sourceRenderer=" + stockRenderer.name +
+            "Applied stock shader contract sourceRenderer=" + stockRenderer.name +
             " sourceMaterial=" + stockTemplate.name +
-            " shader=" + (stockTemplate.shader != null ? stockTemplate.shader.name : "<null>") +
+            " shader=" + stockShader.name +
             " targets=" + targetRenderers.Length);
     }
 
