@@ -21,7 +21,7 @@ public static partial class DariusFormalRegistry
 
         NoxianMightStatus = RegisterPrefab<Se_Darius_NoxianMight>("Se_Darius_NoxianMight", GuidNoxianMightStatus, status =>
         {
-            status.showIcon = true;
+            status.showIcon = false;
             status.icon = DariusPrototypeIcons.Get("H");
             status.isBeneficialBuff = true;
             status.hideOnWorldHealthBar = true;
