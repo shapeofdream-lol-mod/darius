@@ -44,7 +44,7 @@ public sealed class DariusOfficialEntityModelDiagnostics : MonoBehaviour
         }
         if (Time.unscaledTime < _nextSampleTime) return;
         _nextSampleTime = Time.unscaledTime + 1f;
-        Dump("sample", _sample < 3);
+        Dump("sample", true);
     }
 
     private void Dump(string reason, bool includeRenderers)
