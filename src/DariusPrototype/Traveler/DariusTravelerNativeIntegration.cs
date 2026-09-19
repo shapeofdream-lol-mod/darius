@@ -9,6 +9,142 @@ public sealed class DariusOfficialEntityModelMarker : MonoBehaviour
     public string variantKey;
 }
 
+public sealed class DariusOfficialEntityModelDiagnostics : MonoBehaviour
+{
+    private Hero_Darius _hero;
+    private EntityVisual _visual;
+    private EntityAnimation _animation;
+    private EntityModel _model;
+    private Vector3 _lastPosition;
+    private float _lastSampleTime;
+    private float _nextSampleTime;
+    private float _stopAt;
+    private int _sample;
+
+    public void Bind(Hero_Darius hero)
+    {
+        _hero = hero;
+        _visual = hero != null ? hero.Visual : null;
+        _animation = hero != null ? hero.GetComponent<EntityAnimation>() : null;
+        _model = _visual != null ? _visual.model : null;
+        _lastPosition = hero != null ? hero.transform.position : Vector3.zero;
+        _lastSampleTime = Time.unscaledTime;
+        _nextSampleTime = Time.unscaledTime;
+        _stopAt = Time.unscaledTime + 20f;
+        _sample = 0;
+        Dump("bind", true);
+    }
+
+    private void Update()
+    {
+        if (_hero == null || Time.unscaledTime > _stopAt)
+        {
+            enabled = false;
+            return;
+        }
+        if (Time.unscaledTime < _nextSampleTime) return;
+        _nextSampleTime = Time.unscaledTime + 1f;
+        Dump("sample", _sample < 3);
+    }
+
+    private void Dump(string reason, bool includeRenderers)
+    {
+        try
+        {
+            float now = Time.unscaledTime;
+            Vector3 position = _hero != null ? _hero.transform.position : Vector3.zero;
+            float dt = Mathf.Max(0.0001f, now - _lastSampleTime);
+            float worldSpeed = (position - _lastPosition).magnitude / dt;
+            _lastPosition = position;
+            _lastSampleTime = now;
+
+            Animator animator = _animation != null ? _animation.animator : null;
+            string currentClip = "<none>";
+            string nextClip = "<none>";
+            int currentHash = 0;
+            int nextHash = 0;
+            float normalized = 0f;
+            bool transition = false;
+            if (animator != null && animator.layerCount > 0)
+            {
+                AnimatorStateInfo current = animator.GetCurrentAnimatorStateInfo(0);
+                currentHash = current.shortNameHash;
+                normalized = current.normalizedTime;
+                transition = animator.IsInTransition(0);
+                AnimatorClipInfo[] currentInfos = animator.GetCurrentAnimatorClipInfo(0);
+                if (currentInfos != null && currentInfos.Length > 0 && currentInfos[0].clip != null)
+                    currentClip = currentInfos[0].clip.name;
+                if (transition)
+                {
+                    AnimatorStateInfo next = animator.GetNextAnimatorStateInfo(0);
+                    nextHash = next.shortNameHash;
+                    AnimatorClipInfo[] nextInfos = animator.GetNextAnimatorClipInfo(0);
+                    if (nextInfos != null && nextInfos.Length > 0 && nextInfos[0].clip != null)
+                        nextClip = nextInfos[0].clip.name;
+                }
+            }
+
+            Transform modelTransform = _visual != null ? _visual.modelTransform : null;
+            DariusLog.Info("OFFICIAL-ENTITYMODEL-DIAG",
+                "reason=" + reason + " sample=" + _sample +
+                " pos=" + DariusLog.Vec(position) +
+                " worldSpeed=" + worldSpeed.ToString("0.###") +
+                " visualOff=" + (_visual != null && _visual.isRendererOff) +
+                " visualRenderers=" + (_visual != null && _visual.renderers != null ? _visual.renderers.Count : -1) +
+                " solidRenderers=" + (_visual != null && _visual.solidRenderers != null ? _visual.solidRenderers.Count : -1) +
+                " model=" + (_model != null ? _model.name : "<null>") +
+                " modelActive=" + (_model != null && _model.gameObject.activeInHierarchy) +
+                " modelTransform=" + (modelTransform != null ? modelTransform.name : "<null>") +
+                " modelLayer=" + (modelTransform != null ? modelTransform.gameObject.layer.ToString() : "<null>") +
+                " animatorActive=" + (animator != null && animator.gameObject.activeInHierarchy) +
+                " animatorEnabled=" + (animator != null && animator.enabled) +
+                " controller=" + (animator != null && animator.runtimeAnimatorController != null
+                    ? animator.runtimeAnimatorController.name : "<null>") +
+                " currentClip=" + currentClip +
+                " currentHash=" + currentHash +
+                " normalized=" + normalized.ToString("0.###") +
+                " transition=" + transition +
+                " nextClip=" + nextClip +
+                " nextHash=" + nextHash);
+
+            if (includeRenderers && _model != null)
+            {
+                Renderer[] renderers = _model.GetComponentsInChildren<Renderer>(true);
+                for (int i = 0; i < renderers.Length; i++)
+                {
+                    Renderer renderer = renderers[i];
+                    if (renderer == null) continue;
+                    Material[] materials = renderer.sharedMaterials;
+                    string materialSummary = string.Empty;
+                    for (int mi = 0; mi < materials.Length; mi++)
+                    {
+                        Material material = materials[mi];
+                        if (mi > 0) materialSummary += ",";
+                        materialSummary += material != null
+                            ? material.name + "/" + (material.shader != null ? material.shader.name : "<no-shader>")
+                            : "<null>";
+                    }
+                    DariusLog.Info("OFFICIAL-ENTITYMODEL-RENDER",
+                        "sample=" + _sample + " index=" + i +
+                        " name=" + renderer.name +
+                        " enabled=" + renderer.enabled +
+                        " active=" + renderer.gameObject.activeInHierarchy +
+                        " layer=" + renderer.gameObject.layer +
+                        " forceOff=" + renderer.forceRenderingOff +
+                        " shadow=" + renderer.shadowCastingMode +
+                        " materials=" + materialSummary);
+                }
+            }
+            _sample++;
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("OFFICIAL-ENTITYMODEL-DIAG", e, "Fresh EntityModel diagnostics failed");
+            enabled = false;
+        }
+    }
+}
+
 // Independent traveler implementation for Hero_Darius.
 // Runtime-created Hero/Skin resources remain necessary because the stock mod loader does not
 // extend the game's Addressables catalog with custom Hero/Skin GUIDs. Model playback itself now
@@ -61,6 +197,14 @@ public sealed class Hero_Darius : Hero
                 " initialized=" + (loadedModel != null && loadedModel.isInitialized) +
                 " animator=" + (animation != null && animation.animator != null ? animation.animator.gameObject.name : "<null>") +
                 " attackVisual=" + (attackVisual != null));
+
+            if (officialFresh)
+            {
+                DariusOfficialEntityModelDiagnostics diagnostics =
+                    GetComponent<DariusOfficialEntityModelDiagnostics>();
+                if (diagnostics == null) diagnostics = gameObject.AddComponent<DariusOfficialEntityModelDiagnostics>();
+                diagnostics.Bind(this);
+            }
         }
         catch (Exception e)
         {
