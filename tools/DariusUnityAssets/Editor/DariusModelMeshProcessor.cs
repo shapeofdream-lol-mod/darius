@@ -146,12 +146,21 @@ internal static class DariusModelMeshProcessor
     {
         string name = material != null ? material.name : null;
         if (string.IsNullOrEmpty(name)) return SubmeshKind.Visible;
+
+        // Preserve explicit profile semantics first: God-King wolf is runtime-toggleable while
+        // throne is permanently hidden. Other GLB-authored invisible primitives remain hidden by
+        // default instead of leaking into EntityVisual/highlight passes.
         if (!string.IsNullOrEmpty(profile.ToggleHiddenMaterial) &&
             name.IndexOf(profile.ToggleHiddenMaterial, StringComparison.OrdinalIgnoreCase) >= 0)
             return SubmeshKind.ToggleHidden;
         if (!string.IsNullOrEmpty(profile.PermanentHiddenMaterial) &&
             name.IndexOf(profile.PermanentHiddenMaterial, StringComparison.OrdinalIgnoreCase) >= 0)
             return SubmeshKind.PermanentHidden;
+
+        if (material != null &&
+            string.Equals(material.GetTag("DariusAuthoredVisible", false, "1"), "0", StringComparison.Ordinal))
+            return SubmeshKind.PermanentHidden;
+
         return SubmeshKind.Visible;
     }
 
