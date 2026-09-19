@@ -322,10 +322,21 @@ public static partial class DariusTravelerRegistry
                 Material replacement = new Material(stockShader);
                 replacement.name = (native != null ? native.name : "Darius") + "_SOD";
                 replacement.renderQueue = stockTemplate.renderQueue;
+
+                // glTF baseColor is texture * baseColorFactor. The imported Unity material keeps
+                // that factor in its main colour; forcing white here discards authored Darius
+                // colour information even though the correct texture is preserved.
+                Color sourceColor = Color.white;
+                if (native != null)
+                {
+                    if (native.HasProperty("_BaseColor")) sourceColor = native.GetColor("_BaseColor");
+                    else if (native.HasProperty("_Color")) sourceColor = native.GetColor("_Color");
+                    else sourceColor = native.color;
+                }
                 if (replacement.HasProperty("_Color"))
-                    replacement.SetColor("_Color", Color.white);
+                    replacement.SetColor("_Color", sourceColor);
                 if (replacement.HasProperty("_BaseColor"))
-                    replacement.SetColor("_BaseColor", Color.white);
+                    replacement.SetColor("_BaseColor", sourceColor);
 
                 if (texture != null)
                 {
