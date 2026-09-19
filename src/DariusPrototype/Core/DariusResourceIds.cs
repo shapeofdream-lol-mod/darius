@@ -17,6 +17,7 @@ public static class DariusResourceIds
     public const string Identity = "acdd533c-6e5d-4974-9895-e90a103b5307";
     public const string LegacyGem = "44e808d0-ad21-458d-8832-de7eabe3c5ac"; // legacy v0.11 Essence only
     public const string StatusNoxianMight = "62d9dfb8-9e5b-4c9b-a3ff-2e8e0a4fbc51";
+    public const string StatusHemorrhage = "076dfa7c-ae80-4888-b10d-e2723ab088b7";
 
     public const string AbilityQ = "6ba4cdd8-7e47-46d1-8f18-76f25e375aa2";
     public const string AbilityW = "8bfb1788-d4e0-4765-801e-af08c028791c";
