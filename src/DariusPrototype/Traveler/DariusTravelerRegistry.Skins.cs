@@ -379,6 +379,7 @@ public static partial class DariusTravelerRegistry
         SetMaterialFloatIfPresent(material, "_GlossMapScale", 0f);
         SetMaterialFloatIfPresent(material, "_Shininess", 0f);
         SetMaterialFloatIfPresent(material, "_SpecularHighlights", 0f);
+        SetMaterialFloatIfPresent(material, "_GlossyReflections", 0f);
         SetMaterialFloatIfPresent(material, "_EnvironmentReflections", 0f);
         SetMaterialFloatIfPresent(material, "_Roughness", 1f);
         SetMaterialFloatIfPresent(material, "_RoughnessFactor", 1f);
@@ -397,9 +398,8 @@ public static partial class DariusTravelerRegistry
         material.DisableKeyword("_OCCLUSIONMAP");
         material.DisableKeyword("_PARALLAXMAP");
         material.DisableKeyword("_DETAIL_MULX2");
-        material.DisableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
-        if (material.HasProperty("_EnvironmentReflections"))
-            material.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+        material.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+        material.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
 
         DariusLog.Info("OFFICIAL-ENTITYMODEL",
             "Configured texture-dominant matte entity surface material=" + material.name +
