@@ -172,10 +172,31 @@ This rules out the simplest visibility causes (persistent EntityVisual renderer 
 GameObject/Renderer, force-render-off, or an unexpected layer) and separates the remaining rendering
 problem from the locomotion-controller problem.
 
+## Runtime evidence — stock AnimatorController experiment succeeded
+
+Using the same fresh Classic EntityModel but replacing the generated Darius controller with the
+stock Vesper `Base Controller` produced the expected locomotion behavior.
+
+Observed diagnostic sequence:
+
+- stationary: `currentClip=Idle1`
+- movement begins with measured world speed around `3.96`: `currentClip=Run`
+- sustained movement at approximately `4.8-4.9`: `currentClip=Run`
+- the Darius `Run` clip, not a Vesper run clip, was active in the Animator
+
+This is the first runtime confirmation that the reusable official path is:
+
+`fresh custom EntityModel + stock SoD AnimatorController contract + custom animation clips`
+
+rather than:
+
+`fresh custom EntityModel + arbitrary custom AnimatorController`
+
+The current renderer/material visibility issue is independent and remains unresolved.
+
 ## Next isolated experiment — stock AnimatorController
 
-Keep the already validated fresh EntityModel lifecycle, but replace only the generated Darius
-AnimatorController with the runtime controller from the stock EntityModel template.
+Keep the validated fresh EntityModel lifecycle and stock controller path.
 
 Purpose:
 
@@ -213,6 +234,13 @@ This diagnostic is observational only and must not change renderer or animation 
 3. **Model-lifecycle compatibility and locomotion-controller compatibility are separate contracts.**
    Successful `LoadModelLocal` / initialization does not by itself prove that SoD can drive the
    custom AnimatorController's Idle/Run states.
+
+4. **Stock AnimatorController locomotion is compatible with a fresh custom EntityModel.** In the
+   2026-09-19 Classic test using the stock Vesper `Base Controller`, the same fresh Darius
+   EntityModel switched from `Idle1` to the Darius `Run` clip while the Hero's measured world
+   speed rose to approximately 4.9. The Animator remained on `Run` throughout sustained movement.
+   This validates that the official locomotion path depends on the stock AnimatorController
+   contract/state machine, while custom clips can still be supplied through the custom EntityModel.
 
 Only items backed by runtime evidence should be promoted into this section. Future successful
 animation/render findings should record the game build, mod commit, bundle fingerprint, exact
