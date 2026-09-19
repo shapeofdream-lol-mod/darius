@@ -99,7 +99,6 @@ public sealed class DariusOfficialEntityModelDiagnostics : MonoBehaviour
                 " visualOff=" + (_visual != null && _visual.isRendererOff) +
                 " visualRenderers=" + (_visual != null && _visual.renderers != null ? _visual.renderers.Count : -1) +
                 " solidRenderers=" + (_visual != null && _visual.solidRenderers != null ? _visual.solidRenderers.Count : -1) +
-                " materialCount=" + (_visual != null && _visual.materials != null ? _visual.materials.Count : -1) +
                 " model=" + (_model != null ? _model.name : "<null>") +
                 " modelActive=" + (_model != null && _model.gameObject.activeInHierarchy) +
                 " modelTransform=" + (modelTransform != null ? modelTransform.name : "<null>") +
