@@ -26,6 +26,14 @@ internal static class DariusNativeAnimationAdapter
                 {
                     case "Spell1":
                         return official.PlayQ(instant);
+                    case "Spell2":
+                        return official.PlayW(direction);
+                    case "Spell2_Idle":
+                        return official.SetWArmed(true);
+                    case "Spell3":
+                        return official.PlayE();
+                    case "Spell4":
+                        return official.PlayR();
                     case "Attack1":
                         return official.PlayAttack(false, false);
                     case "Attack2":
@@ -84,6 +92,21 @@ internal static class DariusNativeAnimationAdapter
     public static bool StopAbility(Hero hero)
     {
         if (hero == null) return false;
+
+        DariusOfficialActionRuntime official = GetOfficialActionRuntime(hero);
+        if (official != null && official.IsReady)
+        {
+            try
+            {
+                return official.SetWArmed(false);
+            }
+            catch (Exception e)
+            {
+                DariusLog.Exception("OFFICIAL-ACTION", e, "Fresh EntityModel StopAbility failed");
+                return true;
+            }
+        }
+
         DariusNativeModelBridge bridge = GetBridge(hero);
         if (bridge == null) return false;
 
