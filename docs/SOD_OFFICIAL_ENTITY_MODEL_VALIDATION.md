@@ -468,6 +468,48 @@ Runtime validation is still required before promoting complete all-skin action p
 validated section. Test repeated attacks, moving/stationary Q, W arm/consume/expire, moving E,
 R, fresh VFX anchors/overlays, and God-King hidden/wolf behavior.
 
+## Fresh action lifecycle + authored alpha correction — runtime validation pending
+
+A later all-skin runtime pass showed a more severe regression than presentation-only stalling:
+after Q/R/basic attacks, subsequent attack/skill input could stop producing both animation and
+gameplay damage on several fresh skins, while God-King behaved differently.
+
+Comparison against the working `main` implementation identified a fresh-only divergence:
+`DariusEntityAnimationAbilityRpcPatch` suppressed SoD's
+`EntityAnimation.UserCode_RpcPlayAbilityAnimation*` receiver path whenever the fresh native
+overlay was available. The working main presentation never replaces SoD's gameplay/action
+lifecycle this way; it only owns the model pose.
+
+Fresh skins therefore now always allow the stock ability-animation RPC to run. The native action
+overlay remains a late pose layer only. This restores SoD as the authoritative owner of cast/attack
+lifecycle while retaining Darius' native clips for presentation.
+
+Implementation:
+- `98da19b65e4374cc3287a5b613c4954833278ead` — preserve SoD ability RPC lifecycle for fresh skins
+
+The same pass also revisited God-King's black-background material issue using `main` as the
+reference. Main reads the GLB material `alphaMode` and configures BLEND materials as transparent
+URP/Unlit surfaces. The native FBX sidecar previously discarded `alphaMode`, and runtime material
+rebinding then forced every visible material to Opaque.
+
+The native asset pipeline now:
+- exports GLB material alpha mode into the generated material map;
+- marks BLEND materials transparent during Unity material binding;
+- preserves that transparent contract when runtime swaps the material to URP/Unlit.
+
+Implementation:
+- `d69b1708b77ea9dda378f71ce9109f854ad81c8c` — preserve GLB alpha mode in material map
+- `f44a89e5cfb6a8cb6a04253f1e6a904a150f62db` — bind native material alpha mode
+- `9beeb4b3202f837b9d83154e7b3e8b606a586c7f` — preserve authored alpha on runtime URP/Unlit
+
+Unlike recent C#-only presentation changes, the alpha fix changes native bundle inputs and therefore
+requires rebuilding `darius_models.bundle`; the existing fingerprint contract already includes the
+converter and all Unity editor pipeline files, so DeployMod will reject the stale bundle.
+
+Both the repository/build-tooling contracts and Release build pass at
+`9beeb4b3202f837b9d83154e7b3e8b606a586c7f`. Runtime behavior remains unvalidated until the
+bundle is rebuilt and repeated Q/R/basic attacks are tested.
+
 ## Validated knowledge
 
 1. **Freshness matters and is observable.** A custom `EntityModel` template can be registered with
