@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using UnityEngine;
 
 public static class DariusSummonerRuntime
@@ -13,62 +12,22 @@ public static class DariusSummonerRuntime
         Vector3 castPoint = owner.transform.position;
         try { castPoint = info.point; } catch { }
 
-        // Prefer the game's live/last EntityControl movement fields. The retired model player
-        // no longer maintains a second movement-direction cache.
-        // This also covers the frame where input direction has just changed but displacement has
-        // just changed but displacement has not yet been sampled.
+        // EntityControl already exposes synchronized agent velocity everywhere; use that as the
+        // single movement-direction source instead of probing private movement members.
         try
         {
-            const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-            object control = null;
-            Type heroType = owner.GetType();
-            PropertyInfo controlProperty = heroType.GetProperty("Control", flags) ?? heroType.GetProperty("control", flags);
-            if (controlProperty != null && controlProperty.GetIndexParameters().Length == 0)
-                control = controlProperty.GetValue(owner, null);
-            if (control == null)
+            EntityControl control = owner.Control;
+            if (control != null)
             {
-                FieldInfo controlField = heroType.GetField("Control", flags) ?? heroType.GetField("control", flags) ??
-                                         heroType.GetField("<Control>k__BackingField", flags);
-                if (controlField != null) control = controlField.GetValue(owner);
-            }
-            if (control == null)
-            {
-                Component[] components = owner.GetComponents<Component>();
-                for (int i = 0; i < components.Length; i++)
-                {
-                    Component c = components[i];
-                    if (c != null && c.GetType().Name == "EntityControl") { control = c; break; }
-                }
-            }
-
-            if (control != null && dir.sqrMagnitude <= 0.04f)
-            {
-                Type t = control.GetType();
-                string[] candidates = { "movementDirection", "moveDirection", "desiredMovementDirection", "lastMovementDirection" };
-                for (int i = 0; i < candidates.Length && dir.sqrMagnitude <= 0.04f; i++)
-                {
-                    string name = candidates[i];
-                    PropertyInfo prop = t.GetProperty(name, flags);
-                    if (prop != null && prop.GetIndexParameters().Length == 0 && prop.PropertyType == typeof(Vector3))
-                    {
-                        try { dir = (Vector3)prop.GetValue(control, null); } catch { dir = Vector3.zero; }
-                    }
-                    if (dir.sqrMagnitude <= 0.04f)
-                    {
-                        FieldInfo field = t.GetField(name, flags) ?? t.GetField("<" + name + ">k__BackingField", flags);
-                        if (field != null && field.FieldType == typeof(Vector3))
-                        {
-                            try { dir = (Vector3)field.GetValue(control); } catch { dir = Vector3.zero; }
-                        }
-                    }
-                    if (dir.sqrMagnitude > 0.04f) source = "movement:" + name;
-                }
+                dir = control.agentVelocity;
                 dir.y = 0f;
+                if (dir.sqrMagnitude > 0.04f) source = "movement:agentVelocity";
             }
         }
         catch (Exception e)
         {
-            DariusLog.DebugInfo("FLASH-DIR", "Movement-direction reflection failed: " + e.GetType().Name + ": " + e.Message);
+            DariusLog.DebugInfo("FLASH-DIR", "EntityControl.agentVelocity read failed: " +
+                e.GetType().Name + ": " + e.Message);
         }
 
         if (dir.sqrMagnitude <= 0.04f)
