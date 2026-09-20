@@ -32,12 +32,12 @@ public static partial class DariusTravelerRegistry
         public string variantKey { get { return native != null ? native.Variant : null; } }
     }
 
+    // Current refactor acceptance scope is Classic only. Alternate skin profiles/assets stay in the
+    // repository for follow-up work, but are intentionally not registered as selectable cosmetics
+    // until each skin has its own presentation smoke test.
     private static readonly DariusSkinSpec[] SkinSpecs =
     {
-        new DariusSkinSpec { name=DefaultSkinName, guid=SkinGuid, displayName="经典德莱厄斯", previewIconKey="SKIN_CLASSIC", native=DariusNativeSkinProfiles.Classic },
-        new DariusSkinSpec { name=GodKingSkinName, guid=GodKingSkinGuid, displayName="神王德莱厄斯", previewIconKey="SKIN_GODKING", native=DariusNativeSkinProfiles.GodKing },
-        new DariusSkinSpec { name=DunkmasterSkinName, guid=DunkmasterSkinGuid, displayName="灌篮高手 德莱厄斯", previewIconKey="SKIN_DUNKMASTER", native=DariusNativeSkinProfiles.Dunkmaster },
-        new DariusSkinSpec { name=MechaSkinName, guid=MechaSkinGuid, displayName="机神 德莱厄斯", previewIconKey="SKIN_MECHA", native=DariusNativeSkinProfiles.Mecha }
+        new DariusSkinSpec { name=DefaultSkinName, guid=SkinGuid, displayName="经典德莱厄斯", previewIconKey="SKIN_CLASSIC", native=DariusNativeSkinProfiles.Classic }
     };
 
     private static readonly Dictionary<string, Skin> SkinsByName = new Dictionary<string, Skin>(StringComparer.Ordinal);
