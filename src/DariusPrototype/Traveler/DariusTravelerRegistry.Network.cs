@@ -98,6 +98,79 @@ public static partial class DariusTravelerRegistry
         if (spawned != null) spawned.SetValue(identity, false);
     }
 
+    internal static bool TryGetRuntimeNetworkTemplateLabel(GameObject go, out string label)
+    {
+        label = null;
+        if (go == null) return false;
+        if (HeroPrefab != null && object.ReferenceEquals(go, HeroPrefab.gameObject)) { label = HeroName; return true; }
+        if (AttackPrefab != null && object.ReferenceEquals(go, AttackPrefab.gameObject)) { label = AttackName; return true; }
+        if (AttackInstancePrefab != null && object.ReferenceEquals(go, AttackInstancePrefab.gameObject)) { label = AttackInstanceName; return true; }
+        if (AttackCritInstancePrefab != null && object.ReferenceEquals(go, AttackCritInstancePrefab.gameObject)) { label = AttackCritInstanceName; return true; }
+        return false;
+    }
+
+    internal static void LogRuntimeNetworkTemplateStates(string reason)
+    {
+        LogRuntimeNetworkTemplateState(HeroPrefab != null ? HeroPrefab.gameObject : null, HeroName, reason);
+        LogRuntimeNetworkTemplateState(AttackPrefab != null ? AttackPrefab.gameObject : null, AttackName, reason);
+        LogRuntimeNetworkTemplateState(AttackInstancePrefab != null ? AttackInstancePrefab.gameObject : null, AttackInstanceName, reason);
+        LogRuntimeNetworkTemplateState(AttackCritInstancePrefab != null ? AttackCritInstancePrefab.gameObject : null, AttackCritInstanceName, reason);
+    }
+
+    private static void LogRuntimeNetworkTemplateState(GameObject go, string label, string reason)
+    {
+        if (go == null)
+        {
+            DariusLog.DebugInfo("TRAVELER-NET-LIFETIME", reason + " template=" + label + " state=<missing>");
+            return;
+        }
+
+        try
+        {
+            NetworkIdentity identity = go.GetComponent<NetworkIdentity>();
+            if (identity == null)
+            {
+                DariusLog.DebugInfo("TRAVELER-NET-LIFETIME", reason + " template=" + label + " identity=<null>");
+                return;
+            }
+
+            bool serverSpawned = NetworkSpawnedContains(typeof(NetworkServer), identity);
+            bool clientSpawned = NetworkSpawnedContains(typeof(NetworkClient), identity);
+            DariusLog.DebugInfo("TRAVELER-NET-LIFETIME",
+                reason + " template=" + label +
+                " id=" + go.GetInstanceID() +
+                " netId=" + identity.netId +
+                " assetId=" + identity.assetId +
+                " sceneId=" + identity.sceneId +
+                " isServer=" + identity.isServer +
+                " isClient=" + identity.isClient +
+                " activeSelf=" + go.activeSelf +
+                " activeInHierarchy=" + go.activeInHierarchy +
+                " serverSpawned=" + serverSpawned +
+                " clientSpawned=" + clientSpawned +
+                " parent=" + (go.transform.parent != null ? go.transform.parent.name : "<root>"));
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("TRAVELER-NET-LIFETIME", e, "Failed reading template network state label=" + label + " reason=" + reason);
+        }
+    }
+
+    private static bool NetworkSpawnedContains(Type ownerType, NetworkIdentity identity)
+    {
+        if (ownerType == null || identity == null) return false;
+        try
+        {
+            FieldInfo field = ownerType.GetField("spawned", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            IDictionary dictionary = field != null ? field.GetValue(null) as IDictionary : null;
+            if (dictionary == null) return false;
+            foreach (DictionaryEntry entry in dictionary)
+                if (object.ReferenceEquals(entry.Value, identity)) return true;
+        }
+        catch { }
+        return false;
+    }
+
     internal static void ReinitializeNetworkBehaviours(NetworkIdentity identity)
     {
         if (identity == null) return;
