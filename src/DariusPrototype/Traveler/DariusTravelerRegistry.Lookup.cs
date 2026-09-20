@@ -16,7 +16,6 @@ public static partial class DariusTravelerRegistry
         List<string> errors = new List<string>();
         if (HeroPrefab == null) errors.Add("HeroPrefab null");
         if (DefaultSkin == null) errors.Add("DefaultSkin null");
-        if (GodKingSkin == null) errors.Add("GodKingSkin null");
         if (AttackPrefab == null) errors.Add("AttackPrefab null");
         if (AttackInstancePrefab == null) errors.Add("AttackInstancePrefab null");
         if (AttackCritInstancePrefab == null) errors.Add("AttackCritInstancePrefab null");
