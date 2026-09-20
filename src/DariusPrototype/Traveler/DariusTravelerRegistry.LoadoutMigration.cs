@@ -166,13 +166,17 @@ public static partial class DariusTravelerRegistry
     private static void ValidateSkinModelBinding(Skin skin, DariusSkinSpec spec, List<string> errors)
     {
         if (skin == null || spec == null) return;
-        DariusSkinModelBinding binding = skin.GetComponent<DariusSkinModelBinding>();
-        if (binding == null) { errors.Add(skin.name + " model binding missing"); return; }
-        if (!string.Equals(binding.modelFile, spec.modelFile, StringComparison.OrdinalIgnoreCase)) errors.Add(skin.name + " model binding wrong: " + binding.modelFile + " expected=" + spec.modelFile);
-        if (!string.Equals(binding.displayName, spec.displayName, StringComparison.Ordinal)) errors.Add(skin.name + " display binding wrong");
-        if (!string.Equals(binding.variantKey, spec.variantKey, StringComparison.Ordinal)) errors.Add(skin.name + " variant profile wrong");
-        if (binding.modelScale <= 0f) errors.Add(skin.name + " modelScale invalid");
-        string[] required = { binding.idleClip, binding.runClip, binding.deathClip, binding.attack1Clip, binding.attack2Clip, binding.qClip, binding.wClip, binding.eClip, binding.rClip };
-        for (int i = 0; i < required.Length; i++) if (string.IsNullOrEmpty(required[i])) errors.Add(skin.name + " core animation binding missing index=" + i);
+
+        DariusOfficialEntityModelMarker marker = skin.GetComponent<DariusOfficialEntityModelMarker>();
+        if (marker == null)
+        {
+            errors.Add(skin.name + " fresh EntityModel marker missing");
+            return;
+        }
+        if (!string.Equals(marker.variantKey, spec.variantKey, StringComparison.Ordinal))
+            errors.Add(skin.name + " variant profile wrong: " + marker.variantKey + " expected=" + spec.variantKey);
+
+        if (skin.GetComponent<DariusOfficialActionRuntime>() == null)
+            errors.Add(skin.name + " fresh action runtime missing");
     }
 }
