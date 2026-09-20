@@ -84,6 +84,8 @@ public static partial class DariusTravelerRegistry
             DariusLog.Warn("ATK-NATIVE-PREFAB", "Structural attack template still has " + attackResidualRefs + " direct references to the old component before destruction.");
         UnityEngine.Object.DestroyImmediate(oldAttack);
         attack.name = AttackName;
+        attack.allowNonTargetedCast = true;
+        attack.ignoreRangeCheck = false;
 
         if (sourceConfigs == null || sourceConfigs.Length == 0)
         {
@@ -109,13 +111,14 @@ public static partial class DariusTravelerRegistry
             cfg.appliedStatusEffect = null;
             if (cfg.castMethod != null)
             {
-                // Directional melee intent: Cone accepts an aim direction and does not require a
-                // target, so air attacks are legal. The spawned MeleeAttackInstance remains the
-                // native cadence/crit/on-hit carrier; final geometry is the same sector.
-                cfg.castMethod.type = CastMethodType.Cone;
+                // Match the stock melee input contract: Target acquisition is native, while
+                // allowNonTargetedCast keeps empty-space swings legal. Darius owns only the final
+                // forward-sector hit filter.
+                cfg.castMethod.type = CastMethodType.Target;
                 cfg.castMethod._range = At_DariusAxe.AttackRange;
-                cfg.castMethod._radius = At_DariusAxe.AttackRange;
-                cfg.castMethod._angle = At_DariusAxe.AttackArcDegrees;
+                cfg.castMethod._radius = 0f;
+                cfg.castMethod._angle = 0f;
+                cfg.castMethod._isClamping = false;
                 cfg.faceForward = true;
             }
             configs[i] = cfg;
@@ -146,7 +149,8 @@ public static partial class DariusTravelerRegistry
         OwnedObjects.Add(go);
         RegisterTypedResource(attack, go, AttackName, AttackGuid, AttackAssetId);
         DariusLog.Info("ATK-NATIVE-PREFAB", "Registered At_DariusAxe from a native structural template after replacing the concrete stock attack component. configs=" + configs.Length +
-            " normal=" + AttackInstanceName + " crit=" + AttackCritInstanceName + " activeSelf=" + go.activeSelf +
-            " activeInHierarchy=" + go.activeInHierarchy + " runtimeVesperComponents=" + CountVesperNamedComponents(go));
+            " normal=" + AttackInstanceName + " crit=" + AttackCritInstanceName + " method=Target allowNonTargeted=" + attack.allowNonTargetedCast +
+            " activeSelf=" + go.activeSelf + " activeInHierarchy=" + go.activeInHierarchy +
+            " runtimeVesperComponents=" + CountVesperNamedComponents(go));
     }
 }
