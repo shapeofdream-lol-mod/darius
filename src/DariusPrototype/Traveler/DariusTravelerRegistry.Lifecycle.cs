@@ -33,6 +33,27 @@ public static partial class DariusTravelerRegistry
         CompleteProfileRegistration("InitializeWhenReady profile/content phase");
     }
 
+    internal static bool EnsureCoreRegisteredForRewardLookup()
+    {
+        // PlayLobby teardown can destroy the runtime Hero before its reward UI finishes disabling.
+        // Rebuilding the Skin/EntityModel generation inside that old UI lifetime lets its
+        // CharacterModelDisplay repair itself against the new Skin and leave an orphaned preview
+        // model visible after Title loads. When the registry is already initialized but its current
+        // generation is being torn down, defer recovery to the normal scene/content/profile repair
+        // callbacks that run after the transition.
+        if (_registered && (HeroPrefab == null || !AreSkinResourcesReady()))
+        {
+            DariusLog.DebugInfoThrottled(
+                "TRAVELER-SELFHEAL",
+                "reward-ui-teardown-defer",
+                "Deferred reward-UI lookup repair while the registered Hero/Skin generation is being torn down; waiting for normal scene/content lifecycle repair.",
+                2.0);
+            return false;
+        }
+
+        return EnsureCoreRegisteredForLookup("UI_PlayRewardAnnouncer early mastery/reward guard");
+    }
+
     public static bool EnsureCoreRegisteredForLookup(string reason)
     {
         if (_registered && HeroPrefab != null && AreSkinResourcesReady()) return true;
