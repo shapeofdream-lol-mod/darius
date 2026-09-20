@@ -95,14 +95,14 @@ public static partial class DariusRuntimeResourceCompatibility
         {
             EntityStatus status = hero.Status;
             EntityAbility ability = hero.Ability;
-            Component control = FindComponentByTypeName(hero.gameObject, "EntityControl");
+            EntityControl control = hero.Control;
             if (status == null || ability == null || control == null) return true;
 
             var final = status.finalStats;
             float currentHealth = hero.currentHealth;
-            float attackSpeedMultiplier = ReadFloatMember(status, "attackSpeedMultiplier", 1f);
-            float movementSpeedMultiplier = ReadFloatMember(status, "movementSpeedMultiplier", 1f);
-            float baseAgentSpeed = ReadFloatMember(control, "baseAgentSpeed", 1f);
+            float attackSpeedMultiplier = status.attackSpeedMultiplier;
+            float movementSpeedMultiplier = status.movementSpeedMultiplier;
+            float baseAgentSpeed = control.baseAgentSpeed;
             float attackCooldown = 0f;
             try
             {
