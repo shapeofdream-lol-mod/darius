@@ -11,8 +11,6 @@ using UnityEngine;
 // main-branch ownership rule without restoring the raw GLB runtime player.
 public sealed class DariusOfficialActionRuntime : MonoBehaviour
 {
-    private const float MovementThreshold = 0.12f;
-
     [SerializeField] private Animator _animator;
     [SerializeField] private string[] _clipNames;
     [SerializeField] private AnimationClip[] _clips;
@@ -37,8 +35,6 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
     private float _persistentTime;
     private Coroutine _sequence;
 
-    private Vector3 _lastMovementPosition;
-    private float _lastMovementSampleAt;
     private bool _moving;
 
     private bool _wArmed;
@@ -96,12 +92,6 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         BuildLowerBodyMap();
         BuildGodKingWolfMap();
         BuildFacingPivot();
-
-        if (_hero != null)
-        {
-            _lastMovementPosition = _hero.transform.position;
-            _lastMovementSampleAt = Time.time;
-        }
 
         if (_lowerBodyNodes.Length == 0)
             DariusLog.Error("OFFICIAL-ACTION", "No lower-body locomotion nodes resolved skin=" +
@@ -472,18 +462,10 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (_hero == null || _hero.transform == null) return;
-
-        float now = Time.time;
-        float dt = Mathf.Max(0.001f, now - _lastMovementSampleAt);
-        Vector3 position = _hero.transform.position;
-        Vector3 delta = position - _lastMovementPosition;
-        delta.y = 0f;
-        bool moving = delta.magnitude / dt > MovementThreshold;
-        _lastMovementPosition = position;
-        _lastMovementSampleAt = now;
-
+        EntityControl control = _hero != null ? _hero.Control : null;
+        bool moving = control != null && control.isWalking;
         if (moving == _moving) return;
+
         _moving = moving;
         if (_wArmed && _actionClip == null && !_wSwingActive)
             RefreshWPersistentClip();
