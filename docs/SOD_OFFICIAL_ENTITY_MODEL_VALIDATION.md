@@ -631,9 +631,14 @@ runtime-only-resource gap: Addressables lookup/preload, network prefab lookup, i
 attack binding, loot-pool injection, and previously observed UI/profile failures. Removing them
 without a runtime replacement would be speculative cleanup rather than Ponytail simplification.
 
-The convergence head `b9ae09d00197b444878c4fd7130684b2545534a1` passes repository contracts
-and the Release build (CI #506). This is compile/reference-pack validation, not a substitute for the
-pending four-skin runtime smoke test after rebuilding the native bundle.
+The retired runtime animation/retarget asset directories are also gone, and the package project no
+longer carries dead `assets/animations` / `assets/retarget` globs. This keeps the distributable
+contract aligned with the fresh-only runtime instead of advertising deleted compatibility paths.
+
+The convergence code head `03667c87a6ce74aaaf1674406b1ea0035d93d11f` passes repository
+contracts, build-tooling checks, package configuration, and the Release reference-pack build
+(CI #508). This is compile/reference-pack validation, not a substitute for the pending four-skin
+runtime smoke test after rebuilding the native bundle.
 
 Two intentionally deferred areas remain:
 
