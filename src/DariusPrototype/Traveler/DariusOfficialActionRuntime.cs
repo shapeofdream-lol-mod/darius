@@ -19,7 +19,6 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         new Dictionary<string, AnimationClip>(StringComparer.OrdinalIgnoreCase);
 
     private Hero_Darius _hero;
-    private DariusSkinModelBinding _binding;
     private DariusNativeSkinProfile _profile;
 
     private Transform[] _lowerBodyNodes = Array.Empty<Transform>();
@@ -49,7 +48,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
 
     public bool IsReady
     {
-        get { return _animator != null && _binding != null && _clipMap.Count != 0; }
+        get { return _animator != null && _profile != null && _clipMap.Count != 0; }
     }
 
     public void ConfigureTemplate(Animator animator, AnimationClip[] clips)
@@ -85,8 +84,8 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
     public void Bind(Hero_Darius hero)
     {
         _hero = hero;
-        _binding = GetComponent<DariusSkinModelBinding>();
-        _profile = _binding != null ? DariusNativeSkinProfiles.Find(_binding.variantKey) : null;
+        DariusOfficialEntityModelMarker marker = GetComponent<DariusOfficialEntityModelMarker>();
+        _profile = marker != null ? DariusNativeSkinProfiles.Find(marker.variantKey) : null;
         if (_animator == null) _animator = GetComponentInChildren<Animator>(true);
         BuildClipMap();
         BuildLowerBodyMap();
@@ -95,10 +94,10 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
 
         if (_lowerBodyNodes.Length == 0)
             DariusLog.Error("OFFICIAL-ACTION", "No lower-body locomotion nodes resolved skin=" +
-                (_binding != null ? _binding.variantKey : "<null>"));
+                (_profile != null ? _profile.Variant : "<null>"));
 
         DariusLog.Info("OFFICIAL-ACTION",
-            "Bound native action overlay skin=" + (_binding != null ? _binding.variantKey : "<null>") +
+            "Bound native action overlay skin=" + (_profile != null ? _profile.Variant : "<null>") +
             " animator=" + (_animator != null ? _animator.gameObject.name : "<null>") +
             " clips=" + _clipMap.Count +
             " lowerBodyNodes=" + _lowerBodyNodes.Length +
@@ -107,17 +106,17 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
 
     public bool PlayQ(bool instant)
     {
-        if (!IsReady || _binding == null) return false;
+        if (!IsReady) return false;
         RestartSequence(PlayQSequence(instant));
         return true;
     }
 
     public bool PlayAttack(bool alternate, bool critical, Vector3 direction)
     {
-        if (!IsReady || _binding == null) return false;
-        string actionName = critical ? _binding.critClip : (alternate ? _binding.attack2Clip : _binding.attack1Clip);
-        string tailName = critical ? _binding.critToIdleClip :
-            (alternate ? _binding.attack2ToIdleClip : _binding.attack1ToIdleClip);
+        if (!IsReady) return false;
+        string actionName = critical ? _profile.Crit : (alternate ? _profile.Attack2 : _profile.Attack1);
+        string tailName = critical ? _profile.CritToIdle :
+            (alternate ? _profile.Attack2ToIdle : _profile.Attack1ToIdle);
         AnimationClip action = FindClip(actionName);
         if (action == null) return false;
         RestartSequence(PlayAttackSequence(action, tailName, direction));
@@ -126,8 +125,8 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
 
     public bool PlayW(Vector3 direction)
     {
-        if (!IsReady || _binding == null) return false;
-        AnimationClip action = FindClip(_binding.wClip);
+        if (!IsReady) return false;
+        AnimationClip action = FindClip(_profile.W);
         if (action == null) return false;
         RestartSequence(PlayWAttackSequence(action, direction));
         return true;
@@ -165,21 +164,21 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
 
     public bool PlayE()
     {
-        if (!IsReady || _binding == null) return false;
-        AnimationClip action = FindClip(_binding.eClip);
+        if (!IsReady) return false;
+        AnimationClip action = FindClip(_profile.E);
         if (action == null) return false;
         RestartSequence(PlayLocomotionActionSequence(
-            action, _binding.eToIdleClip, _binding.eToRunClip, false));
+            action, _profile.EToIdle, _profile.EToRun, false));
         return true;
     }
 
     public bool PlayR()
     {
-        if (!IsReady || _binding == null) return false;
-        AnimationClip action = FindClip(_binding.rClip);
+        if (!IsReady) return false;
+        AnimationClip action = FindClip(_profile.R);
         if (action == null) return false;
         RestartSequence(PlayLocomotionActionSequence(
-            action, null, _binding.rToRunClip, IsGodKing));
+            action, null, _profile.RToRun, IsGodKing));
         return true;
     }
 
@@ -204,10 +203,10 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
 
     private IEnumerator PlayQSequence(bool instant)
     {
-        AnimationClip q = FindClip(_binding.qClip);
+        AnimationClip q = FindClip(_profile.Q);
         if (q == null)
         {
-            DariusLog.Warn("OFFICIAL-ACTION", "Q clip missing skin=" + _binding.variantKey + " clip=" + _binding.qClip);
+            DariusLog.Warn("OFFICIAL-ACTION", "Q clip missing skin=" + _profile.Variant + " clip=" + _profile.Q);
             _sequence = null;
             yield break;
         }
@@ -224,7 +223,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
             yield break;
         }
 
-        AnimationClip intro = FindClip(_binding.qIntroClip);
+        AnimationClip intro = FindClip(_profile.QIntro);
         const float swingLead = 0.08f;
         float windupToSwing = Mathf.Max(0.05f, Ai_Darius_Decimate.Windup - swingLead);
 
@@ -423,7 +422,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
             _persistentClip = clip;
             _persistentTime = 0f;
             DariusLog.DebugInfo("OFFICIAL-ACTION",
-                "W persistent skin=" + (_binding != null ? _binding.variantKey : "<null>") +
+                "W persistent skin=" + (_profile != null ? _profile.Variant : "<null>") +
                 " moving=" + _moving +
                 " clip=" + (_persistentClip != null ? _persistentClip.name : "<stock-locomotion>"));
         }
@@ -448,7 +447,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         _actionTime = 0f;
         _actionSpeed = Mathf.Max(0.05f, speed);
         DariusLog.DebugInfo("OFFICIAL-ACTION",
-            "Start skin=" + (_binding != null ? _binding.variantKey : "<null>") +
+            "Start skin=" + (_profile != null ? _profile.Variant : "<null>") +
             " clip=" + (clip != null ? clip.name : "<null>") +
             " speed=" + _actionSpeed.ToString("0.###"));
     }
@@ -511,7 +510,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
         catch (Exception e)
         {
             DariusLog.Exception("OFFICIAL-ACTION", e,
-                "Native clip sampling failed skin=" + (_binding != null ? _binding.variantKey : "<null>") +
+                "Native clip sampling failed skin=" + (_profile != null ? _profile.Variant : "<null>") +
                 " clip=" + clip.name);
             ClearAction();
             return;
@@ -669,7 +668,7 @@ public sealed class DariusOfficialActionRuntime : MonoBehaviour
 
     private bool IsGodKing
     {
-        get { return _binding != null && _binding.isGodKingSkin; }
+        get { return _profile != null && _profile.GodKing; }
     }
 
     private void ResizeLowerBodyBuffers(int count)
