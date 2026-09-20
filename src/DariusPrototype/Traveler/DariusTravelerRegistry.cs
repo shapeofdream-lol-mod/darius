@@ -101,11 +101,7 @@ public static partial class DariusTravelerRegistry
             if (!SkinsByName.TryGetValue(spec.name, out skin) || skin == null || skin.gameObject == null) return false;
             EntityModel model = skin.GetComponent<EntityModel>();
             if (model == null || skin.GetComponent<DariusSkinModelBinding>() == null) return false;
-            if (UsesOfficialFreshEntityModel(spec))
-            {
-                if (skin.GetComponent<DariusOfficialEntityModelMarker>() == null || model.isInitialized) return false;
-            }
-            else if (skin.GetComponent<DariusNativeModelHost>() == null) return false;
+            if (skin.GetComponent<DariusOfficialEntityModelMarker>() == null || model.isInitialized) return false;
         }
         return true;
     }
