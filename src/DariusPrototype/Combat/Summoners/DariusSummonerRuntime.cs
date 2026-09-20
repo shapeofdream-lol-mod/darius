@@ -13,26 +13,9 @@ public static class DariusSummonerRuntime
         Vector3 castPoint = owner.transform.position;
         try { castPoint = info.point; } catch { }
 
-        // Flash is configured as a move-direction skill. v0.18.4 accidentally gave castPoint
-        // priority, so mouse/cursor targeting could pull Flash away from the direction the character
-        // was actually moving. First use the Darius model bridge's measured world movement; this is
-        // independent of EntityControl member names and directly represents the direction seen in game.
-        try
-        {
-            DariusTravelerModelInstance traveler = owner.GetComponentInChildren<DariusTravelerModelInstance>(true);
-            Vector3 measured;
-            if (traveler != null && traveler.TryGetRecentMovementDirection(out measured))
-            {
-                dir = measured;
-                source = "movement:measured-displacement";
-            }
-        }
-        catch (Exception e)
-        {
-            DariusLog.DebugInfo("FLASH-DIR", "Measured movement lookup failed: " + e.GetType().Name + ": " + e.Message);
-        }
-
-        // Then try live/last EntityControl movement fields for the frame where input direction has
+        // Prefer the game's live/last EntityControl movement fields. The retired model player
+        // no longer maintains a second movement-direction cache.
+        // This also covers the frame where input direction has just changed but displacement has
         // just changed but displacement has not yet been sampled.
         try
         {
