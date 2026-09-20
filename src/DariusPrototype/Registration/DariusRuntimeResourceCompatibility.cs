@@ -134,6 +134,25 @@ public static partial class DariusRuntimeResourceCompatibility
                     m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(string));
             patched += PatchOne(harmony, skinIncluded, null, nameof(IsSkinIncludedPostfix), "Dew.IsSkinIncludedInGame");
 
+            MethodInfo[] networkServerSpawnMethods = typeof(NetworkServer)
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .Where(m => m.Name == "Spawn" &&
+                            m.GetParameters().Length >= 1 &&
+                            m.GetParameters()[0].ParameterType == typeof(GameObject))
+                .ToArray();
+            for (int i = 0; i < networkServerSpawnMethods.Length; i++)
+                patched += PatchOne(harmony, networkServerSpawnMethods[i], nameof(NetworkServerSpawnPrefix), null, "NetworkServer.Spawn runtime-template diagnostic");
+
+            MethodInfo networkServerShutdown = typeof(NetworkServer)
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .FirstOrDefault(m => m.Name == "Shutdown" && m.GetParameters().Length == 0);
+            patched += PatchOne(harmony, networkServerShutdown, nameof(NetworkServerShutdownPrefix), null, "NetworkServer.Shutdown runtime-template diagnostic");
+
+            MethodInfo networkClientShutdown = typeof(NetworkClient)
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .FirstOrDefault(m => m.Name == "Shutdown" && m.GetParameters().Length == 0);
+            patched += PatchOne(harmony, networkClientShutdown, nameof(NetworkClientShutdownPrefix), null, "NetworkClient.Shutdown runtime-template diagnostic");
+
             MethodInfo actorPrepare = typeof(Actor).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                 .FirstOrDefault(m => m.Name == "PrepareAndSpawn");
             patched += PatchOne(harmony, actorPrepare, nameof(ActorPrepareAndSpawnPrefix), null, "Actor.PrepareAndSpawn");
@@ -148,7 +167,7 @@ public static partial class DariusRuntimeResourceCompatibility
 
             _installed = true;
             DariusLog.Info("RESOURCE-COMPAT", "Runtime resource compatibility installed. patchedMethods=" + patched +
-                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/RewardGuard/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skill-gem-star-skin inclusion/PrepareAndSpawn/EntityAbility/LootManager; shared generic DewResources hooks disabled).");
+                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/RewardGuard/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skill-gem-star-skin inclusion/network-template diagnostics/PrepareAndSpawn/EntityAbility/LootManager; shared generic DewResources hooks disabled).");
         }
         catch (Exception e)
         {
