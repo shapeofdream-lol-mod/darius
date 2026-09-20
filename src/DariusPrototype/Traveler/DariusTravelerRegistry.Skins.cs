@@ -113,21 +113,17 @@ public static partial class DariusTravelerRegistry
     {
         DariusNativeSkinProfile profile = spec.native;
         if (profile == null) throw new InvalidOperationException("Darius skin has no native profile: " + spec.name);
-        bool officialFreshModel = UsesOfficialFreshEntityModel(spec);
-        GameObject go = officialFreshModel
-            ? DariusNativeModelAssets.InstantiateFreshEntityModelTemplate(profile.Variant, _resourceRoot.transform)
-            : new GameObject(spec.name);
+        GameObject go = DariusNativeModelAssets.InstantiateFreshEntityModelTemplate(
+            profile.Variant,
+            _resourceRoot.transform);
         if (go == null)
             throw new InvalidOperationException("Failed creating skin model template: " + spec.name);
         go.name = spec.name;
         go.transform.SetParent(_resourceRoot.transform, false);
         go.SetActive(true);
         go.hideFlags = HideFlags.None;
-        if (officialFreshModel)
-        {
-            DariusOfficialEntityModelMarker marker = go.AddComponent<DariusOfficialEntityModelMarker>();
-            marker.variantKey = profile.Variant;
-        }
+        DariusOfficialEntityModelMarker marker = go.AddComponent<DariusOfficialEntityModelMarker>();
+        marker.variantKey = profile.Variant;
 
         Skin skin = go.AddComponent<Skin>();
         skin.name = spec.name;
@@ -158,30 +154,12 @@ public static partial class DariusTravelerRegistry
         RestoreUnitySerializedFields(model, CaptureUnitySerializedFields(sourceModel, typeof(EntityModel)));
         model.name = spec.name; model.bodyRenderers = new Renderer[0]; model.fxLoop = null; model.fxDeath = null; model.fxTakeDamage = null;
         model.customMappings = new List<EntityModelCustomMapping>();
-        if (officialFreshModel)
-        {
-            ConfigureOfficialFreshEntityModel(go, model, sourceModel, profile);
-        }
-        else
-        {
-            model.healthBarPosition = CreateSkinAnchor(go.transform, spec.name + "_HealthBarAnchor", new Vector3(0f, 2.75f, 0f));
-            model.weapon = CreateSkinAnchor(go.transform, spec.name + "_WeaponAnchor", new Vector3(0f, 1.25f, 0.45f));
-            model.holsteredWeapon = CreateSkinAnchor(go.transform, spec.name + "_HolsteredWeaponAnchor", new Vector3(0f, 1.2f, -0.25f));
-            if (go.GetComponent<DariusNativeModelHost>() == null) go.AddComponent<DariusNativeModelHost>();
-            if (DariusNativeModelAssets.CanUseLegacyFallback(go) && go.GetComponent<DariusTravelerModelInstance>() == null)
-                go.AddComponent<DariusTravelerModelInstance>();
-        }
+        ConfigureOfficialFreshEntityModel(go, model, sourceModel, profile);
         OwnedObjects.Add(go);
         RegisterNamedResource(skin, go, spec.name, spec.guid);
         DariusLog.Info("TRAVELER-SKIN", "Created runtime skin=" + spec.name + " guid=" + spec.guid +
             " model=" + profile.GlbFile + " profile=" + profile.Variant + " display=" + spec.displayName);
         return skin;
-    }
-
-    private static bool UsesOfficialFreshEntityModel(DariusSkinSpec spec)
-    {
-        // All shipped Darius skins now use the runtime-validated fresh EntityModel path.
-        return spec != null && spec.native != null;
     }
 
     private static void ConfigureOfficialFreshEntityModel(
