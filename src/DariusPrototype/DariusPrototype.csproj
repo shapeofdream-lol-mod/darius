@@ -9,7 +9,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AssemblyName>DariusPrototype</AssemblyName>
     <RootNamespace>DariusPrototype</RootNamespace>
-    <SodReferencePackVersion Condition="'$(SodReferencePackVersion)' == ''">0.1.0</SodReferencePackVersion>
+    <SodReferencePackVersion Condition="'$(SodReferencePackVersion)' == ''">0.1.1</SodReferencePackVersion>
   </PropertyGroup>
 
   <!--
@@ -80,18 +80,21 @@
            Text="Game assemblies not found. Set GameDir: dotnet build -p:GameDir=&quot;...\Shape of Dreams&quot;, the SOD_GAME_DIR environment variable, or a git-ignored Directory.Build.props." />
   </Target>
 
-  <!-- Deployable package contents. Extraction sources stay out; only the Pass2 routing manifest is retained. -->
+  <!-- Deployable package contents. Raw extraction/source assets stay out; only runtime dependencies are retained. -->
   <ItemGroup>
     <_PackageFile Include="$(ModRootDir)\about\**\*" Dest="about\%(RecursiveDir)%(Filename)%(Extension)" />
     <_PackageFile Include="$(ModRootDir)\assets\audio\**\*"
                   Exclude="$(ModRootDir)\assets\audio\vo_*.wav;$(ModRootDir)\assets\audio\**\vo_*.wav"
                   Dest="assets\audio\%(RecursiveDir)%(Filename)%(Extension)" />
-    <_PackageFile Include="$(ModRootDir)\assets\animations\**\*" Dest="assets\animations\%(RecursiveDir)%(Filename)%(Extension)" />
     <_PackageFile Include="$(ModRootDir)\assets\icons\**\*" Dest="assets\icons\%(RecursiveDir)%(Filename)%(Extension)" />
     <_PackageFile Include="$(ModRootDir)\assets\lol_vfx\**\*" Dest="assets\lol_vfx\%(RecursiveDir)%(Filename)%(Extension)" />
-    <_PackageFile Include="$(ModRootDir)\assets\models\**\*" Dest="assets\models\%(RecursiveDir)%(Filename)%(Extension)" />
-    <_PackageFile Include="$(ModRootDir)\assets\retarget\**\*" Dest="assets\retarget\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- GLBs are native-bundle source assets only; ship the generated runtime bundle, not the source models. -->
+    <_PackageFile Include="$(ModRootDir)\assets\models\**\*"
+                  Exclude="$(ModRootDir)\assets\models\**\*.glb"
+                  Dest="assets\models\%(RecursiveDir)%(Filename)%(Extension)" />
     <_PackageFile Include="$(ModRootDir)\assets\vfx\**\*" Dest="assets\vfx\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Converted lol_vfx manifests intentionally reference these shared Riot TEX dependencies via ../raw_lol_vfx_pass2/dependencies. -->
+    <_PackageFile Include="$(ModRootDir)\assets\raw_lol_vfx_pass2\dependencies\**\*" Dest="assets\raw_lol_vfx_pass2\dependencies\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Runtime reads the Pass2 Wwise key manifest from here; the .wem sources stay out. -->
     <_PackageFile Include="$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json" Dest="assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json" />
   </ItemGroup>
@@ -116,10 +119,11 @@
   <!-- Existence/format boundary checks only; no asset counts. See docs/assets.md for the asset pipeline. -->
   <Target Name="VerifyPackageAssets" DependsOnTargets="VerifyVoiceAssets">
     <Error Condition="!Exists('$(ModRootDir)\about\metadata.json')" Text="about/metadata.json is missing; the loader requires it in the package." />
-    <Error Condition="!Exists('$(ModRootDir)\assets\models\darius.glb')" Text="assets/models is missing. Prepare the asset pack first; see docs/assets.md." />
+    <Error Condition="!Exists('$(ModRootDir)\assets\models\darius_models.bundle')" Text="assets/models/darius_models.bundle is missing. Build the native model bundle with tools/DariusUnityAssets/Build-NativeModels.ps1 before packaging or deploying this branch." />
     <Error Condition="!Exists('$(ModRootDir)\assets\lol_vfx\darius_lol_vfx.json')" Text="assets/lol_vfx/darius_lol_vfx.json is missing. See docs/assets.md." />
+    <Error Condition="!Exists('$(ModRootDir)\assets\raw_lol_vfx_pass2\dependencies')" Text="assets/raw_lol_vfx_pass2/dependencies is missing. Converted Riot VFX manifests reference these TEX files at runtime." />
     <Error Condition="!Exists('$(ModRootDir)\assets\audio\flash.ogg')" Text="assets/audio is missing. See docs/assets.md." />
-    <Error Condition="!Exists('$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json')" Text="assets/raw_lol_audio/PASS2_MEDIA_MANIFEST.json is missing; the runtime needs it to route Pass2 audio." />
+    <Error Condition="!Exists('$(ModRootDir)\assets\raw_lol_audio\PASS2_MEDIA_MANIFEST.json')" Text="assets/raw_lol_audio\PASS2_MEDIA_MANIFEST.json is missing; the runtime needs it to route Pass2 audio." />
   </Target>
 
   <!-- Package flow: validate Release -> validate assets -> compile -> replace build/ with a clean snapshot. -->

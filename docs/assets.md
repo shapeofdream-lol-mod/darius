@@ -114,17 +114,17 @@ assets/lol_vfx/meshes/*.json
 ```
 
 - 脚本自行解析 Riot `PROP` 二进制容器（`VfxSystemDefinitionData`），不依赖第三方库。
-- 运行时由 `src/DariusPrototype/DariusLolVfxRuntime.cs` 解释这些参数，映射到 Unity `ParticleSystem` / 转换后的网格。
+- 运行时由 `src/DariusPrototype/Presentation/Vfx/DariusLolVfxRuntime.cs` 解释这些参数，映射到 Unity `ParticleSystem` / 转换后的网格。
 - **原则**：不受支持的 Riot 原语显式记录并跳过（fidelity gate），不得用自制效果冒充。
 
 ### 3.3 模型与动画
 
-- `assets/models/*.glb`：外部导出产物；预期骨骼/动画/图元数量记录在 `src/DariusPrototype/DariusTravelerSystem.cs` 的 `DariusSkinSpec` 表中，运行时加载时校验并写日志。
+- `assets/models/*.glb`：外部导出产物；预期骨骼/动画/图元数量记录在 `src/DariusPrototype/Traveler/DariusTravelerRegistry.cs` 的 `DariusSkinSpec` 表中，运行时加载时校验并写日志。
 - `assets/animations/*.sodanim.json` + `manifest.json`：预烘焙动画数据；运行时由 `src/DariusPrototype/UniversalAnimation/*` 重定向。
 
 ### 3.4 图标与 Workshop 素材
 
-- `assets/icons/*.png`：从 League 客户端导出的技能/符文/装备/皮肤图标，文件名映射见 `src/DariusPrototype/DariusPrototypeIcons.cs`。
+- `assets/icons/*.png`：从 League 客户端导出的技能/符文/装备/皮肤图标，文件名映射见 `src/DariusPrototype/Presentation/Media/DariusPrototypeIcons.cs`。
 - `about/icon.png`、`about/preview.png`：Steam Workshop 列表图，不参与编译。
 
 ### 3.5 体积优化（发布体积）
