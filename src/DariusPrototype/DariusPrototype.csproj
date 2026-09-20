@@ -86,14 +86,12 @@
     <_PackageFile Include="$(ModRootDir)\assets\audio\**\*"
                   Exclude="$(ModRootDir)\assets\audio\vo_*.wav;$(ModRootDir)\assets\audio\**\vo_*.wav"
                   Dest="assets\audio\%(RecursiveDir)%(Filename)%(Extension)" />
-    <_PackageFile Include="$(ModRootDir)\assets\animations\**\*" Dest="assets\animations\%(RecursiveDir)%(Filename)%(Extension)" />
     <_PackageFile Include="$(ModRootDir)\assets\icons\**\*" Dest="assets\icons\%(RecursiveDir)%(Filename)%(Extension)" />
     <_PackageFile Include="$(ModRootDir)\assets\lol_vfx\**\*" Dest="assets\lol_vfx\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- GLBs are native-bundle source assets only; ship the generated runtime bundle, not the source models. -->
     <_PackageFile Include="$(ModRootDir)\assets\models\**\*"
                   Exclude="$(ModRootDir)\assets\models\**\*.glb"
                   Dest="assets\models\%(RecursiveDir)%(Filename)%(Extension)" />
-    <_PackageFile Include="$(ModRootDir)\assets\retarget\**\*" Dest="assets\retarget\%(RecursiveDir)%(Filename)%(Extension)" />
     <_PackageFile Include="$(ModRootDir)\assets\vfx\**\*" Dest="assets\vfx\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Converted lol_vfx manifests intentionally reference these shared Riot TEX dependencies via ../raw_lol_vfx_pass2/dependencies. -->
     <_PackageFile Include="$(ModRootDir)\assets\raw_lol_vfx_pass2\dependencies\**\*" Dest="assets\raw_lol_vfx_pass2\dependencies\%(RecursiveDir)%(Filename)%(Extension)" />
