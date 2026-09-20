@@ -12,11 +12,6 @@ using UnityEngine;
 // must participate in all of Dew's runtime lookup paths, not just the primary GUID table.
 public static partial class DariusRuntimeResourceCompatibility
 {
-    // The stock browser resolves every known StarEffect before applying its hero/category filter.
-    // Cache the final object, not a MethodInfo: category changes, purchases and hero changes all
-    // rebuild the list and must not repeat reflection for every custom star.
-    private static readonly Dictionary<Type, StarEffect> ResolvedStarByType = new Dictionary<Type, StarEffect>();
-
     private static bool _installed;
 
     public static void Install(Harmony harmony)
@@ -161,28 +156,4 @@ public static partial class DariusRuntimeResourceCompatibility
         }
     }
 
-    private static int PatchSharedGenericObjectLookup(Harmony harmony, string methodName)
-    {
-        MethodInfo[] methods = typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-        for (int i = 0; i < methods.Length; i++)
-        {
-            MethodInfo raw = methods[i];
-            if (raw.Name != methodName || !raw.IsGenericMethodDefinition) continue;
-            Type[] ga = raw.GetGenericArguments();
-            ParameterInfo[] ps = raw.GetParameters();
-            if (ga.Length != 1 || ps.Length < 1 || ps[0].ParameterType != typeof(string)) continue;
-            try
-            {
-                MethodInfo closed = raw.MakeGenericMethod(typeof(UnityEngine.Object));
-                if (closed.ReturnType != typeof(UnityEngine.Object)) continue;
-                return PatchOne(harmony, closed, nameof(SharedGenericDariusLookupPrefix), null,
-                    "DewResources." + methodName + "<UnityEngine.Object>[shared-body]");
-            }
-            catch (Exception e)
-            {
-                DariusLog.Exception("RESOURCE-COMPAT", e, "Could not close shared generic lookup " + methodName);
-            }
-        }
-        return 0;
-    }
 }
