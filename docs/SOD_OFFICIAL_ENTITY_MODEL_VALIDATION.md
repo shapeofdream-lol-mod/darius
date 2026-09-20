@@ -651,6 +651,42 @@ Two intentionally deferred areas remain:
 Do not expand either subsystem merely to make the architecture look uniform. The next change should
 start only from a concrete runtime failure or a verified public SoD contract that removes code.
 
+
+## Pending basic-attack range contract smoke test — 2026-09-20
+
+The working `fix/basic-attack-range-desync` branch was reviewed before migration. Its final useful
+contract is now ported to the fresh-only branch without the discarded runtime collider/reflection
+experiments:
+
+- the Darius attack preset is configured once at construction time with stock-style
+  `CastMethodType.Target` semantics;
+- `AttackTrigger.allowNonTargetedCast=true` keeps empty-space swings legal;
+- the native `MeleeAttackInstance` keeps its fixed broad phase;
+- each accepted swing snapshots its live `TriggerConfig.effectiveRange`;
+- the Darius forward-sector filter uses that same captured range rather than a second hard-coded
+  hit distance;
+- the final Darius cleave contract is 2.60 base range and 90 degrees;
+- no runtime `TriggerConfig` rewrite, `scaleRangeWithTriggerRange` reflection, or
+  `DewCollider` geometry-copy layer was introduced.
+
+Runtime acceptance point:
+
+1. Test normal, alternate, and critical attacks at the outer edge of the accepted attack range.
+2. If SoD accepts the attack, the Darius sector filter must not reject the hit because of a smaller
+   independent range.
+3. Confirm a target outside the captured effective range is still rejected.
+4. Confirm large targets use the closest collider contact point rather than transform-center range.
+5. Confirm empty-space attacks remain legal and the following attack/skill can still start.
+6. Repeat while moving and verify visual-facing correction does not change the captured gameplay
+   direction/range.
+
+The same review found that `GetChestAnchor()` had been incorrectly mapped to
+`EntityModel.healthBarPosition`. Chest-attached League VFX now again resolve
+`C_BuffBone_Glb_Chest_Loc / Chest / Spine` from the fresh native hierarchy. Standard weapon and
+health-bar anchors remain on the public `EntityModel` fields.
+
+These are static/compile-target changes only until the four-skin runtime smoke test is performed.
+
 ## Validated knowledge
 
 1. **Freshness matters and is observable.** A custom `EntityModel` template can be registered with
