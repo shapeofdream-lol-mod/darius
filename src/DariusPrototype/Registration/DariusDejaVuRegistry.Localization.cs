@@ -49,7 +49,9 @@ public static partial class DariusDejaVuRegistry
                 __result = DariusLanguage.IsEnglish ? "Darius is one of Noxus's most feared and battle-hardened commanders. He tears through enemy lines with his great axe, turning every wound into the prelude to an execution." : "德莱厄斯是诺克萨斯最令人畏惧、久经沙场的统帅之一。他以巨斧和绝不退让的意志撕开敌阵，让每一道伤口都成为下一次处决的前奏。";
             return;
         }
-        if (key == DariusTravelerRegistry.DefaultSkinName || key == DariusTravelerRegistry.SkinGuid || key == DariusTravelerRegistry.LegacySkinAlias)
+        if (key.IndexOf(DariusTravelerRegistry.DefaultSkinName, StringComparison.OrdinalIgnoreCase) >= 0 ||
+            key.IndexOf(DariusTravelerRegistry.SkinGuid, StringComparison.OrdinalIgnoreCase) >= 0 ||
+            key.IndexOf(DariusTravelerRegistry.LegacySkinAlias, StringComparison.OrdinalIgnoreCase) >= 0)
         {
             if (wantsName)
                 __result = DariusLanguage.IsEnglish ? "Classic Darius" : "经典德莱厄斯";
