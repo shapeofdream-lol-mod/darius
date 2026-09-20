@@ -69,7 +69,8 @@ public static class DariusSkinAnimationHooks
 
     public static Transform GetChestAnchor(Hero hero)
     {
-        Transform anchor = DariusOfficialPresentationSurface.GetHealthBarAnchor(hero);
+        Transform anchor = DariusOfficialPresentationSurface.FindAnchor(
+            hero, "C_BuffBone_Glb_Chest_Loc", "Chest", "Spine");
         return anchor != null ? anchor : (hero != null ? hero.transform : null);
     }
 
