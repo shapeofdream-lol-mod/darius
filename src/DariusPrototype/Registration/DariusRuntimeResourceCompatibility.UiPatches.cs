@@ -57,7 +57,7 @@ public static partial class DariusRuntimeResourceCompatibility
 
     private static void PlayRewardUIPrefix()
     {
-        DariusTravelerRegistry.EnsureCoreRegisteredForLookup("UI_PlayRewardAnnouncer early mastery/reward guard");
+        DariusTravelerRegistry.EnsureCoreRegisteredForRewardLookup();
     }
 
     private static float _nextHeroDetailLogTime;
