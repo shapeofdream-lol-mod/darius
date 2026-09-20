@@ -3,15 +3,26 @@ using System.Reflection;
 using UnityEngine;
 
 // v0.21.0 directional basic-attack pipeline.
-// AttackTrigger still owns cadence/crit/attack lifecycle. Target selection no longer owns the swing:
-// the cast intent is a direction, the native melee instance is anchored to the caster, and the final
-// authoritative hit shape is a caster-centred sector. Every enemy inside that sector may be hit.
+// AttackTrigger keeps stock melee cadence/crit/attack lifecycle and Target acquisition semantics.
+// Darius only snapshots the accepted swing intent/range and applies its final forward-sector filter.
 public sealed class At_DariusAxe : AttackTrigger
 {
-    public const float AttackRange = 1.75f;
-    public const float AttackArcDegrees = 110f;
+    public const float AttackRange = 2.60f;
+    public const float AttackArcDegrees = 90f;
     public const float AttackHalfAngle = AttackArcDegrees * 0.5f;
     public const float ContactTolerance = 0.10f;
+
+    public static float ResolveEffectiveRange(TriggerConfig cfg)
+    {
+        if (cfg == null) return AttackRange;
+        try
+        {
+            if (cfg.effectiveRange > 0.05f) return cfg.effectiveRange;
+            if (cfg.castMethod != null && cfg.castMethod._range > 0.05f) return cfg.castMethod._range;
+        }
+        catch { }
+        return AttackRange;
+    }
 
     public override void OnCastStart(int configIndex, CastInfo info)
     {
@@ -36,29 +47,27 @@ public sealed class At_DariusAxe : AttackTrigger
             direction.y = 0f; direction.Normalize();
             try { info.angle = CastInfo.GetAngle(direction); } catch { }
         }
-        DariusDirectionalBasicAttackState state = hero.GetComponent<DariusDirectionalBasicAttackState>();
-        if (state == null) state = hero.gameObject.AddComponent<DariusDirectionalBasicAttackState>();
-        state.Capture(direction, configIndex);
-
-        // IMPORTANT: no target/range rejection here. A basic attack is always allowed to swing into
-        // empty space. Whether anything is hit is decided only by the directional sector at impact.
-        base.OnCastStart(configIndex, info);
-
-        float effective = AttackRange;
+        TriggerConfig activeConfig = null;
         try
         {
-            if (configs != null && configIndex >= 0 && configIndex < configs.Length && configs[configIndex] != null)
-            {
-                TriggerConfig cfg = configs[configIndex];
-                effective = cfg.effectiveRange > 0.05f ? cfg.effectiveRange : AttackRange;
-            }
+            if (configs != null && configIndex >= 0 && configIndex < configs.Length)
+                activeConfig = configs[configIndex];
         }
         catch { }
+        float effective = ResolveEffectiveRange(activeConfig);
+
+        DariusDirectionalBasicAttackState state = hero.GetComponent<DariusDirectionalBasicAttackState>();
+        if (state == null) state = hero.gameObject.AddComponent<DariusDirectionalBasicAttackState>();
+        state.Capture(direction, configIndex, effective);
+
+        // The registered preset follows stock melee Target semantics and permits empty-space swings
+        // through AttackTrigger.allowNonTargetedCast. Final damage geometry is decided at impact.
+        base.OnCastStart(configIndex, info);
 
         DariusLog.DebugInfo("ATK-DIR", "At_DariusAxe.OnCastStart configIndex=" + configIndex +
             " caster=" + DariusLog.EntityLabel(hero) + " dir=" + DariusLog.Vec(direction) +
-            " range=" + AttackRange.ToString("0.###") + " arc=" + AttackArcDegrees.ToString("0.#") +
-            " effectiveRange=" + effective.ToString("0.###") + " targetIgnoredForAim=true");
+            " fallbackRange=" + AttackRange.ToString("0.###") + " arc=" + AttackArcDegrees.ToString("0.#") +
+            " effectiveRange=" + effective.ToString("0.###") + " castMethod=Target allowNonTargeted=true");
 
         try
         {
