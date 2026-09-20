@@ -561,10 +561,10 @@ deleted:
 - `DariusNativeEntityAnimationLease` and the `EntityAnimation.FrameUpdate` suppression patch
 - legacy model-load / ReplaceAnimation / ability-RPC compatibility patches
 
-`DariusSkinModelBinding` was deliberately retained and isolated as a small data-only component,
-because fresh registration and the action overlay still need the authored skin/clip mapping. This is
-the intended distinction between useful behavior metadata from `main` and the obsolete runtime
-engine that previously consumed it.
+The first cleanup pass temporarily isolated `DariusSkinModelBinding`, then a second pass removed it
+after proving it duplicated `DariusNativeSkinProfile`. Fresh registration and
+`DariusOfficialActionRuntime` now read the same profile object directly. The retained information is
+the authored Darius skin/clip contract from `main`; the duplicate runtime binding component is gone.
 
 Compilation after the deletion exposed only two external references: Flash still read the old
 Traveler model's movement cache, and teardown still cleared the retired animation lease. Both were
@@ -617,10 +617,34 @@ Darius:
 The remaining Darius presentation exceptions are intentionally narrow. They must not grow into a
 second generic model, locomotion, animation, renderer, or displacement framework.
 
-This cleanup is compile/reference-pack validated, not a substitute for the pending four-skin
-runtime smoke test after rebuilding the native bundle. Resource-registration compatibility,
-enemy-rank classification, and passive-state authority are separate subsystems and were not changed
-in this convergence pass.
+Resource compatibility received only deletion-safe cleanup in the same pass:
+
+- unused generic/shared-resource patch factories and the obsolete generic star resolver were removed;
+- the remaining lookup patches are only the ones actually installed by `Install()`;
+- constellation presentation now resolves Darius stars without the removed generic compatibility
+  layer;
+- the Hero detail UI now reads public `EntityStatus` / `EntityControl` members directly instead
+  of reflecting those gameplay values.
+
+The remaining resource patches are intentionally retained because they each correspond to a known
+runtime-only-resource gap: Addressables lookup/preload, network prefab lookup, inclusion checks,
+attack binding, loot-pool injection, and previously observed UI/profile failures. Removing them
+without a runtime replacement would be speculative cleanup rather than Ponytail simplification.
+
+The convergence head `b9ae09d00197b444878c4fd7130684b2545534a1` passes repository contracts
+and the Release build (CI #506). This is compile/reference-pack validation, not a substitute for the
+pending four-skin runtime smoke test after rebuilding the native bundle.
+
+Two intentionally deferred areas remain:
+
+- enemy/miniboss classification still contains broad reflection because the public API evidence does
+  not yet prove an equivalent runtime-promoted-miniboss classifier;
+- Hemorrhage/Noxian Might still have Darius gameplay state alongside native StatusEffect
+  presentation. Collapsing those authorities would change passive gameplay state ownership and
+  requires a dedicated runtime-backed refactor.
+
+Do not expand either subsystem merely to make the architecture look uniform. The next change should
+start only from a concrete runtime failure or a verified public SoD contract that removes code.
 
 ## Validated knowledge
 
