@@ -41,8 +41,14 @@ public static class DariusConstellationStarListRefreshPatch
     private static StarEffect GetStarForBrowser(Type type, ResourceLoadSettings settings)
     {
         if (type == null) return null;
-        StarEffect runtimeStar;
-        if (DariusRuntimeResourceCompatibility.TryResolveRuntimeStar(type, out runtimeStar)) return runtimeStar;
+
+        UnityEngine.Object runtimeObject;
+        if (DariusFormalRegistry.TryGetResourceByExactType(type, out runtimeObject))
+        {
+            StarEffect runtimeStar = runtimeObject as StarEffect;
+            if (runtimeStar != null) return runtimeStar;
+        }
+
         return DewResources.GetByType<StarEffect>(type, settings);
     }
 
