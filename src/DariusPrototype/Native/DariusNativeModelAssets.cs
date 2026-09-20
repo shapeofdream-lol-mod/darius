@@ -12,77 +12,17 @@ internal static partial class DariusNativeModelAssets
     private static readonly Dictionary<string, GameObject> Prefabs =
         new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
 
-    public static bool TryActivate(GameObject owner)
-    {
-        if (owner == null) return false;
-        DariusNativeModelBridge existing = owner.GetComponent<DariusNativeModelBridge>();
-        if (existing != null && existing.IsReady) return true;
-
-        DariusSkinModelBinding binding = owner.GetComponent<DariusSkinModelBinding>();
-        if (binding == null || string.IsNullOrEmpty(binding.variantKey)) return false;
-        GameObject prefab = GetPrefab(binding.variantKey);
-        if (prefab == null) return false;
-
-        GameObject instance = null;
-        DariusNativeModelBridge bridge = existing;
-        try
-        {
-            RemoveStaleNativeRoots(owner.transform);
-            instance = UnityEngine.Object.Instantiate(prefab, owner.transform, false);
-            instance.name = "Darius_Native_Model";
-            instance.transform.localPosition = Vector3.zero;
-            instance.transform.localRotation = Quaternion.identity;
-            instance.transform.localScale = Vector3.one;
-
-            if (bridge == null) bridge = owner.AddComponent<DariusNativeModelBridge>();
-            bridge.Initialize(instance, binding);
-            DariusLog.Info("NATIVE-MODEL", "Activated Unity AssetBundle model skin=" + binding.variantKey +
-                " prefab=" + prefab.name + ".");
-            return true;
-        }
-        catch (Exception e)
-        {
-            if (instance != null)
-            {
-                try { instance.SetActive(false); } catch { }
-                try { UnityEngine.Object.Destroy(instance); } catch { }
-            }
-            if (bridge != null)
-            {
-                try { UnityEngine.Object.Destroy(bridge); } catch { }
-            }
-            DariusLog.Exception("NATIVE-MODEL", e, "Native model activation failed skin=" + binding.variantKey);
-            return false;
-        }
-    }
-
-    public static bool IsActive(GameObject owner)
-    {
-        if (owner == null) return false;
-        DariusNativeModelBridge bridge = owner.GetComponent<DariusNativeModelBridge>();
-        return bridge != null && bridge.IsReady;
-    }
-
     internal static GameObject InstantiateFreshEntityModelTemplate(string variantKey, Transform parent)
     {
         GameObject prefab = GetPrefab(variantKey);
         if (prefab == null) return null;
+
         GameObject instance = UnityEngine.Object.Instantiate(prefab, parent, false);
         instance.name = "Darius_OfficialEntityModel_" + DariusNativeAssetContract.NormalizeVariant(variantKey);
         instance.transform.localPosition = Vector3.zero;
         instance.transform.localRotation = Quaternion.identity;
         instance.transform.localScale = Vector3.one;
         return instance;
-    }
-
-    public static bool CanUseLegacyFallback(GameObject owner)
-    {
-        if (owner == null) return false;
-        DariusSkinModelBinding binding = owner.GetComponent<DariusSkinModelBinding>();
-        if (binding == null || string.IsNullOrEmpty(binding.modelFile) || string.IsNullOrEmpty(DariusMedia.Root))
-            return false;
-        string path = Path.Combine(DariusMedia.Root, "assets", "models", binding.modelFile);
-        return File.Exists(path);
     }
 
     private static GameObject GetPrefab(string variantKey)
@@ -117,7 +57,8 @@ internal static partial class DariusNativeModelAssets
         try
         {
             _bundle = DariusUnityAssetBundleApi.LoadFromFile(path);
-            if (_bundle == null) throw new InvalidOperationException("AssetBundle.LoadFromFile returned null path=" + path);
+            if (_bundle == null)
+                throw new InvalidOperationException("AssetBundle.LoadFromFile returned null path=" + path);
             DariusLog.Info("NATIVE-MODEL", "Loaded native Unity model bundle path=" + path);
             return true;
         }
@@ -132,7 +73,6 @@ internal static partial class DariusNativeModelAssets
 
     public static void Unload()
     {
-        DariusNativeEntityAnimationLease.Clear();
         Prefabs.Clear();
         ClearOverlayMeshes();
         _loadAttempted = false;
@@ -142,16 +82,5 @@ internal static partial class DariusNativeModelAssets
         }
         _bundle = null;
         DariusUnityAssetBundleApi.Reset();
-    }
-
-    private static void RemoveStaleNativeRoots(Transform parent)
-    {
-        for (int i = parent.childCount - 1; i >= 0; i--)
-        {
-            Transform child = parent.GetChild(i);
-            if (child == null || !string.Equals(child.name, "Darius_Native_Model", StringComparison.Ordinal)) continue;
-            try { child.gameObject.SetActive(false); } catch { }
-            try { UnityEngine.Object.Destroy(child.gameObject); } catch { }
-        }
     }
 }
