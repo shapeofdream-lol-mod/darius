@@ -9,38 +9,6 @@ using UnityEngine;
 
 public static partial class DariusRuntimeResourceCompatibility
 {
-    private static Component FindComponentByTypeName(GameObject go, string typeName)
-    {
-        if (go == null || string.IsNullOrEmpty(typeName)) return null;
-        try
-        {
-            Component[] components = go.GetComponents<Component>();
-            for (int i = 0; i < components.Length; i++)
-            {
-                Component c = components[i];
-                if (c != null && string.Equals(c.GetType().Name, typeName, StringComparison.Ordinal)) return c;
-            }
-        }
-        catch { }
-        return null;
-    }
-
-    private static float ReadFloatMember(object obj, string name, float fallback)
-    {
-        if (obj == null) return fallback;
-        try
-        {
-            const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-            Type t = obj.GetType();
-            PropertyInfo p = t.GetProperty(name, flags);
-            if (p != null) return Convert.ToSingle(p.GetValue(obj, null));
-            FieldInfo f = t.GetField(name, flags);
-            if (f != null) return Convert.ToSingle(f.GetValue(obj));
-        }
-        catch { }
-        return fallback;
-    }
-
     // DewResources.Load(string, ResourceLoadSettings): the working reference mod intercepts
     // this exact lookup path and returns its runtime prefab instead of asking Addressables.
     private static bool LoadPrefix(string __0, ref UnityEngine.Object __result)
