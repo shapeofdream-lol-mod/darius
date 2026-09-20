@@ -34,8 +34,8 @@ public static partial class DariusConstellationRegistry
         RegisterStar<Se_Star_Darius_L_Conditioning>(DariusConstellationIds.LConditioning, "b001793e-c937-5343-8d12-bf19ae1b6c80", StarType.Life, 4, 10, "RUNE_CONDITIONING");
         RegisterStar<Se_Star_Darius_L_Unflinching>(DariusConstellationIds.LUnflinching, "4167e69a-c3fb-5e58-a388-8e15d2fb3437", StarType.Life, 4, 15, "RUNE_UNFLINCHING");
 
-        RegisterStar<Se_Star_Darius_I_CripplingStrike>(DariusConstellationIds.ICripplingStrike, "c967018d-e824-5ed9-992c-fffded3be39b", StarType.Flexible, 4, 10, "W");
-        RegisterStar<Se_Star_Darius_I_Apprehend>(DariusConstellationIds.IApprehend, "b86b8872-d105-5770-9965-35f6ce53b365", StarType.Flexible, 4, 10, "E");
+        RegisterStar<Se_Star_Darius_I_CripplingStrike>(DariusConstellationIds.ICripplingStrike, "c967018d-e824-5ed9-992c-fffded3be39b", StarType.Flexible, 4, 0, "W");
+        RegisterStar<Se_Star_Darius_I_Apprehend>(DariusConstellationIds.IApprehend, "b86b8872-d105-5770-9965-35f6ce53b365", StarType.Flexible, 4, 0, "E");
         RegisterStar<Se_Star_Darius_I_InstantDecimate>(DariusConstellationIds.IInstantDecimate, "28a6288e-c433-5f64-bb8e-b1c5347dd808", StarType.Flexible, 4, 25, "Q");
         RegisterStar<Se_Star_Darius_I_WarFervor>(DariusConstellationIds.IWarFervor, "945d0dde-705b-5d19-ae76-12f186c63b6d", StarType.Flexible, 4, 25, "RUNE_FERVOR");
         RegisterStar<Se_Star_Darius_I_LegacyCripplingStrike>(DariusConstellationIds.ILegacyCripplingStrike, "6b98a930-704c-527a-bec2-be6a2e5b8ffa", StarType.Flexible, 4, 10, "W");
