@@ -9,7 +9,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AssemblyName>DariusPrototype</AssemblyName>
     <RootNamespace>DariusPrototype</RootNamespace>
-    <SodReferencePackVersion Condition="'$(SodReferencePackVersion)' == ''">0.1.0</SodReferencePackVersion>
+    <SodReferencePackVersion Condition="'$(SodReferencePackVersion)' == ''">0.1.1</SodReferencePackVersion>
   </PropertyGroup>
 
   <!--
