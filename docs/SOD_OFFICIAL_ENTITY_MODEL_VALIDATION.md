@@ -1,6 +1,6 @@
 # Shape of Dreams Official EntityModel Integration Validation
 
-Status: **Fresh EntityModel lifecycle, stock-controller locomotion, and URP/Unlit native material presentation validated; action integration remains in progress**
+Status: **Fresh EntityModel lifecycle, stock-controller locomotion, and URP/Unlit native material presentation validated; fresh-only action integration remains runtime-validation pending**
 
 This document records the reusable validation path for integrating a custom traveler model through
 Shape of Dreams' public model/animation lifecycle. Nothing in the "Validated knowledge" section
@@ -399,8 +399,8 @@ playback:
 - before action sampling, the stock lower-body pose is captured;
 - after the action clip is sampled, only the leg-chain pose is restored;
 - the model GameObject transform is restored after sampling so world/model placement stays SoD-owned;
-- stock ability-animation RPC presentation is suppressed only when this fresh action overlay is
-  available, preserving a single action-animation owner;
+- stock ability-animation RPC lifecycle remains enabled; the Darius overlay owns only the final
+  sampled model pose and does not replace SoD cast/action state;
 - Q recovery diagnostics now record charge, cooldown, minimum delay, `CanBeCast()`, ability index,
   and `EntityAbility.IsAbilityCastLocked()` after cast and after cooldown expiry.
 
@@ -539,6 +539,88 @@ stale bundle.
 Repository contracts, build tooling checks, package configuration, and the Release build all pass at
 `776d4855d95c6f6a64e83ec43bd4b0e530a69050`. Runtime behavior remains unvalidated until the
 bundle is rebuilt and repeated Q/R/basic attacks plus God-King alpha/hidden-prop behavior are tested.
+
+## Ponytail architecture convergence — 2026-09-20
+
+After the fresh EntityModel path became authoritative for all shipped skins, the remaining legacy
+model stack was reviewed using the Ponytail rule: retain Darius-specific semantics, but remove
+parallel systems where SoD already owns the lifecycle.
+
+The registration path first proved that the old fallback was unreachable: every shipped skin must
+have a `DariusNativeSkinProfile`, and that same condition was previously used to choose the fresh
+path. Registration/readiness were therefore simplified to fresh EntityModel only.
+
+The following retired runtime systems were then disconnected from all presentation entry points and
+deleted:
+
+- `DariusNativeModelHost`
+- `DariusNativeModelBridge*`
+- `DariusTravelerModelInstance` runtime player
+- `DariusGlbRuntimeModel*` raw GLB parser/skinner/animation player
+- `UniversalAnimation/*` / `UniversalRetargeter`
+- `DariusNativeEntityAnimationLease` and the `EntityAnimation.FrameUpdate` suppression patch
+- legacy model-load / ReplaceAnimation / ability-RPC compatibility patches
+
+`DariusSkinModelBinding` was deliberately retained and isolated as a small data-only component,
+because fresh registration and the action overlay still need the authored skin/clip mapping. This is
+the intended distinction between useful behavior metadata from `main` and the obsolete runtime
+engine that previously consumed it.
+
+Compilation after the deletion exposed only two external references: Flash still read the old
+Traveler model's movement cache, and teardown still cleared the retired animation lease. Both were
+removed without restoring compatibility shims. Repository contracts and the Release build then
+passed at `f5bb09df512b192c7bfe9ee7f27ecbbbf348ddd8`.
+
+Two additional thin custom layers were replaced with explicit SoD public contracts:
+
+- `DariusOfficialActionRuntime` now uses `Hero.Control.isWalking` instead of maintaining a
+  second world-position/time movement sampler;
+- standard weapon and health/chest presentation anchors now come from
+  `EntityModel.weapon` / `EntityModel.healthBarPosition`; generic hierarchy lookup remains only
+  for uncommon LoL-specific named anchors.
+
+These changes passed the Release reference-pack build at
+`f2fc28e4a63b0a1f062a418b2344eab50d6320dd`.
+
+Apprehend displacement was also simplified. The previous implementation searched loaded
+assemblies for `DispByDestination`, instantiated it reflectively, enumerated arbitrary
+fields/properties, inferred values from member names, and reflected over
+`EntityControl.StartDisplacement` overloads. SoD publicly exposes `Knockback` as its helper for a
+non-friendly displacement with explicit `distance`, `duration`, `ignoreTenacity`, and
+`ApplyWithDirection`. Apprehend already computes an exact destination, so the native path now
+uses the target-to-destination direction and distance with that helper. The existing short
+time-based fallback is retained only if the official helper throws; no reflection adapter remains.
+
+Flash direction likewise uses the public everywhere-available
+`EntityControl.agentVelocity` instead of probing private movement member names. The normal
+cast-point and facing fallbacks remain unchanged.
+
+The combined official-control/displacement changes pass repository contracts and the Release build
+at `6a3ffaac8e4bed158f70d145aab13b72d51dc214` (CI #497).
+
+Current ownership boundary:
+
+```text
+SoD:
+  Hero / EntityModel / EntityVisual / EntityAnimation / EntityControl
+  cast/action lifecycle / locomotion / displacement primitives
+
+Darius:
+  gameplay semantics
+  skin + clip metadata
+  moving-action lower-body pose composition
+  attack/W visual-facing pivot
+  God-King authored prop timing
+  LoL material-hash/submesh overlays
+```
+
+The remaining Darius presentation exceptions are intentionally narrow. They must not grow into a
+second generic model, locomotion, animation, renderer, or displacement framework.
+
+This cleanup is compile/reference-pack validated, not a substitute for the pending four-skin
+runtime smoke test after rebuilding the native bundle. Resource-registration compatibility,
+enemy-rank classification, and passive-state authority are separate subsystems and were not changed
+in this convergence pass.
 
 ## Validated knowledge
 
