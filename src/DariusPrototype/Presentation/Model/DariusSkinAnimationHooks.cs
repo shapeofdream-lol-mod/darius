@@ -61,8 +61,17 @@ public static class DariusSkinAnimationHooks
         return marker != null && !string.IsNullOrEmpty(marker.variantKey) ? marker.variantKey : "Classic";
     }
 
-    public static Transform GetWeaponAnchor(Hero hero) => GetAnchor(hero, DariusNativeAssetContract.WeaponAnchorNames);
-    public static Transform GetChestAnchor(Hero hero) => GetAnchor(hero, DariusNativeAssetContract.HealthAnchorNames);
+    public static Transform GetWeaponAnchor(Hero hero)
+    {
+        Transform anchor = DariusOfficialPresentationSurface.GetWeaponAnchor(hero);
+        return anchor != null ? anchor : (hero != null ? hero.transform : null);
+    }
+
+    public static Transform GetChestAnchor(Hero hero)
+    {
+        Transform anchor = DariusOfficialPresentationSurface.GetHealthBarAnchor(hero);
+        return anchor != null ? anchor : (hero != null ? hero.transform : null);
+    }
 
     public static Transform GetAnchor(Hero hero, params string[] names)
     {
