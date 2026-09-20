@@ -138,18 +138,6 @@ public static partial class DariusTravelerRegistry
         if (!previewAssigned) DariusLog.Error("SKIN-ICON", "Failed assigning native Skin.previewImage skin=" + spec.name + " key=" + spec.previewIconKey);
         else DariusLog.Info("SKIN-ICON", "Assigned native Skin.previewImage skin=" + spec.name + " key=" + spec.previewIconKey + " sprite=" + skinPreview.name);
 
-        DariusSkinModelBinding binding = go.AddComponent<DariusSkinModelBinding>();
-        binding.skinResourceName = spec.name; binding.modelFile = profile.GlbFile; binding.displayName = spec.displayName;
-        binding.variantKey = profile.Variant; binding.isGodKingSkin = profile.GodKing;
-        binding.modelScale = profile.Scale; binding.modelYOffset = profile.YOffset; binding.modelYaw = profile.Yaw;
-        binding.expectedPrimitives = profile.ExpectedPrimitives; binding.expectedBones = profile.ExpectedBones;
-        binding.expectedAnimations = profile.ExpectedAnimations;
-        binding.idleClip = profile.Idle; binding.idleVariantClip = profile.IdleVariant; binding.runClip = profile.Run; binding.deathClip = profile.Death;
-        binding.attack1Clip = profile.Attack1; binding.attack2Clip = profile.Attack2; binding.critClip = profile.Crit;
-        binding.qIntroClip = profile.QIntro; binding.qClip = profile.Q; binding.wClip = profile.W; binding.eClip = profile.E; binding.rClip = profile.R;
-        binding.attack1ToIdleClip = profile.Attack1ToIdle; binding.attack2ToIdleClip = profile.Attack2ToIdle; binding.critToIdleClip = profile.CritToIdle;
-        binding.eToRunClip = profile.EToRun; binding.eToIdleClip = profile.EToIdle; binding.rToRunClip = profile.RToRun;
-
         EntityModel model = go.AddComponent<EntityModel>();
         RestoreUnitySerializedFields(model, CaptureUnitySerializedFields(sourceModel, typeof(EntityModel)));
         model.name = spec.name; model.bodyRenderers = new Renderer[0]; model.fxLoop = null; model.fxDeath = null; model.fxTakeDamage = null;
