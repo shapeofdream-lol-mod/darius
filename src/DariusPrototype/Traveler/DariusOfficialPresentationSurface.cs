@@ -8,6 +8,24 @@ using UnityEngine;
 // recreating a model host/bridge.
 internal static class DariusOfficialPresentationSurface
 {
+    public static Transform GetWeaponAnchor(Hero hero)
+    {
+        EntityModel model;
+        string variant;
+        return TryGetFreshModel(hero, out model, out variant) && model != null
+            ? model.weapon
+            : null;
+    }
+
+    public static Transform GetHealthBarAnchor(Hero hero)
+    {
+        EntityModel model;
+        string variant;
+        return TryGetFreshModel(hero, out model, out variant) && model != null
+            ? model.healthBarPosition
+            : null;
+    }
+
     public static Transform FindAnchor(Hero hero, params string[] names)
     {
         EntityModel model;
