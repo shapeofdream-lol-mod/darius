@@ -59,9 +59,10 @@ public static class DariusDirectionalBasicAttackSectorPatch
                     " angle=" + angle.ToString("0.##") + " contact=" + DariusLog.Vec(contact), 0.20);
                 return true;
             }
+            float effectiveRange = captured.GetEffectiveRange(At_DariusAxe.AttackRange);
             DariusLog.DebugInfoThrottled("ATK-SECTOR", "block:" + target.GetInstanceID(),
                 "BLOCK target=" + DariusLog.EntityLabel(target) + " contactDist=" + dist.ToString("0.###") +
-                " angle=" + angle.ToString("0.##") + " range=" + At_DariusAxe.AttackRange.ToString("0.###") +
+                " angle=" + angle.ToString("0.##") + " range=" + effectiveRange.ToString("0.###") +
                 " halfAngle=" + At_DariusAxe.AttackHalfAngle.ToString("0.#"), 0.20);
             return false;
         }
