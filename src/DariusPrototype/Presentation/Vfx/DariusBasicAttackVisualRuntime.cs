@@ -28,32 +28,14 @@ public sealed class DariusBasicAttackVisualRuntime : MonoBehaviour
     {
         if (_hero == null) return;
 
-        // The range guide must follow the exact live AttackTrigger configuration. Never hard-code
-        // a second gameplay radius here: if balance changes At_DariusAxe, the visual updates with it.
-        float range = At_DariusAxe.AttackRange;
-        try
-        {
-            At_DariusAxe attack = DariusTravelerRegistry.AttackPrefab;
-            if (attack != null && attack.configs != null && configIndex >= 0 && configIndex < attack.configs.Length)
-            {
-                TriggerConfig cfg = attack.configs[configIndex];
-                if (cfg != null)
-                {
-                    float effective = cfg.effectiveRange;
-                    if (effective > 0.05f) range = effective;
-                    else if (cfg.castMethod != null && cfg.castMethod._range > 0.05f) range = cfg.castMethod._range;
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("ATK-RANGE-VFX", e, "Could not read live attack range; using At_DariusAxe.AttackRange fallback.");
-        }
+        DariusDirectionalBasicAttackState aim = _hero.GetComponent<DariusDirectionalBasicAttackState>();
+        float range = aim != null
+            ? aim.GetEffectiveRange(At_DariusAxe.AttackRange)
+            : At_DariusAxe.AttackRange;
 
         Vector3 forward = _hero.transform.forward;
         try
         {
-            DariusDirectionalBasicAttackState aim = _hero.GetComponent<DariusDirectionalBasicAttackState>();
             if (aim != null) forward = aim.GetDirection(forward);
             else forward = DariusDirectionalBasicAttackGeometry.ResolveAimDirection(_hero, info);
         }
