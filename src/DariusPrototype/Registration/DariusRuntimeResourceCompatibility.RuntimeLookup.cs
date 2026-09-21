@@ -9,39 +9,12 @@ using UnityEngine;
 
 public static partial class DariusRuntimeResourceCompatibility
 {
-    private static void NetworkServerSpawnPrefix(GameObject __0)
-    {
-        string label;
-        if (!DariusTravelerRegistry.TryGetRuntimeNetworkTemplateLabel(__0, out label)) return;
-        DariusTravelerRegistry.LogRuntimeNetworkTemplateStates("NetworkServer.Spawn template=" + label);
-        DariusLog.Warn("TRAVELER-NET-LIFETIME",
-            "NetworkServer.Spawn received the registered runtime template itself: " + label +
-            ". This template should normally be cloned before spawn. Stack=" + Environment.StackTrace);
-    }
-
-    private static void NetworkServerShutdownPrefix()
-    {
-        DariusTravelerRegistry.LogRuntimeNetworkTemplateStates("NetworkServer.Shutdown prefix");
-    }
-
-    private static void NetworkClientShutdownPrefix()
-    {
-        DariusTravelerRegistry.LogRuntimeNetworkTemplateStates("NetworkClient.Shutdown prefix");
-    }
-
     // DewResources.Load(string, ResourceLoadSettings): the working reference mod intercepts
     // this exact lookup path and returns its runtime prefab instead of asking Addressables.
     private static bool LoadPrefix(string __0, ref UnityEngine.Object __result)
     {
         UnityEngine.Object obj;
         bool travelerFound = DariusTravelerRegistry.TryLoad(__0, out obj);
-        if (!travelerFound && DariusTravelerRegistry.IsRuntimeKey(__0))
-        {
-            // First-run teardown can destroy Hero_Darius before a scene callback fires. Never let a
-            // known runtime GUID fall through to Addressables: repair/rebuild it synchronously and retry.
-            DariusTravelerRegistry.RepairRuntimeRegistration("DewResources.Load self-heal key=" + __0);
-            travelerFound = DariusTravelerRegistry.TryLoad(__0, out obj);
-        }
         if (!travelerFound && !DariusFormalRegistry.TryLoad(__0, out obj)) return true;
         Component component = obj as Component;
         __result = component != null ? (UnityEngine.Object)component.gameObject : obj;
@@ -64,15 +37,6 @@ public static partial class DariusRuntimeResourceCompatibility
     {
         GameObject prefab;
         bool travelerFound = DariusTravelerRegistry.TryGetNetworkPrefab(__0, out prefab);
-        bool travelerAssetId = __0 == DariusTravelerRegistry.HeroAssetId ||
-                               __0 == DariusTravelerRegistry.AttackAssetId ||
-                               __0 == DariusTravelerRegistry.AttackInstanceAssetId ||
-                               __0 == DariusTravelerRegistry.AttackCritInstanceAssetId;
-        if (!travelerFound && travelerAssetId)
-        {
-            DariusTravelerRegistry.RepairRuntimeRegistration("DewResources.GetNetworkedPrefab self-heal assetId=" + __0);
-            travelerFound = DariusTravelerRegistry.TryGetNetworkPrefab(__0, out prefab);
-        }
         if (!travelerFound && !DariusFormalRegistry.TryGetNetworkPrefab(__0, out prefab)) return true;
         __result = prefab;
         DariusLog.DebugInfoThrottled("RES-NET", __0.ToString(), "GetNetworkedPrefab intercepted assetId=" + __0 + " prefab=" + prefab.name, 1.0);
@@ -83,13 +47,6 @@ public static partial class DariusRuntimeResourceCompatibility
     {
         UnityEngine.Object obj;
         bool travelerFound = DariusTravelerRegistry.TryGetByType(__0, out obj);
-        bool travelerType = __0 == typeof(Hero_Darius) || __0 == typeof(At_DariusAxe) ||
-                            __0 == typeof(Ai_DariusAxe) || __0 == typeof(Ai_DariusAxe_Crit);
-        if (!travelerFound && travelerType)
-        {
-            DariusTravelerRegistry.RepairRuntimeRegistration("DewResources.GetByType self-heal type=" + (__0 != null ? __0.FullName : "<null>"));
-            travelerFound = DariusTravelerRegistry.TryGetByType(__0, out obj);
-        }
         if (!travelerFound && !DariusFormalRegistry.TryGetResourceByExactType(__0, out obj)) return true;
         __result = obj;
         string typeKey = __0 != null ? __0.FullName : "<null>";
