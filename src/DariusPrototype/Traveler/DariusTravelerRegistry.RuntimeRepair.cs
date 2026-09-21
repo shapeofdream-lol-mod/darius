@@ -42,19 +42,25 @@ public static partial class DariusTravelerRegistry
         _repairing = true;
         try
         {
-            // A completed run can destroy the runtime Hero prefab itself while leaving the Skin,
-            // formal Skills and this static registry alive. In that state merely re-inserting the
-            // old reference into Dew maps cannot work because Unity destroyed objects compare null.
-            // Recreate any missing runtime prefab first, then rebuild every lookup bridge.
-            EnsurePersistentRuntimeObjects(reason ?? "runtime repair");
-            if (HeroPrefab == null || DefaultSkin == null)
+            // Scene/profile/content repair is allowed to restore lookup mappings only.
+            // It must never create a new Hero/Skin/Attack generation: doing that while an old
+            // lobby/title UI is still tearing down can mount a fresh presentation instance into
+            // the outgoing UI hierarchy. Resource creation belongs exclusively to ModBehaviour
+            // bootstrap (EnsureCoreRegisteredForBootstrap/Register).
+            if (HeroPrefab == null || DefaultSkin == null || !AreSkinResourcesReady() ||
+                AttackPrefab == null || AttackInstancePrefab == null || AttackCritInstancePrefab == null)
             {
-                DariusLog.Error("TRAVELER-SELFHEAL", "Runtime repair could not restore required Hero/Skin resources reason=" + (reason ?? "<unknown>"));
+                DariusLog.DebugInfoThrottled(
+                    "TRAVELER-REPAIR",
+                    "missing-generation",
+                    "Skipped registration reassert because the current Traveler resource generation is incomplete; bootstrap owns recreation. reason=" +
+                    (reason ?? "<unknown>"),
+                    2.0);
                 return;
             }
 
-            // Dew/BuildProfile caches and parts of the runtime database are rebuilt when leaving a
-            // run. Reassert Hero/Skin/type/content/network/profile paths after every rebuild beat.
+            // Dew/BuildProfile caches and parts of the runtime database can be rebuilt around
+            // scene transitions. Reassert mappings for the existing generation only.
             RegisterTypes();
             RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
 
@@ -99,15 +105,6 @@ public static partial class DariusTravelerRegistry
             DariusNativeAttackBinder prefabBinder = HeroPrefab != null ? HeroPrefab.GetComponent<DariusNativeAttackBinder>() : null;
             if (prefabBinder != null) prefabBinder.EnsureBound("RepairRuntimeRegistration");
 
-            if (_presentationGenerationRebuilt)
-            {
-                // Existing lobby/reward CharacterModelDisplay instances can already hold AssetRefs
-                // to the destroyed generation. Re-run Dew's authoritative repair transaction only
-                // when we actually replaced the presentation generation.
-                NotifyDewMissingReferenceRepair();
-                _presentationGenerationRebuilt = false;
-            }
-
             DariusLog.DebugInfoThrottled("TRAVELER-REPAIR", reason ?? "<unknown>", "Reasserted Hero_Darius + Darius native attack resource/type/network/profile bridges reason=" + (reason ?? "<unknown>"), 15.0);
         }
         catch (Exception e)
@@ -120,26 +117,5 @@ public static partial class DariusTravelerRegistry
         }
     }
 
-    private static void RebuildSkinPresentationGeneration(string reason)
-    {
-        List<GameObject> stale = new List<GameObject>();
-        foreach (Skin skin in SkinsByName.Values)
-        {
-            if (skin != null && skin.gameObject != null && !stale.Contains(skin.gameObject)) stale.Add(skin.gameObject);
-        }
-        SkinsByName.Clear();
-        DefaultSkin = null; GodKingSkin = null; DunkmasterSkin = null; MechaSkin = null;
-        for (int i = 0; i < stale.Count; i++)
-        {
-            GameObject go = stale[i];
-            OwnedObjects.Remove(go);
-            if (go != null)
-            {
-                try { UnityEngine.Object.Destroy(go); } catch { }
-            }
-        }
-        CreateAndRegisterSkin();
-        _presentationGenerationRebuilt = true;
-        DariusLog.Warn("TRAVELER-SELFHEAL", "Rebuilt complete Skin/EntityModel presentation generation after teardown reason=" + reason + " stale=" + stale.Count);
-    }
+
 }
