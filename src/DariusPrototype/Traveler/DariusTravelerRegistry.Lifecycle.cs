@@ -22,7 +22,7 @@ public static partial class DariusTravelerRegistry
         while (DewResources.database == null)
             yield return null;
 
-        EnsureCoreRegisteredForLookup("InitializeWhenReady core phase");
+        EnsureCoreRegisteredForBootstrap("InitializeWhenReady core phase");
 
         // Profile/content may come online a few frames later on Workshop boot. Once ready, perform
         // the same native unlock/loadout validation pass used by local installs.
@@ -33,44 +33,43 @@ public static partial class DariusTravelerRegistry
         CompleteProfileRegistration("InitializeWhenReady profile/content phase");
     }
 
-    internal static bool EnsureCoreRegisteredForRewardLookup()
+    public static bool EnsureCoreRegisteredForBootstrap(string reason)
     {
-        // PlayLobby teardown can destroy the runtime Hero before its reward UI finishes disabling.
-        // Rebuilding the Skin/EntityModel generation inside that old UI lifetime lets its
-        // CharacterModelDisplay repair itself against the new Skin and leave an orphaned preview
-        // model visible after Title loads. When the registry is already initialized but its current
-        // generation is being torn down, defer recovery to the normal scene/content/profile repair
-        // callbacks that run after the transition.
-        if (_registered && (HeroPrefab == null || !AreSkinResourcesReady()))
-        {
-            DariusLog.DebugInfoThrottled(
-                "TRAVELER-SELFHEAL",
-                "reward-ui-teardown-defer",
-                "Deferred reward-UI lookup repair while the registered Hero/Skin generation is being torn down; waiting for normal scene/content lifecycle repair.",
-                2.0);
-            return false;
-        }
+        bool complete = _registered &&
+                        HeroPrefab != null &&
+                        AreSkinResourcesReady() &&
+                        AttackPrefab != null &&
+                        AttackInstancePrefab != null &&
+                        AttackCritInstancePrefab != null;
+        if (complete) return true;
 
-        return EnsureCoreRegisteredForLookup("UI_PlayRewardAnnouncer early mastery/reward guard");
-    }
-
-    public static bool EnsureCoreRegisteredForLookup(string reason)
-    {
-        if (_registered && HeroPrefab != null && AreSkinResourcesReady()) return true;
-        // Registration itself can invoke Dew/UI callbacks. Never recursively enter Register(); once
-        // Skin+Hero have been created those callbacks can safely consume them, otherwise they defer.
+        // Registration itself can invoke Dew/profile callbacks. Never recursively enter Register().
         if (_registering) return HeroPrefab != null && DefaultSkin != null;
         if (DewResources.database == null) return false;
 
         try
         {
+            // Only ModBehaviour/bootstrap is allowed to create a Traveler resource generation.
+            // If an earlier generation was destroyed during a network/scene teardown, discard its
+            // stale registration state as a unit and create one clean generation here, after the
+            // replacement ModBehaviour has entered the new scene.
+            if (_registered)
+            {
+                DariusLog.Info("TRAVELER-BOOTSTRAP",
+                    "Discarding incomplete Traveler resource generation before bootstrap recreation reason=" +
+                    (reason ?? "<unknown>"));
+                UnregisterRuntimeOnly();
+            }
+
             // Skills must exist before the HeroSkill AssetRef arrays are built.
             DariusFormalRegistry.Register();
-            if (!_registered) Register();
-            else RepairRuntimeRegistration(reason ?? "core lookup self-heal");
-            bool ok = HeroPrefab != null && AreSkinResourcesReady();
+            Register();
+
+            bool ok = HeroPrefab != null && AreSkinResourcesReady() &&
+                      AttackPrefab != null && AttackInstancePrefab != null && AttackCritInstancePrefab != null;
             if (ok)
-                DariusLog.DebugInfoThrottled("TRAVELER-EARLY", reason ?? "lookup", "Core Hero_Darius/Skin_Darius_Default resources available before profile completion.", 2.0);
+                DariusLog.DebugInfoThrottled("TRAVELER-EARLY", reason ?? "bootstrap",
+                    "Core Hero_Darius/Skin_Darius_Default resources available from authoritative bootstrap.", 2.0);
             return ok;
         }
         catch (Exception e)
@@ -84,7 +83,7 @@ public static partial class DariusTravelerRegistry
     {
         if (!_registered || HeroPrefab == null || !AreSkinResourcesReady())
         {
-            if (!EnsureCoreRegisteredForLookup(reason + " core prerequisite")) return;
+            if (!EnsureCoreRegisteredForBootstrap(reason + " core prerequisite")) return;
         }
 
         try
@@ -93,32 +92,12 @@ public static partial class DariusTravelerRegistry
             RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
             EnsureProfiles();
             RepairRuntimeRegistration(reason);
-            NotifyDewMissingReferenceRepair();
+            RepairHeroCosmeticContract(HeroPrefab);
             DariusLog.Info("TRAVELER", "Late profile/content registration completed reason=" + reason);
         }
         catch (Exception e)
         {
             DariusLog.Exception("TRAVELER", e, "Late profile/content registration failed reason=" + reason);
-        }
-    }
-
-    private static void NotifyDewMissingReferenceRepair()
-    {
-        try
-        {
-            // The public DewResources repair pair is the authoritative way to revisit already-created
-            // AssetRef/UI references after a runtime resource becomes available. Merely invoking
-            // onRepairMissingReferences is not equivalent to running the repair transaction.
-            DewResources.RepairMissingReferences_Prepare();
-            DewResources.RepairMissingReferences_Repair();
-            // RepairMissingReferences can replace/light-load resource references. Reassert our
-            // runtime Hero.icon/mainColor and every Skin.previewImage only after that transaction.
-            RepairHeroCosmeticContract(HeroPrefab);
-            DariusLog.Info("TRAVELER-EARLY", "Executed DewResources missing-reference Prepare->Repair and rebound Hero/Skin presentation fields after Workshop profile completion.");
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("TRAVELER-EARLY", e, "DewResources missing-reference Prepare/Repair failed");
         }
     }
 
