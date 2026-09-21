@@ -61,6 +61,24 @@ public static partial class DariusTravelerRegistry
         }
         NetworkPrefabs.Clear();
 
+        // objectToGuidFallback is keyed by the runtime Unity objects themselves. Remove our entries
+        // before destroying a generation so repeated Dew variant clears cannot retain stale wrappers.
+        foreach (KeyValuePair<string, UnityEngine.Object> pair in ResourcesByGuid.ToArray())
+        {
+            UnityEngine.Object resource = pair.Value;
+            if (ReferenceEquals(resource, null)) continue;
+            RemoveDatabaseMappingIfOwned("objectToGuidFallback", resource, pair.Key);
+            Component component = resource as Component;
+            if (ReferenceEquals(component, null)) continue;
+            try
+            {
+                GameObject go = component.gameObject;
+                if (!ReferenceEquals(go, null))
+                    RemoveDatabaseMappingIfOwned("objectToGuidFallback", go, pair.Key);
+            }
+            catch { }
+        }
+
         RemoveTypeFromDew("_allHeroes", typeof(Hero_Darius));
         RemoveTypeFromDew("_allSkills", typeof(St_Darius_Decimate));
         RemoveTypeFromDew("_allSkills", typeof(St_Darius_NoxianGuillotine));
@@ -108,7 +126,14 @@ public static partial class DariusTravelerRegistry
         AttackCritInstancePrefab = null;
         if (_resourceRoot != null) UnityEngine.Object.Destroy(_resourceRoot);
         _resourceRoot = null;
-        DariusNativeModelAssets.Unload();
         DariusLog.Info("TRAVELER", "Runtime Hero_Darius resources unregistered; persistent profile data left untouched.");
+    }
+
+    public static void ShutdownRuntimeResources()
+    {
+        UnhookResourceLifecycle();
+        UnregisterRuntimeOnly();
+        DestroyLifecycleBridge();
+        DariusNativeModelAssets.Unload();
     }
 }
