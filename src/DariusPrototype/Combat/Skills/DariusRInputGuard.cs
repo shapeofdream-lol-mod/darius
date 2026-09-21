@@ -91,6 +91,18 @@ public static class DariusRInputGuard
         DariusLog.Info("R-INPUT", "Installed ControlManager R-attempt/failure guard paths=" + patched + "/7");
     }
 
+    public static void Uninstall()
+    {
+        if (!_installed) return;
+        try
+        {
+            ControlManager manager = ManagerBase<ControlManager>.softInstance;
+            if (manager != null) manager.onCastFailed -= OnCastFailed;
+        }
+        catch { }
+        _installed = false;
+    }
+
     private static void ControlManagerAwakePostfix(ControlManager __instance)
     {
         AttachFailureEvent(__instance);
