@@ -36,7 +36,8 @@ public sealed class DariusPrototypeMod : ModBehaviour
         TravelerBasicAttackVfxReplication.Initialize();
         try
         {
-            if (DewResources.database != null && !string.IsNullOrEmpty(DariusModEnvironment.Root))
+            if (DewResources.database != null && DewResources.variantsParent != null &&
+                !string.IsNullOrEmpty(DariusModEnvironment.Root))
                 DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap("Mod Awake synchronous Workshop bootstrap");
         }
         catch (Exception e)
@@ -124,7 +125,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         // If it is not ready yet, InitializeWhenReady below performs the same operation as soon as it is.
         try
         {
-            if (DewResources.database != null)
+            if (DewResources.database != null && DewResources.variantsParent != null)
                 DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap("Mod Start synchronous Workshop bootstrap");
         }
         catch (Exception e)
@@ -179,8 +180,9 @@ public sealed class DariusPrototypeMod : ModBehaviour
         if (_shutdownCompleted) return;
         _shutdownCompleted = true;
         DariusLog.Info("BOOT", "Cleaning Darius runtime resources: " + reason);
-        DariusTravelerRegistry.UnregisterRuntimeOnly();
+        DariusTravelerRegistry.ShutdownRuntimeResources();
         DariusFormalRegistry.Unregister();
+        DariusRInputGuard.Uninstall();
         try { harmony.UnpatchAll(harmony.Id); } catch { }
         _bootstrapped = false;
         DariusLog.Flush();
