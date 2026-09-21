@@ -11,64 +11,6 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusTravelerRegistry
 {
-    private static void EnsurePersistentRuntimeObjects(string reason)
-    {
-        // Remove Unity-destroyed entries from our ownership list so later application-quit cleanup
-        // only walks live objects. UnityEngine.Object's overloaded == makes destroyed GameObjects
-        // compare null even though the managed wrapper still exists.
-        OwnedObjects.RemoveAll(go => go == null);
-        CreateResourceRoot();
-        ConfigureDariusSkillOwnership();
-
-        bool rebuiltAttack = false;
-        bool rebuiltSkin = false;
-        bool rebuiltHero = false;
-
-        // Hero construction depends on the Darius attack preset. Rebuild the complete attack chain
-        // only if a teardown unexpectedly removed any of it; the normal first-run bug destroys only
-        // Hero_Darius, so this branch should ordinarily remain untouched.
-        if (AttackPrefab == null || AttackInstancePrefab == null || AttackCritInstancePrefab == null)
-        {
-            DariusLog.Warn("TRAVELER-SELFHEAL", "Darius native attack runtime prefab missing; rebuilding attack chain reason=" + reason);
-            CreateAndRegisterNativeBasicAttack();
-            rebuiltAttack = true;
-        }
-
-        bool heroPresentationWasDestroyed = HeroPrefab == null;
-        if (heroPresentationWasDestroyed)
-        {
-            // The observed run teardown destroys Hero_* and invalidates the Skin -> EntityModel
-            // presentation generation in the same transition even when Skin wrappers still compare
-            // non-null. Rebuild the whole generation transactionally before constructing the Hero.
-            DariusLog.Warn("TRAVELER-SELFHEAL", "Hero_Darius runtime prefab was destroyed; invalidating Skin presentation generation reason=" + reason);
-            RebuildSkinPresentationGeneration(reason);
-            rebuiltSkin = true;
-        }
-        else if (!AreSkinResourcesReady())
-        {
-            DariusLog.Warn("TRAVELER-SELFHEAL", "One or more Darius Skin/EntityModel presentation resources are stale; rebuilding full skin generation reason=" + reason);
-            RebuildSkinPresentationGeneration(reason);
-            rebuiltSkin = true;
-            RepairHeroCosmeticContract(HeroPrefab);
-        }
-
-        if (HeroPrefab == null)
-        {
-            DariusLog.Warn("TRAVELER-SELFHEAL", "Hero_Darius runtime prefab was destroyed by run teardown; rebuilding from native structural template reason=" + reason);
-            CreateAndRegisterHero();
-            rebuiltHero = true;
-        }
-
-        if (rebuiltAttack || rebuiltSkin || rebuiltHero)
-        {
-            CreateLifecycleBridge();
-            DariusLog.Info("TRAVELER-SELFHEAL", "Rebuilt runtime resources hero=" + rebuiltHero +
-                " skin=" + rebuiltSkin + " attack=" + rebuiltAttack +
-                " heroInstanceId=" + (HeroPrefab != null ? HeroPrefab.GetInstanceID().ToString() : "<null>") +
-                " reason=" + reason);
-        }
-    }
-
     private static void ReassertTypedRuntimeResource(Component component, string name, string guid, uint assetId)
     {
         if (component == null || DewResources.database == null) return;
