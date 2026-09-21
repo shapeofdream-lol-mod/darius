@@ -55,11 +55,6 @@ public static partial class DariusRuntimeResourceCompatibility
         }
     }
 
-    private static void PlayRewardUIPrefix()
-    {
-        DariusTravelerRegistry.EnsureCoreRegisteredForRewardLookup();
-    }
-
     private static float _nextHeroDetailLogTime;
 
     private static float _nextHeroDetailRefreshTime;
