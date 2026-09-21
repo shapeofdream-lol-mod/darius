@@ -37,7 +37,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         try
         {
             if (DewResources.database != null && !string.IsNullOrEmpty(DariusModEnvironment.Root))
-                DariusTravelerRegistry.EnsureCoreRegisteredForLookup("Mod Awake synchronous Workshop bootstrap");
+                DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap("Mod Awake synchronous Workshop bootstrap");
         }
         catch (Exception e)
         {
@@ -125,7 +125,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         try
         {
             if (DewResources.database != null)
-                DariusTravelerRegistry.EnsureCoreRegisteredForLookup("Mod Start synchronous Workshop bootstrap");
+                DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap("Mod Start synchronous Workshop bootstrap");
         }
         catch (Exception e)
         {
