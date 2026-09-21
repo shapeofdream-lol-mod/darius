@@ -11,6 +11,9 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusTravelerRegistry
 {
+    private static GameObject _lifecycleBridgeObject;
+    private static bool _resourceLifecycleHooked;
+
     public static IEnumerator InitializeWhenReady()
     {
         // Workshop mods can be instantiated before DewBuildProfile/profile services are ready, while
@@ -18,8 +21,8 @@ public static partial class DariusTravelerRegistry
         // session. Waiting for *all* profile services here creates a lookup race. Only the resource
         // database is required to create the runtime Hero/Skin/type bridges, so register that core
         // as soon as possible and finish profile/content integration later.
-        DariusLog.Info("TRAVELER", "Waiting only for DewResources.database before core Hero_Darius registration.");
-        while (DewResources.database == null)
+        DariusLog.Info("TRAVELER", "Waiting for DewResources database/variant owner before core Hero_Darius registration.");
+        while (DewResources.database == null || DewResources.variantsParent == null)
             yield return null;
 
         EnsureCoreRegisteredForBootstrap("InitializeWhenReady core phase");
@@ -45,7 +48,7 @@ public static partial class DariusTravelerRegistry
 
         // Registration itself can invoke Dew/profile callbacks. Never recursively enter Register().
         if (_registering) return HeroPrefab != null && DefaultSkin != null;
-        if (DewResources.database == null) return false;
+        if (DewResources.database == null || DewResources.variantsParent == null) return false;
 
         try
         {
@@ -111,6 +114,7 @@ public static partial class DariusTravelerRegistry
         _registering = true;
         try
         {
+            HookResourceLifecycle();
             CreateResourceRoot();
             ConfigureDariusSkillOwnership();
             CreateAndRegisterNativeBasicAttack();
@@ -144,22 +148,64 @@ public static partial class DariusTravelerRegistry
     private static void CreateResourceRoot()
     {
         if (_resourceRoot != null) return;
+        Transform variantsParent = DewResources.variantsParent;
+        if (variantsParent == null)
+            throw new InvalidOperationException("DewResources.variantsParent is null.");
+
+        // Runtime resource templates belong to Dew's resource-variant lifetime. Keeping a separate
+        // DontDestroyOnLoad scene root let networked Hero/Attack templates outlive the lifecycle
+        // that owns their resource mappings and caused lobby teardown/rebuild drift.
         _resourceRoot = new GameObject("DariusTraveler_RuntimeResources");
         _resourceRoot.hideFlags = HideFlags.HideAndDontSave;
+        _resourceRoot.transform.SetParent(variantsParent, false);
         _resourceRoot.SetActive(false);
-        UnityEngine.Object.DontDestroyOnLoad(_resourceRoot);
+    }
+
+    private static void HookResourceLifecycle()
+    {
+        if (_resourceLifecycleHooked || DewResources.onVariantsCleared == null) return;
+        DewResources.onVariantsCleared.Remove(OnDewVariantsCleared);
+        DewResources.onVariantsCleared.Add(OnDewVariantsCleared);
+        _resourceLifecycleHooked = true;
+    }
+
+    private static void UnhookResourceLifecycle()
+    {
+        if (!_resourceLifecycleHooked) return;
+        try
+        {
+            if (DewResources.onVariantsCleared != null)
+                DewResources.onVariantsCleared.Remove(OnDewVariantsCleared);
+        }
+        catch { }
+        _resourceLifecycleHooked = false;
+    }
+
+    private static void OnDewVariantsCleared()
+    {
+        if (_registering || DariusModLifecycle.IsModManagerUnloading || !Application.isPlaying) return;
+        if (!_registered && HeroPrefab == null && AttackPrefab == null && DefaultSkin == null) return;
+
+        DariusLog.Info("TRAVELER-LIFECYCLE", "Dew resource variants were cleared; recreating the Darius runtime resource generation at the official resource boundary.");
+        UnregisterRuntimeOnly();
+        EnsureCoreRegisteredForBootstrap("DewResources.onVariantsCleared");
     }
 
     private static void CreateLifecycleBridge()
     {
-        DariusTravelerLifecycleBridge existing = UnityEngine.Object.FindFirstObjectByType<DariusTravelerLifecycleBridge>();
-        if (existing != null) return;
-        GameObject go = new GameObject("DariusTraveler_PersistentLifecycle");
-        go.hideFlags = HideFlags.HideAndDontSave;
-        go.AddComponent<DariusTravelerLifecycleBridge>();
-        UnityEngine.Object.DontDestroyOnLoad(go);
-        OwnedObjects.Add(go);
-        DariusLog.Info("TRAVELER-LIFECYCLE", "Persistent scene lifecycle bridge created. Runtime Hero/Skin/Profile maps will be reasserted around every scene transition.");
+        if (_lifecycleBridgeObject != null) return;
+        _lifecycleBridgeObject = new GameObject("DariusTraveler_PersistentLifecycle");
+        _lifecycleBridgeObject.hideFlags = HideFlags.HideAndDontSave;
+        _lifecycleBridgeObject.AddComponent<DariusTravelerLifecycleBridge>();
+        UnityEngine.Object.DontDestroyOnLoad(_lifecycleBridgeObject);
+        DariusLog.Info("TRAVELER-LIFECYCLE", "Persistent scene lifecycle bridge created. Scene/profile hooks only reassert mappings; Dew resource lifecycle owns resource recreation.");
+    }
+
+    private static void DestroyLifecycleBridge()
+    {
+        if (_lifecycleBridgeObject == null) return;
+        UnityEngine.Object.Destroy(_lifecycleBridgeObject);
+        _lifecycleBridgeObject = null;
     }
 
     private static void ConfigureDariusSkillOwnership()
