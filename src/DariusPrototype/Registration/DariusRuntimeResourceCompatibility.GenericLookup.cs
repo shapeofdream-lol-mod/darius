@@ -38,7 +38,6 @@ public static partial class DariusRuntimeResourceCompatibility
         bool isSkin = DariusTravelerRegistry.IsRuntimeSkinKey(__0);
         if (!isHero && !isSkin) return true;
 
-        DariusTravelerRegistry.EnsureCoreRegisteredForLookup("DewResources.GetByName early lookup: " + __0);
         if (isHero) __result = DariusTravelerRegistry.HeroPrefab;
         else
         {
@@ -57,7 +56,6 @@ public static partial class DariusRuntimeResourceCompatibility
         if (string.IsNullOrEmpty(__0)) return true;
         if (__0 != DariusTravelerRegistry.HeroName && __0 != DariusTravelerRegistry.HeroGuid) return true;
 
-        DariusTravelerRegistry.EnsureCoreRegisteredForLookup("DewResources.GetByShortTypeName early lookup: " + __0);
         __result = DariusTravelerRegistry.HeroPrefab;
         if (__result == null) return true;
         DariusLog.DebugInfoThrottled("RES-SHORTTYPE", __0,
@@ -72,7 +70,6 @@ public static partial class DariusRuntimeResourceCompatibility
         bool isSkin = DariusTravelerRegistry.IsRuntimeSkinKey(__0);
         if (!isHero && !isSkin) return true;
 
-        DariusTravelerRegistry.EnsureCoreRegisteredForLookup("DewResources.GetByGuid early lookup: " + __0);
         if (isHero) __result = DariusTravelerRegistry.HeroPrefab;
         else
         {
