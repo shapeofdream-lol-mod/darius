@@ -6,8 +6,8 @@ using Mirror;
 
 // Shape of Dreams - Darius / Hand of Noxus Traveler.
 // Release runtime: independent Hero_Darius, Darius-owned skin/attack resources,
-// League-authentic presentation assets, native constellation integration, and persistent
-// scene-transition self-healing.
+// League-authentic presentation assets, native constellation integration, and Dew-owned
+// runtime resource lifecycle integration.
 
 public sealed class DariusPrototypeMod : ModBehaviour
 {
@@ -92,7 +92,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
             }
             catch (Exception e)
             {
-                DariusLog.Exception("PATCH", e, "Runtime resource compatibility install failed; continuing boot for diagnostics/self-heal");
+                DariusLog.Exception("PATCH", e, "Runtime resource compatibility install failed; continuing boot for diagnostics");
             }
 
             try
@@ -171,7 +171,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         }
         else
         {
-            DariusLog.Info("BOOT", "Ordinary scene lifecycle destroyed ModBehaviour; preserving persistent Darius resources. Constellation state was snapshotted first.");
+            DariusLog.Info("BOOT", "Ordinary scene lifecycle destroyed ModBehaviour; leaving Darius resources under Dew's resource lifecycle. Constellation state was snapshotted first.");
         }
     }
 
