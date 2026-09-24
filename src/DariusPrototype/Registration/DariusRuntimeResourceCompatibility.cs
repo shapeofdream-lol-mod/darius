@@ -143,6 +143,40 @@ public static partial class DariusRuntimeResourceCompatibility
                 .FirstOrDefault(m => m.Name == "Shutdown" && m.GetParameters().Length == 0);
             patched += PatchOne(harmony, networkServerShutdown, nameof(NetworkServerShutdownPrefix), null, "NetworkServer.Shutdown Traveler-template diagnostic");
 
+            MethodInfo[] networkServerDestroyMethods = typeof(NetworkServer)
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .Where(m => m.Name == "Destroy" &&
+                            m.GetParameters().Length >= 1 &&
+                            m.GetParameters()[0].ParameterType == typeof(GameObject))
+                .ToArray();
+            for (int i = 0; i < networkServerDestroyMethods.Length; i++)
+                patched += PatchOne(harmony, networkServerDestroyMethods[i], nameof(NetworkServerDestroyTemplatePrefix), null, "NetworkServer.Destroy Traveler-template diagnostic");
+
+            MethodInfo[] networkClientDestroyMethods = typeof(NetworkClient)
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .Where(m => (m.Name.IndexOf("Destroy", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                             m.Name.IndexOf("Unspawn", StringComparison.OrdinalIgnoreCase) >= 0) &&
+                            m.GetParameters().Length >= 1 &&
+                            (m.GetParameters()[0].ParameterType == typeof(GameObject) ||
+                             m.GetParameters()[0].ParameterType == typeof(NetworkIdentity)))
+                .ToArray();
+            for (int i = 0; i < networkClientDestroyMethods.Length; i++)
+                patched += PatchOne(harmony, networkClientDestroyMethods[i], nameof(NetworkClientDestroyTemplatePrefix), null, "NetworkClient destroy/unspawn Traveler-template diagnostic");
+
+            MethodInfo[] spawnManagerDestroyMethods = typeof(SpawnManager)
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .Where(m => m.Name == "Destroy" &&
+                            m.GetParameters().Length >= 1 &&
+                            m.GetParameters()[0].ParameterType == typeof(GameObject))
+                .ToArray();
+            for (int i = 0; i < spawnManagerDestroyMethods.Length; i++)
+                patched += PatchOne(harmony, spawnManagerDestroyMethods[i], nameof(SpawnManagerDestroyTemplatePrefix), null, "SpawnManager.Destroy Traveler-template diagnostic");
+
+            MethodInfo networkIdentityOnDestroy = typeof(NetworkIdentity)
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .FirstOrDefault(m => m.Name == "OnDestroy" && m.GetParameters().Length == 0);
+            patched += PatchOne(harmony, networkIdentityOnDestroy, nameof(NetworkIdentityOnDestroyTemplatePrefix), null, "NetworkIdentity.OnDestroy Traveler-template diagnostic");
+
             MethodInfo actorPrepare = typeof(Actor).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                 .FirstOrDefault(m => m.Name == "PrepareAndSpawn");
             patched += PatchOne(harmony, actorPrepare, nameof(ActorPrepareAndSpawnPrefix), null, "Actor.PrepareAndSpawn");
@@ -157,7 +191,7 @@ public static partial class DariusRuntimeResourceCompatibility
 
             _installed = true;
             DariusLog.Info("RESOURCE-COMPAT", "Runtime resource compatibility installed. patchedMethods=" + patched +
-                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/Title-model-diagnostic/Network-template-diagnostic/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skill-gem-star-skin inclusion/PrepareAndSpawn/EntityAbility/LootManager; shared generic DewResources hooks disabled).");
+                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/Title-model-diagnostic/Network-template-diagnostic/Destroy-boundary-diagnostic/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skill-gem-star-skin inclusion/PrepareAndSpawn/EntityAbility/LootManager; shared generic DewResources hooks disabled).");
         }
         catch (Exception e)
         {
