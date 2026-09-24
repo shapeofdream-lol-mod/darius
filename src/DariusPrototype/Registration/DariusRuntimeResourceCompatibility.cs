@@ -87,6 +87,17 @@ public static partial class DariusRuntimeResourceCompatibility
                 : null;
             patched += PatchOne(harmony, heroIconSetup, null, nameof(HeroIconSetupPostfix), "UI_HeroIcon.Setup native tint neutralizer");
 
+            // Temporary read-only diagnostic for the remaining Lobby -> Title miniature model issue.
+            // The runtime log shows Title itself resolves Skin_Darius_Default after the transition;
+            // capture only that exact display instance/transform without changing its presentation.
+            Type characterModelDisplayType = AccessTools.TypeByName("CharacterModelDisplay");
+            MethodInfo characterModelDisplaySetup = characterModelDisplayType != null
+                ? characterModelDisplayType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                    .FirstOrDefault(m => m.Name == "Setup" && m.GetParameters().Length >= 1 &&
+                        m.GetParameters()[0].ParameterType == typeof(string))
+                : null;
+            patched += PatchOne(harmony, characterModelDisplaySetup, null, nameof(CharacterModelDisplaySetupPostfix), "CharacterModelDisplay.Setup Title diagnostic");
+
             // v0.18.2: the stock in-run detail panel assumes its Hero/Status/attack references came
             // from an Addressables-backed native hero. Runtime Hero_Darius can otherwise leave this
             // panel reading stale/default values (observed as every field showing 500). For Darius
@@ -132,7 +143,7 @@ public static partial class DariusRuntimeResourceCompatibility
 
             _installed = true;
             DariusLog.Info("RESOURCE-COMPAT", "Runtime resource compatibility installed. patchedMethods=" + patched +
-                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skill-gem-star-skin inclusion/PrepareAndSpawn/EntityAbility/LootManager; shared generic DewResources hooks disabled).");
+                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/Title-model-diagnostic/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skill-gem-star-skin inclusion/PrepareAndSpawn/EntityAbility/LootManager; shared generic DewResources hooks disabled).");
         }
         catch (Exception e)
         {
