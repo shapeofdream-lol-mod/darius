@@ -36,8 +36,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         TravelerBasicAttackVfxReplication.Initialize();
         try
         {
-            if (DewResources.database != null && DewResources.variantsParent != null &&
-                !string.IsNullOrEmpty(DariusModEnvironment.Root))
+            if (DewResources.database != null && !string.IsNullOrEmpty(DariusModEnvironment.Root))
                 DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap("Mod Awake synchronous Workshop bootstrap");
         }
         catch (Exception e)
@@ -125,7 +124,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         // If it is not ready yet, InitializeWhenReady below performs the same operation as soon as it is.
         try
         {
-            if (DewResources.database != null && DewResources.variantsParent != null)
+            if (DewResources.database != null)
                 DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap("Mod Start synchronous Workshop bootstrap");
         }
         catch (Exception e)
