@@ -98,6 +98,74 @@ public static partial class DariusTravelerRegistry
         if (spawned != null) spawned.SetValue(identity, false);
     }
 
+    internal static bool TryGetRuntimeNetworkTemplateLabel(GameObject go, out string label)
+    {
+        label = null;
+        if (go == null) return false;
+        if (HeroPrefab != null && ReferenceEquals(go, HeroPrefab.gameObject)) { label = HeroName; return true; }
+        if (AttackPrefab != null && ReferenceEquals(go, AttackPrefab.gameObject)) { label = AttackName; return true; }
+        if (AttackInstancePrefab != null && ReferenceEquals(go, AttackInstancePrefab.gameObject)) { label = AttackInstanceName; return true; }
+        if (AttackCritInstancePrefab != null && ReferenceEquals(go, AttackCritInstancePrefab.gameObject)) { label = AttackCritInstanceName; return true; }
+        return false;
+    }
+
+    internal static void LogRuntimeNetworkTemplateStates(string reason)
+    {
+        LogRuntimeNetworkTemplateState(HeroPrefab != null ? HeroPrefab.gameObject : null, HeroName, reason);
+        LogRuntimeNetworkTemplateState(AttackPrefab != null ? AttackPrefab.gameObject : null, AttackName, reason);
+        LogRuntimeNetworkTemplateState(AttackInstancePrefab != null ? AttackInstancePrefab.gameObject : null, AttackInstanceName, reason);
+        LogRuntimeNetworkTemplateState(AttackCritInstancePrefab != null ? AttackCritInstancePrefab.gameObject : null, AttackCritInstanceName, reason);
+    }
+
+    private static void LogRuntimeNetworkTemplateState(GameObject go, string label, string reason)
+    {
+        if (go == null)
+        {
+            DariusLog.Info("TRAVELER-NET-DIAG", reason + " template=" + label + " state=<missing>");
+            return;
+        }
+
+        NetworkIdentity identity = go.GetComponent<NetworkIdentity>();
+        if (identity == null)
+        {
+            DariusLog.Info("TRAVELER-NET-DIAG", reason + " template=" + label + " identity=<null>");
+            return;
+        }
+
+        DariusLog.Info("TRAVELER-NET-DIAG",
+            reason + " template=" + label +
+            " id=" + go.GetInstanceID() +
+            " netId=" + identity.netId +
+            " assetId=" + identity.assetId +
+            " isServer=" + identity.isServer +
+            " isClient=" + identity.isClient +
+            " activeSelf=" + go.activeSelf +
+            " activeInHierarchy=" + go.activeInHierarchy +
+            " serverSpawned=" + SpawnedContains(typeof(NetworkServer), identity) +
+            " clientSpawned=" + SpawnedContains(typeof(NetworkClient), identity));
+    }
+
+    private static bool SpawnedContains(Type ownerType, NetworkIdentity identity)
+    {
+        if (ownerType == null || identity == null) return false;
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        try
+        {
+            FieldInfo field = ownerType.GetField("spawned", flags);
+            IDictionary dictionary = field != null ? field.GetValue(null) as IDictionary : null;
+            if (dictionary == null)
+            {
+                PropertyInfo prop = ownerType.GetProperty("spawned", flags);
+                dictionary = prop != null ? prop.GetValue(null, null) as IDictionary : null;
+            }
+            if (dictionary == null) return false;
+            foreach (DictionaryEntry entry in dictionary)
+                if (ReferenceEquals(entry.Value, identity)) return true;
+        }
+        catch { }
+        return false;
+    }
+
     internal static void ReinitializeNetworkBehaviours(NetworkIdentity identity)
     {
         if (identity == null) return;
