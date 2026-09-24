@@ -72,19 +72,24 @@ public static partial class DariusRuntimeResourceCompatibility
             Transform t = component.transform;
             string parent = t.parent != null ? t.parent.name : "<root>";
             string scene = component.gameObject.scene.IsValid() ? component.gameObject.scene.name : "<invalid>";
+            Transform[] all = t.GetComponentsInChildren<Transform>(true);
             string children = string.Empty;
-            int childCount = t.childCount;
-            int limit = Mathf.Min(childCount, 8);
-            for (int i = 0; i < limit; i++)
+            int childCount = all != null ? Mathf.Max(0, all.Length - 1) : 0;
+            int emitted = 0;
+            if (all != null)
             {
-                Transform child = t.GetChild(i);
-                if (child == null) continue;
-                if (children.Length > 0) children += ";";
-                children += child.name +
-                    "@scene=" + (child.gameObject.scene.IsValid() ? child.gameObject.scene.name : "<invalid>") +
-                    "@localPos=" + DariusLog.Vec(child.localPosition) +
-                    "@localScale=" + DariusLog.Vec(child.localScale) +
-                    "@active=" + child.gameObject.activeInHierarchy;
+                for (int i = 0; i < all.Length && emitted < 16; i++)
+                {
+                    Transform child = all[i];
+                    if (child == null || child == t) continue;
+                    if (children.Length > 0) children += ";";
+                    children += child.name +
+                        "@scene=" + (child.gameObject.scene.IsValid() ? child.gameObject.scene.name : "<invalid>") +
+                        "@localPos=" + DariusLog.Vec(child.localPosition) +
+                        "@localScale=" + DariusLog.Vec(child.localScale) +
+                        "@active=" + child.gameObject.activeInHierarchy;
+                    emitted++;
+                }
             }
 
             DariusLog.Info("TITLE-MODEL-DIAG",
