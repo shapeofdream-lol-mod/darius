@@ -6,8 +6,8 @@ using Mirror;
 
 // Shape of Dreams - Darius / Hand of Noxus Traveler.
 // Release runtime: independent Hero_Darius, Darius-owned skin/attack resources,
-// League-authentic presentation assets, native constellation integration, and Dew-owned
-// runtime resource lifecycle integration.
+// League-authentic presentation assets, native constellation integration, and MOD-owned
+// runtime prefab templates registered into Dew's lookup/network maps.
 
 public sealed class DariusPrototypeMod : ModBehaviour
 {
@@ -170,7 +170,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         }
         else
         {
-            DariusLog.Info("BOOT", "Ordinary scene lifecycle destroyed ModBehaviour; leaving Darius resources under Dew's resource lifecycle. Constellation state was snapshotted first.");
+            DariusLog.Info("BOOT", "Ordinary scene lifecycle destroyed ModBehaviour; preserving MOD-owned Darius runtime prefab templates. Constellation state was snapshotted first.");
         }
     }
 
