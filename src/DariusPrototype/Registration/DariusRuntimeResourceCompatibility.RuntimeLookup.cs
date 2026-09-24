@@ -9,6 +9,20 @@ using UnityEngine;
 
 public static partial class DariusRuntimeResourceCompatibility
 {
+    private static void NetworkServerSpawnTemplatePrefix(GameObject __0)
+    {
+        string label;
+        if (!DariusTravelerRegistry.TryGetRuntimeNetworkTemplateLabel(__0, out label)) return;
+        DariusLog.Warn("TRAVELER-NET-DIAG",
+            "NetworkServer.Spawn received the registered Traveler template itself: " + label +
+            " stack=" + Environment.StackTrace);
+    }
+
+    private static void NetworkServerShutdownPrefix()
+    {
+        DariusTravelerRegistry.LogRuntimeNetworkTemplateStates("NetworkServer.Shutdown prefix");
+    }
+
     // DewResources.Load(string, ResourceLoadSettings): the working reference mod intercepts
     // this exact lookup path and returns its runtime prefab instead of asking Addressables.
     private static bool LoadPrefix(string __0, ref UnityEngine.Object __result)
