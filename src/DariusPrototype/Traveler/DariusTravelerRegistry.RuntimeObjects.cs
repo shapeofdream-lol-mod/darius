@@ -131,7 +131,6 @@ public static partial class DariusTravelerRegistry
 
     public static void ShutdownRuntimeResources()
     {
-        UnhookResourceLifecycle();
         UnregisterRuntimeOnly();
         DestroyLifecycleBridge();
         DariusNativeModelAssets.Unload();
