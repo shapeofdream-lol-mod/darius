@@ -36,6 +36,14 @@ public static partial class DariusTravelerRegistry
         }
     }
 
+    private static string DescribeRuntimeTemplate(UnityEngine.Object obj)
+    {
+        if (ReferenceEquals(obj, null)) return "managed-null";
+        if (obj == null) return "destroyed";
+        try { return "alive#" + obj.GetInstanceID(); }
+        catch { return "alive"; }
+    }
+
     public static void RepairRuntimeRegistration(string reason)
     {
         if (_repairing || !_registered || DewResources.database == null) return;
@@ -54,7 +62,13 @@ public static partial class DariusTravelerRegistry
                     "TRAVELER-REPAIR",
                     "missing-generation",
                     "Skipped registration reassert because the current Traveler resource generation is incomplete; bootstrap owns recreation. reason=" +
-                    (reason ?? "<unknown>"),
+                    (reason ?? "<unknown>") +
+                    " root=" + DescribeRuntimeTemplate(_resourceRoot) +
+                    " hero=" + DescribeRuntimeTemplate(HeroPrefab) +
+                    " skin=" + DescribeRuntimeTemplate(DefaultSkin) +
+                    " attack=" + DescribeRuntimeTemplate(AttackPrefab) +
+                    " attackInstance=" + DescribeRuntimeTemplate(AttackInstancePrefab) +
+                    " critInstance=" + DescribeRuntimeTemplate(AttackCritInstancePrefab),
                     2.0);
                 return;
             }
