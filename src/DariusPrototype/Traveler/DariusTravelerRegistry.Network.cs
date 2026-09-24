@@ -141,6 +141,9 @@ public static partial class DariusTravelerRegistry
             " isClient=" + identity.isClient +
             " activeSelf=" + go.activeSelf +
             " activeInHierarchy=" + go.activeInHierarchy +
+            " scene=" + (go.scene.IsValid() ? go.scene.name : "<invalid>") +
+            " parent=" + (go.transform.parent != null ? go.transform.parent.name : "<root>") +
+            " parentScene=" + (go.transform.parent != null && go.transform.parent.gameObject.scene.IsValid() ? go.transform.parent.gameObject.scene.name : "<none>") +
             " serverSpawned=" + SpawnedContains(typeof(NetworkServer), identity) +
             " clientSpawned=" + SpawnedContains(typeof(NetworkClient), identity));
     }
@@ -164,6 +167,46 @@ public static partial class DariusTravelerRegistry
         }
         catch { }
         return false;
+    }
+
+    internal static bool TryGetRuntimeNetworkTemplateLabel(UnityEngine.Object candidate, out string label)
+    {
+        label = null;
+        if (candidate == null) return false;
+
+        GameObject go = candidate as GameObject;
+        if (go == null)
+        {
+            Component component = candidate as Component;
+            if (component != null) go = component.gameObject;
+        }
+        return TryGetRuntimeNetworkTemplateLabel(go, out label);
+    }
+
+    internal static void LogRuntimeNetworkTemplateDestroyBoundary(UnityEngine.Object candidate, string boundary)
+    {
+        string label;
+        if (!TryGetRuntimeNetworkTemplateLabel(candidate, out label)) return;
+
+        GameObject go = candidate as GameObject;
+        if (go == null)
+        {
+            Component component = candidate as Component;
+            if (component != null) go = component.gameObject;
+        }
+
+        string scene = go != null && go.scene.IsValid() ? go.scene.name : "<invalid>";
+        string parent = go != null && go.transform.parent != null ? go.transform.parent.name : "<root>";
+        string parentScene = go != null && go.transform.parent != null && go.transform.parent.gameObject.scene.IsValid()
+            ? go.transform.parent.gameObject.scene.name
+            : "<none>";
+
+        DariusLog.Warn("TRAVELER-DESTROY-DIAG",
+            boundary + " template=" + label +
+            " scene=" + scene +
+            " parent=" + parent +
+            " parentScene=" + parentScene +
+            " stack=" + Environment.StackTrace);
     }
 
     internal static void ReinitializeNetworkBehaviours(NetworkIdentity identity)
