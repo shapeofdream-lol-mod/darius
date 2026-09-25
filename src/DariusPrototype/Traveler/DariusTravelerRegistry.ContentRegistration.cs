@@ -75,12 +75,12 @@ public static partial class DariusTravelerRegistry
 
     private static void RegisterTypes()
     {
-        DariusUnsupportedResourceBridge.EnsureDewTypeCacheEntries(
-            "_allHeroes", new[] { typeof(Hero_Darius) }, "TRAVELER-TYPE");
-        DariusUnsupportedResourceBridge.EnsureDewTypeCacheEntries(
-            "_allSkills", DariusRegisteredSkillTypes, "TRAVELER-TYPE");
-        DariusUnsupportedResourceBridge.EnsureDewTypeCacheEntries(
-            "_allHeroSkills", DariusRegisteredHeroSkillTypes, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.EnsureHeroTypes(
+            new[] { typeof(Hero_Darius) }, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.EnsureSkillTypes(
+            DariusRegisteredSkillTypes, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.EnsureHeroSkillTypes(
+            DariusRegisteredHeroSkillTypes, "TRAVELER-TYPE");
         DariusConstellationRegistry.RegisterTypeCache();
 
         DariusLog.DebugInfoThrottled("TRAVELER-TYPE", "type-caches",

@@ -56,12 +56,12 @@ public static partial class DariusTravelerRegistry
             catch { }
         }
 
-        DariusUnsupportedResourceBridge.RemoveDewTypeCacheEntries(
-            "_allHeroes", new[] { typeof(Hero_Darius) }, "TRAVELER-TYPE");
-        DariusUnsupportedResourceBridge.RemoveDewTypeCacheEntries(
-            "_allSkills", DariusRegisteredSkillTypes, "TRAVELER-TYPE");
-        DariusUnsupportedResourceBridge.RemoveDewTypeCacheEntries(
-            "_allHeroSkills", DariusRegisteredHeroSkillTypes, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.RemoveHeroTypes(
+            new[] { typeof(Hero_Darius) }, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.RemoveSkillTypes(
+            DariusRegisteredSkillTypes, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.RemoveHeroSkillTypes(
+            DariusRegisteredHeroSkillTypes, "TRAVELER-TYPE");
 
         // Only remove maps where our exact value is still installed. User profile data is intentionally preserved.
         for (int si = 0; si < SkinSpecs.Length; si++)

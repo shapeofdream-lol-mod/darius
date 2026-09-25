@@ -23,14 +23,14 @@ public static partial class DariusConstellationRegistry
 
     public static void RegisterTypeCache()
     {
-        DariusUnsupportedResourceBridge.EnsureDewTypeCacheEntries(
-            "_allStarTypes", DariusStarTypes, "CONSTELLATION-TYPE");
+        DariusUnsupportedResourceBridge.EnsureStarTypes(
+            DariusStarTypes, "CONSTELLATION-TYPE");
     }
 
     public static void UnregisterTypeCache()
     {
-        DariusUnsupportedResourceBridge.RemoveDewTypeCacheEntries(
-            "_allStarTypes", DariusStarTypes, "CONSTELLATION-TYPE");
+        DariusUnsupportedResourceBridge.RemoveStarTypes(
+            DariusStarTypes, "CONSTELLATION-TYPE");
         IconKeyByType.Clear();
         _registered = false;
     }

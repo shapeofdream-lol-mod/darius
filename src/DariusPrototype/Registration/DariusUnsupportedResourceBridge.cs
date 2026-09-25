@@ -181,7 +181,7 @@ internal static class DariusUnsupportedResourceBridge
         return map != null && map.Contains(assetId) && Equals(map[assetId], guid);
     }
 
-    internal static void EnsureDewTypeCacheEntries(string fieldName, IEnumerable<Type> types, string logTag)
+    private static void EnsureDewTypeCacheEntries(string fieldName, IEnumerable<Type> types, string logTag)
     {
         EnsureDewTypeCacheInitialized(fieldName);
         IList list = GetStaticTypeList(fieldName);
@@ -219,7 +219,7 @@ internal static class DariusUnsupportedResourceBridge
                 fieldName + " added=" + added + " staleRemoved=" + staleRemoved + " count=" + list.Count);
     }
 
-    internal static void RemoveDewTypeCacheEntries(string fieldName, IEnumerable<Type> types, string logTag)
+    private static void RemoveDewTypeCacheEntries(string fieldName, IEnumerable<Type> types, string logTag)
     {
         try
         {
@@ -249,6 +249,46 @@ internal static class DariusUnsupportedResourceBridge
         {
             DariusLog.Exception(logTag ?? "UNSUPPORTED-TYPE", e, "Failed to remove Dew type-cache entries from " + fieldName);
         }
+    }
+
+    internal static void EnsureHeroTypes(IEnumerable<Type> types, string logTag)
+    {
+        EnsureDewTypeCacheEntries("_allHeroes", types, logTag);
+    }
+
+    internal static void EnsureSkillTypes(IEnumerable<Type> types, string logTag)
+    {
+        EnsureDewTypeCacheEntries("_allSkills", types, logTag);
+    }
+
+    internal static void EnsureHeroSkillTypes(IEnumerable<Type> types, string logTag)
+    {
+        EnsureDewTypeCacheEntries("_allHeroSkills", types, logTag);
+    }
+
+    internal static void EnsureStarTypes(IEnumerable<Type> types, string logTag)
+    {
+        EnsureDewTypeCacheEntries("_allStarTypes", types, logTag);
+    }
+
+    internal static void RemoveHeroTypes(IEnumerable<Type> types, string logTag)
+    {
+        RemoveDewTypeCacheEntries("_allHeroes", types, logTag);
+    }
+
+    internal static void RemoveSkillTypes(IEnumerable<Type> types, string logTag)
+    {
+        RemoveDewTypeCacheEntries("_allSkills", types, logTag);
+    }
+
+    internal static void RemoveHeroSkillTypes(IEnumerable<Type> types, string logTag)
+    {
+        RemoveDewTypeCacheEntries("_allHeroSkills", types, logTag);
+    }
+
+    internal static void RemoveStarTypes(IEnumerable<Type> types, string logTag)
+    {
+        RemoveDewTypeCacheEntries("_allStarTypes", types, logTag);
     }
 
     internal static void ConfigureTemplateIdentity(NetworkIdentity identity, uint assetId, string label)
