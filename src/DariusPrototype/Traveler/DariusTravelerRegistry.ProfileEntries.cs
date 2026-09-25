@@ -18,11 +18,6 @@ public static partial class DariusTravelerRegistry
             }
         }
 
-        if (profile.heroes == null)
-            profile.heroes = new Dictionary<string, DewProfile.UnlockData>();
-        if (!profile.heroes.ContainsKey(HeroName) || profile.heroes[HeroName] == null)
-            profile.heroes[HeroName] = new DewProfile.UnlockData();
-
         if (profile.heroUnlockedStarSlots == null)
             profile.heroUnlockedStarSlots = new Dictionary<string, DewProfile.HeroStarSlotUnlockData>();
         DewProfile.HeroStarSlotUnlockData unlockedSlots;

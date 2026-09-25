@@ -23,45 +23,6 @@ public static partial class DariusDejaVuRegistry
         DariusLog.Info("DEJAVU", "Collectables type cache includes 4 combat Memories + 1 Hero_Darius Identity Memory.");
     }
 
-    public static void RegisterProfile(DewProfile profile)
-    {
-        if (profile == null)
-        {
-            DariusLog.Warn("DEJAVU", "DewProfile unavailable; profile registration deferred.");
-            return;
-        }
-
-        foreach (string skillName in SkillNames)
-        {
-            try
-            {
-                profile.UnlockSkill(skillName);
-            }
-            catch (Exception e)
-            {
-                // The custom resource identity bridge can still make the stock unlock path fail.
-                // Fall back only to the documented public profile dictionary, never private members.
-                DariusLog.Exception("DEJAVU", e, "UnlockSkill failed for " + skillName + "; using public profile fallback");
-                if (profile.skills == null)
-                    profile.skills = new Dictionary<string, DewProfile.UnlockData>();
-                profile.skills[skillName] = new DewProfile.UnlockData
-                {
-                    status = UnlockStatus.Complete,
-                    didReadMemory = true,
-                    isNewHeroOrHeroSkill = false
-                };
-            }
-
-            EnsureDejaVuTimestamp(profile, skillName);
-        }
-
-        DariusLog.Info("DEJAVU", "Profile unlock registration complete. skillKeys=" +
-            (profile.skills != null ? profile.skills.Count : 0) +
-            " dejavuCostKeys=" +
-            (profile.dejavuCostReductionPeriodTimestamp != null ? profile.dejavuCostReductionPeriodTimestamp.Count : 0) +
-            " Hemorrhage=skill/Identity (not gem)");
-    }
-
     public static void RegisterProfileStats(DewProfileStats stats)
     {
         if (stats == null)
@@ -81,14 +42,6 @@ public static partial class DariusDejaVuRegistry
 
         DariusLog.Info("DEJAVU", "ProfileStats registration complete. skills=" + stats.skills.Count +
             " (Hemorrhage registered as Identity skill; no fabricated wins/playCount).");
-    }
-
-    private static void EnsureDejaVuTimestamp(DewProfile profile, string key)
-    {
-        if (profile.dejavuCostReductionPeriodTimestamp == null)
-            profile.dejavuCostReductionPeriodTimestamp = new Dictionary<string, long>();
-        if (!profile.dejavuCostReductionPeriodTimestamp.ContainsKey(key))
-            profile.dejavuCostReductionPeriodTimestamp.Add(key, 0L);
     }
 
     private static void AddTypesToDewBackingList(string fieldName, IEnumerable<Type> types)

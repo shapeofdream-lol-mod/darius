@@ -15,36 +15,47 @@ public static partial class DariusTravelerRegistry
     {
         DewProfile profile = DewSave.profileMain;
         DewProfileStats stats = DewSave.profileStats;
+        if (profile == null || stats == null)
+            throw new InvalidOperationException("Dew profile services are not ready.");
 
-        // Sanitize legacy Vesper-derived selections BEFORE the first profile validation. rc6 did this
-        // only after Validate(), which made validation repeatedly probe five stale Vesper StarEffect
-        // names and missing skin Addressable keys, producing a burst of avoidable errors at boot.
-        if (profile != null)
+        // Custom Hero/Skill types have no public registration API for their stats records.
+        // Create only the neutral stats containers required by the stock public Unlock* methods.
+        if (stats.heroes == null)
+            stats.heroes = new Dictionary<string, DewProfileStats.HeroData>();
+        if (!stats.heroes.ContainsKey(HeroName))
+            stats.heroes.Add(HeroName, new DewProfileStats.HeroData());
+
+        DariusDejaVuRegistry.RegisterProfileStats(stats);
+
+        // Resource compatibility is installed before this late phase. If a public Unlock* call
+        // fails now, keep the failure visible instead of fabricating an unlocked profile entry.
+        profile.UnlockHero(HeroName);
+
+        string[] requiredSkills =
         {
-            DariusConstellationPersistence.RestoreBootBackup(profile);
-            RepairDariusConstellationLoadout(profile);
-            RepairLegacySelectedSkinAliases(profile, "EnsureProfiles-prevalidate");
-        }
+            DariusFormalRegistry.Decimate.name,
+            DariusFormalRegistry.NoxianGuillotine.name,
+            DariusFormalRegistry.Hemorrhage.name,
+            DariusFormalRegistry.CripplingStrike.name,
+            DariusFormalRegistry.Apprehend.name,
+            DariusFormalRegistry.Flash.name,
+            DariusFormalRegistry.Ghost.name
+        };
+        foreach (string skillName in requiredSkills)
+            profile.UnlockSkill(skillName);
 
-        // DewProfile.Validate may call UnlockHero internally. Stock UnlockHero can immediately
-        // index the hero progression entry in profileStats, so create that exact default entry BEFORE
-        // the first validation pass instead of relying on a later recovery pass. This removes the
-        // startup Validate -> UnlockHero null race seen in the runtime logs.
-        if (stats != null)
-        {
-            if (stats.heroes == null)
-                stats.heroes = new Dictionary<string, DewProfileStats.HeroData>();
-            if (!stats.heroes.ContainsKey(HeroName))
-                stats.heroes.Add(HeroName, new DewProfileStats.HeroData());
-        }
+        for (int si = 0; si < SkinSpecs.Length; si++)
+            profile.UnlockSkin(SkinSpecs[si].name, "local.darius.independent");
 
-        if (profile != null) EnsureHeroProfileEntries(profile);
+        // Only after stock unlock state exists do we create Darius-specific loadout/constellation
+        // containers that the game has no public custom-Hero constructor for.
+        EnsureHeroProfileEntries(profile);
+        RepairLegacySelectedSkinAliases(profile, "EnsureProfiles");
 
-        // Never run a whole-profile validation while the Mod loader is still enumerating character
-        // assemblies. With several runtime Travelers installed, each Validate postfix repairs every
-        // other registry and mutates the same Dew type collections being enumerated. Runtime logs
-        // showed one call blocking the Unity main thread for 246 seconds before throwing.
-        if (profile != null && profile.preferredGameSettings != null)
+        DariusConstellationPersistence.RestoreBootBackup(profile);
+        RepairDariusConstellationLoadout(profile);
+
+        if (profile.preferredGameSettings != null)
         {
             foreach (PreferredGameSettings settings in profile.preferredGameSettings.Values)
             {
@@ -53,79 +64,7 @@ public static partial class DariusTravelerRegistry
             }
         }
 
-        if (profile != null)
-        {
-            // Use the public profile API when available instead of fabricating cosmetic/profile
-            // values. These calls are idempotent in the stock profile implementation.
-            for (int si = 0; si < SkinSpecs.Length; si++)
-            {
-                string skinName = SkinSpecs[si].name;
-                try { profile.UnlockSkin(skinName, "local.darius.independent"); }
-                catch (Exception e)
-                {
-                    DariusLog.Exception("TRAVELER-PROFILE", e, "UnlockSkin failed name=" + skinName + "; using public profile fallback");
-                    if (profile.skins == null)
-                        profile.skins = new Dictionary<string, DewProfile.CosmeticsData>();
-                    profile.skins[skinName] = new DewProfile.CosmeticsData
-                    {
-                        isUnlocked = true,
-                        isNew = false,
-                        ownershipKey = "local.darius.independent"
-                    };
-                }
-            }
-            RepairLegacySelectedSkinAliases(profile, "EnsureProfiles");
-
-            string[] requiredSkills =
-            {
-                DariusFormalRegistry.Decimate != null ? DariusFormalRegistry.Decimate.name : "St_Darius_Decimate",
-                DariusFormalRegistry.NoxianGuillotine != null ? DariusFormalRegistry.NoxianGuillotine.name : "St_Darius_NoxianGuillotine",
-                DariusFormalRegistry.Hemorrhage != null ? DariusFormalRegistry.Hemorrhage.name : "St_D_Darius_Hemorrhage",
-                DariusFormalRegistry.CripplingStrike != null ? DariusFormalRegistry.CripplingStrike.name : "St_Darius_CripplingStrike",
-                DariusFormalRegistry.Apprehend != null ? DariusFormalRegistry.Apprehend.name : "St_Darius_Apprehend",
-                DariusFormalRegistry.Flash != null ? DariusFormalRegistry.Flash.name : "St_Darius_Flash",
-                DariusFormalRegistry.Ghost != null ? DariusFormalRegistry.Ghost.name : "St_Darius_Ghost"
-            };
-            foreach (string skillName in requiredSkills)
-            {
-                try { profile.UnlockSkill(skillName); }
-                catch (Exception e)
-                {
-                    DariusLog.Exception("TRAVELER-PROFILE", e, "UnlockSkill failed name=" + skillName + "; using public profile fallback");
-                    if (profile.skills == null)
-                        profile.skills = new Dictionary<string, DewProfile.UnlockData>();
-                    profile.skills[skillName] = new DewProfile.UnlockData
-                    {
-                        status = UnlockStatus.Complete,
-                        didReadMemory = true,
-                        isNewHeroOrHeroSkill = true
-                    };
-                }
-            }
-
-            try { profile.UnlockHero(HeroName); }
-            catch (Exception e)
-            {
-                DariusLog.Exception("TRAVELER-PROFILE", e, "UnlockHero failed; using public profile fallback");
-                if (profile.heroes == null)
-                    profile.heroes = new Dictionary<string, DewProfile.UnlockData>();
-                profile.heroes[HeroName] = new DewProfile.UnlockData
-                {
-                    status = UnlockStatus.Complete,
-                    isNewHeroOrHeroSkill = true
-                };
-            }
-
-            // Hero_Darius originally inherited a generic melee Hero graph. Older prototype builds could
-            // therefore leave Vesper constellation names inside the freshly-created Darius loadout.
-            // Keep the native slot counts/unlock progression, but clear only non-Darius star selections
-            // so the profile validator never tries to resolve stock-Vesper stars for Hero_Darius.
-            DariusConstellationPersistence.RestoreBootBackup(profile);
-            RepairDariusConstellationLoadout(profile);
-        }
-
-        DariusConstellationPersistence.RestoreBootBackup(profile);
-        DariusLog.Info("TRAVELER-PROFILE", "Targeted profile entries completed without recursive whole-profile validation.");
+        DariusLog.Info("TRAVELER-PROFILE", "Native UnlockHero/UnlockSkill/UnlockSkin completed; Darius loadout containers ensured without unlock fallbacks.");
     }
 
     private static void RepairDariusConstellationLoadout(DewProfile profile)

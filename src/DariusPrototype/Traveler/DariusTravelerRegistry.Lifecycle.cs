@@ -139,7 +139,6 @@ public static partial class DariusTravelerRegistry
             CreateAndRegisterHero();
             RegisterTypes();
             RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
-            EnsureProfiles();
             ValidateRegistration();
             _registered = true;
             CreateLifecycleBridge();

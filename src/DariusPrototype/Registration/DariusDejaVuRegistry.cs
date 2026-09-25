@@ -66,9 +66,8 @@ public static partial class DariusDejaVuRegistry
         {
             RegisterContentSettings(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
             RegisterCollectables();
-            RegisterProfile(DewSave.profileMain);
             RegisterProfileStats(DewSave.profileStats);
-            DariusLog.Info("DEJAVU", "Native Deja Vu injection pass complete for Q/W/E/R + Hero_Darius Hemorrhage Identity.");
+            DariusLog.Info("DEJAVU", "Native Deja Vu content/type/stats registration complete; profile unlock ownership remains in Traveler late registration.");
         }
         catch (Exception e)
         {
