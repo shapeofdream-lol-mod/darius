@@ -82,7 +82,7 @@ public static partial class DariusFormalRegistry
         // Adding it afterwards leaves netIdentity null and crashes NetworkIdentity.OnStartServer.
         NetworkIdentity preIdentity = go.AddComponent<NetworkIdentity>();
         uint preAssetId = StableAssetId(guid) | 0x80000000u;
-        ConfigureNetworkIdentity(preIdentity, preAssetId, name);
+        DariusRuntimeNetworkBridge.ConfigureTemplateIdentity(preIdentity, preAssetId, name);
 
         // Match the working reference mod's exact order: the NetworkIdentity already has
         // its runtime assetId before the NetworkBehaviour (SkillTrigger/Gem/Ai) is added.
