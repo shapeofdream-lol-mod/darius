@@ -116,16 +116,9 @@ public static partial class DariusFormalRegistry
             {
                 spawned.transform.localScale = msg.scale;
                 spawned.name = prefab.name;
+                // Mirror applies the SpawnMessage and owns the clone's live NetworkIdentity state.
+                // Do not rewrite scene/private flags or rebuild NetworkBehaviours after Instantiate.
                 if (!spawned.activeSelf) spawned.SetActive(true);
-                NetworkIdentity identity = spawned.GetComponent<NetworkIdentity>();
-                if (identity != null)
-                {
-                    identity.sceneId = 0UL;
-                    FieldInfo sceneField = typeof(NetworkIdentity).GetField("_isSceneObject", BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (sceneField != null) sceneField.SetValue(identity, false);
-                    MethodInfo init = typeof(NetworkIdentity).GetMethod("InitializeNetworkBehaviours", BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (init != null) init.Invoke(identity, null);
-                }
             }
             DariusLog.Info("NET-SPAWN", "Spawn handler assetId=" + msg.assetId + " prefab=" + prefab.name +
                 " result=" + (spawned != null) + " pos=" + DariusLog.Vec(msg.position));
