@@ -19,6 +19,26 @@ public static partial class DariusFormalRegistry
 
     private static readonly Dictionary<uint, GameObject> NetworkPrefabs = new Dictionary<uint, GameObject>();
 
+    private sealed class RuntimeRegistration
+    {
+        public readonly Type type;
+        public readonly string name;
+        public readonly string guid;
+        public readonly uint assetId;
+        public bool networkHandlerRegistered;
+
+        public RuntimeRegistration(Type type, string name, string guid, uint assetId)
+        {
+            this.type = type;
+            this.name = name;
+            this.guid = guid;
+            this.assetId = assetId;
+        }
+    }
+
+    private static readonly Dictionary<string, RuntimeRegistration> RegistrationsByGuid =
+        new Dictionary<string, RuntimeRegistration>(StringComparer.Ordinal);
+
     private static readonly List<GameObject> OwnedPrefabs = new List<GameObject>();
 
     private static GameObject _runtimeActorRoot;

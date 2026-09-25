@@ -76,6 +76,10 @@ public static partial class DariusFormalRegistry
         uint assetId = StableAssetId(guid) | 0x80000000u;
         ConfigureNetworkIdentity(identity, assetId, obj.name);
 
+        string collision;
+        if (DewResources.database.netObjectAssetIdToGuid.TryGetValue(assetId, out collision) && collision != guid)
+            throw new InvalidOperationException("Mirror assetId collision: " + assetId + " already maps to " + collision);
+
         try
         {
             DewResources.database.netObjectAssetIdToGuid[assetId] = guid;
@@ -91,6 +95,9 @@ public static partial class DariusFormalRegistry
         try
         {
             NetworkClient.RegisterSpawnHandler(assetId, SpawnHandler, UnspawnHandler);
+            RuntimeRegistration registration;
+            if (RegistrationsByGuid.TryGetValue(guid, out registration))
+                registration.networkHandlerRegistered = true;
             DariusLog.Info("NET", "Registered spawn handler name=" + obj.name + " assetId=" + assetId);
         }
         catch (Exception e)

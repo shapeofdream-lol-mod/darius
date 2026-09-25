@@ -20,16 +20,14 @@ public static partial class DariusFormalRegistry
         var db = DewResources.database;
         if (db != null)
         {
-            // Current (2026) runtime resource registration is keyed by the type's
-            // assembly-qualified name. Remove only entries owned by this mod.
-            foreach (var pair in GuidByObject.ToArray())
+            // Cleanup must not depend on Unity object liveness. A destroyed UnityEngine.Object
+            // compares equal to null, but its resource identity still has to be removed from Dew's maps.
+            foreach (RuntimeRegistration record in RegistrationsByGuid.Values.ToArray())
             {
-                UnityEngine.Object obj = pair.Key;
-                string guid = pair.Value;
-                if (obj == null) continue;
-
-                Type type = obj.GetType();
-                string aqn = type.AssemblyQualifiedName;
+                Type type = record.type;
+                string guid = record.guid;
+                string name = record.name;
+                string aqn = type != null ? type.AssemblyQualifiedName : null;
 
                 try
                 {
@@ -42,28 +40,28 @@ public static partial class DariusFormalRegistry
                     }
                     if (db.allGuids.Contains(guid)) db.allGuids.Remove(guid);
 
-                    // Remove the complete runtime index set that RegisterObject installs.
-                    // This prevents stale Type objects from surviving DewMod hot reloads.
                     RemoveDatabaseMapIfOwned(db, "typeToGuid", type, guid);
                     RemoveDatabaseMapIfOwned(db, "guidToType", guid, type);
-                    RemoveDatabaseMapIfOwned(db, "typeNameToGuid", type.Name, guid);
-                    RemoveDatabaseMapIfOwned(db, "nameToGuid", obj.name, guid);
-                    RemoveDatabaseMapIfOwned(db, "guidToName", guid, obj.name);
-                    RemoveDatabaseMapIfOwned(db, "typeNameToType", type.Name, type);
-                    RemoveDatabaseMapIfOwned(db, "typeNameToType", obj.name, type);
-                }
-                catch { }
-            }
+                    RemoveDatabaseMapIfOwned(db, "typeNameToGuid", type != null ? type.Name : null, guid);
+                    RemoveDatabaseMapIfOwned(db, "nameToGuid", name, guid);
+                    RemoveDatabaseMapIfOwned(db, "guidToName", guid, name);
+                    RemoveDatabaseMapIfOwned(db, "typeNameToType", type != null ? type.Name : null, type);
+                    RemoveDatabaseMapIfOwned(db, "typeNameToType", name, type);
 
-            foreach (uint id in NetworkPrefabs.Keys.ToArray())
-            {
-                try
-                {
-                    if (db.netObjectAssetIdToGuid.ContainsKey(id)) db.netObjectAssetIdToGuid.Remove(id);
+                    if (db.netObjectAssetIdToGuid.TryGetValue(record.assetId, out existing) && existing == guid)
+                        db.netObjectAssetIdToGuid.Remove(record.assetId);
                 }
                 catch { }
-                try { NetworkClient.UnregisterSpawnHandler(id); } catch { }
+
             }
+        }
+
+        // Mirror handler ownership is independent from DewResources.database availability.
+        // Always release handlers that this generation successfully installed.
+        foreach (RuntimeRegistration record in RegistrationsByGuid.Values.ToArray())
+        {
+            if (!record.networkHandlerRegistered) continue;
+            try { NetworkClient.UnregisterSpawnHandler(record.assetId); } catch { }
         }
 
         foreach (GameObject go in OwnedPrefabs)
@@ -77,6 +75,7 @@ public static partial class DariusFormalRegistry
         ResourcesByGuid.Clear();
         GuidByObject.Clear();
         NetworkPrefabs.Clear();
+        RegistrationsByGuid.Clear();
         Decimate = null;
         CripplingStrike = null;
         Apprehend = null;

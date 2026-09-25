@@ -10,15 +10,57 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusFormalRegistry
 {
+    private static bool IsRegistrationHealthy()
+    {
+        if (!_registered || DewResources.database == null || RegistrationsByGuid.Count == 0) return false;
+
+        foreach (RuntimeRegistration record in RegistrationsByGuid.Values)
+        {
+            UnityEngine.Object resource;
+            if (!ResourcesByGuid.TryGetValue(record.guid, out resource) || resource == null || resource.GetType() != record.type)
+                return false;
+
+            string mappedGuid;
+            string aqn = record.type.AssemblyQualifiedName;
+            if (string.IsNullOrEmpty(aqn) ||
+                !DewResources.database.typeAssemblyQualifiedNameToGuid.TryGetValue(aqn, out mappedGuid) ||
+                mappedGuid != record.guid)
+                return false;
+
+            GameObject networkPrefab;
+            if (!record.networkHandlerRegistered ||
+                !NetworkPrefabs.TryGetValue(record.assetId, out networkPrefab) || networkPrefab == null)
+                return false;
+            if (!DewResources.database.netObjectAssetIdToGuid.TryGetValue(record.assetId, out mappedGuid) ||
+                mappedGuid != record.guid)
+                return false;
+        }
+
+        return true;
+    }
+
     public static void Register()
     {
-        if (_registered) return;
+        if (_registered)
+        {
+            if (IsRegistrationHealthy()) return;
+            DariusLog.Warn("REG", "Formal registry reported registered but its runtime generation is incomplete; rebuilding one clean generation.");
+            Unregister();
+        }
+        else if (RegistrationsByGuid.Count > 0 || ResourcesByGuid.Count > 0 || NetworkPrefabs.Count > 0 || OwnedPrefabs.Count > 0)
+        {
+            DariusLog.Warn("REG", "Discarding partial Formal registry state before a clean registration attempt.");
+            Unregister();
+        }
+
         if (DewResources.database == null)
         {
             DariusLog.Warn("REG", "DewResources database is not ready; formal resources were not registered yet.");
             return;
         }
 
+        try
+        {
         HemorrhageStatus = RegisterPrefab<Se_Darius_Hemorrhage>("Se_Darius_Hemorrhage", GuidHemorrhageStatus, status =>
         {
             status.showIcon = true;
@@ -145,6 +187,14 @@ public static partial class DariusFormalRegistry
 
         _registered = true;
         DariusLog.Info("REG", "Formal Darius resources registered: Q/W/E/R + Flash/Ghost + Hemorrhage identity/status + Noxian Might status + 38 native constellation/equipment stars + legacy Essence + 4 AbilityInstances.");
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("REG", e, "Formal registration failed; rolling back partial runtime state");
+            try { Unregister(); }
+            catch (Exception cleanupError) { DariusLog.Exception("REG", cleanupError, "Formal registration rollback failed"); }
+            throw;
+        }
     }
 
     public static void DropTestPack(DewPlayer player, bool force)

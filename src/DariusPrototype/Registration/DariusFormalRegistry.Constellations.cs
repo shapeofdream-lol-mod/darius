@@ -133,6 +133,9 @@ public static partial class DariusFormalRegistry
         if (string.IsNullOrEmpty(aqn))
             throw new InvalidOperationException("Could not resolve AssemblyQualifiedName for " + name);
 
+        uint assetId = StableAssetId(guid) | 0x80000000u;
+        RegistrationsByGuid[guid] = new RuntimeRegistration(type, name, guid, assetId);
+
         db.typeAssemblyQualifiedNameToGuid[aqn] = guid;
         if (!db.allGuids.Contains(guid)) db.allGuids.Add(guid);
         DariusLog.DebugInfo("REG", "DB mapping AQN->GUID name=" + name + " aqn=" + aqn + " guid=" + guid);
