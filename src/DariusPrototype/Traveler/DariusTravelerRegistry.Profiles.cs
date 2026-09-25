@@ -32,8 +32,10 @@ public static partial class DariusTravelerRegistry
         // startup Validate -> UnlockHero null race seen in the runtime logs.
         if (stats != null)
         {
-            EnsureDictionaryEntry(stats, "heroes", HeroName, CreateDefaultDictionaryValue);
-            EnsureDictionaryEntry(stats, "heroStats", HeroName, CreateDefaultDictionaryValue);
+            if (stats.heroes == null)
+                stats.heroes = new Dictionary<string, DewProfileStats.HeroData>();
+            if (!stats.heroes.ContainsKey(HeroName))
+                stats.heroes.Add(HeroName, new DewProfileStats.HeroData());
         }
 
         if (profile != null) EnsureHeroProfileEntries(profile);
@@ -42,7 +44,14 @@ public static partial class DariusTravelerRegistry
         // assemblies. With several runtime Travelers installed, each Validate postfix repairs every
         // other registry and mutates the same Dew type collections being enumerated. Runtime logs
         // showed one call blocking the Unity main thread for 246 seconds before throwing.
-        if (profile != null) InvokePreferredSettingsValidate(profile);
+        if (profile != null && profile.preferredGameSettings != null)
+        {
+            foreach (PreferredGameSettings settings in profile.preferredGameSettings.Values)
+            {
+                try { if (settings != null) settings.Validate(); }
+                catch (Exception e) { DariusLog.Exception("TRAVELER-PROFILE", e, "PreferredGameSettings.Validate failed"); }
+            }
+        }
 
         if (profile != null)
         {
@@ -54,8 +63,15 @@ public static partial class DariusTravelerRegistry
                 try { profile.UnlockSkin(skinName, "local.darius.independent"); }
                 catch (Exception e)
                 {
-                    DariusLog.Exception("TRAVELER-PROFILE", e, "Unlock Darius skin failed name=" + skinName + "; applying dictionary fallback");
-                    EnsureDictionaryEntry(profile, "skins", skinName, CreateCosmeticUnlockValue);
+                    DariusLog.Exception("TRAVELER-PROFILE", e, "UnlockSkin failed name=" + skinName + "; using public profile fallback");
+                    if (profile.skins == null)
+                        profile.skins = new Dictionary<string, DewProfile.CosmeticsData>();
+                    profile.skins[skinName] = new DewProfile.CosmeticsData
+                    {
+                        isUnlocked = true,
+                        isNew = false,
+                        ownershipKey = "local.darius.independent"
+                    };
                 }
             }
             RepairLegacySelectedSkinAliases(profile, "EnsureProfiles");
@@ -73,10 +89,32 @@ public static partial class DariusTravelerRegistry
             foreach (string skillName in requiredSkills)
             {
                 try { profile.UnlockSkill(skillName); }
-                catch { EnsureSkillUnlock(profile, skillName); }
+                catch (Exception e)
+                {
+                    DariusLog.Exception("TRAVELER-PROFILE", e, "UnlockSkill failed name=" + skillName + "; using public profile fallback");
+                    if (profile.skills == null)
+                        profile.skills = new Dictionary<string, DewProfile.UnlockData>();
+                    profile.skills[skillName] = new DewProfile.UnlockData
+                    {
+                        status = UnlockStatus.Complete,
+                        didReadMemory = true,
+                        isNewHeroOrHeroSkill = true
+                    };
+                }
             }
+
             try { profile.UnlockHero(HeroName); }
-            catch { TryInvokeHeroUnlock(profile, HeroName); }
+            catch (Exception e)
+            {
+                DariusLog.Exception("TRAVELER-PROFILE", e, "UnlockHero failed; using public profile fallback");
+                if (profile.heroes == null)
+                    profile.heroes = new Dictionary<string, DewProfile.UnlockData>();
+                profile.heroes[HeroName] = new DewProfile.UnlockData
+                {
+                    status = UnlockStatus.Complete,
+                    isNewHeroOrHeroSkill = true
+                };
+            }
 
             // Hero_Darius originally inherited a generic melee Hero graph. Older prototype builds could
             // therefore leave Vesper constellation names inside the freshly-created Darius loadout.

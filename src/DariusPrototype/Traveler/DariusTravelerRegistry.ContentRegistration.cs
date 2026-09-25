@@ -75,16 +75,31 @@ public static partial class DariusTravelerRegistry
         DariusLog.DebugInfoThrottled("TRAVELER-TYPE", "type-caches", "Dew type caches appended: Hero_Darius + Q/R/Identity + Flash/Ghost movement + ordinary W/E Memories + Darius constellation StarEffects.", 20.0);
     }
 
+    private static void EnsureContentEntry(ref string[] serializedNames, List<string> runtimeNames, string value)
+    {
+        if (string.IsNullOrEmpty(value)) return;
+
+        if (serializedNames == null)
+        {
+            serializedNames = new[] { value };
+        }
+        else if (!serializedNames.Contains(value))
+        {
+            string[] next = new string[serializedNames.Length + 1];
+            Array.Copy(serializedNames, next, serializedNames.Length);
+            next[serializedNames.Length] = value;
+            serializedNames = next;
+        }
+
+        if (runtimeNames != null && !runtimeNames.Contains(value))
+            runtimeNames.Add(value);
+    }
+
     public static void RegisterContent(DewGameContentSettings content)
     {
         if (content == null) return;
-        AddStringMember(content, "_availableHeroes", HeroName);
-        AddStringMember(content, "availableHeroes", HeroName);
-        for (int i = 0; i < SkinSpecs.Length; i++)
-        {
-            AddStringMember(content, "_availableSkins", SkinSpecs[i].name);
-            AddStringMember(content, "availableSkins", SkinSpecs[i].name);
-        }
+
+        EnsureContentEntry(ref content._availableHeroes, content.availableHeroes, HeroName);
 
         string[] skillNames =
         {
@@ -97,16 +112,17 @@ public static partial class DariusTravelerRegistry
             DariusFormalRegistry.Ghost != null ? DariusFormalRegistry.Ghost.name : "St_Darius_Ghost"
         };
         foreach (string skill in skillNames)
-        {
-            AddStringMember(content, "_availableSkills", skill);
-            AddStringMember(content, "availableSkills", skill);
-        }
+            EnsureContentEntry(ref content._availableSkills, content.availableSkills, skill);
+
         foreach (Type starType in Dew.allStarTypes)
         {
             if (starType == null || !starType.Name.StartsWith("Se_Star_Darius_", StringComparison.Ordinal)) continue;
-            AddStringMember(content, "_availableStars", starType.Name);
-            AddStringMember(content, "availableStars", starType.Name);
+            EnsureContentEntry(ref content._availableStars, content.availableStars, starType.Name);
         }
-        DariusLog.DebugInfoThrottled("TRAVELER-CONTENT", "content", "Content includes Hero_Darius, " + SkinSpecs.Length + " explicit skins, and seven Darius skill resources including Flash/Ghost movement choices.", 20.0);
+
+        // DewGameContentSettings has no skin list in the documented runtime contract. Skin unlock
+        // and selection are handled through DewProfile and the custom resource identity bridge.
+        DariusLog.DebugInfoThrottled("TRAVELER-CONTENT", "content",
+            "Content includes Hero_Darius and seven Darius skill resources including Flash/Ghost movement choices.", 20.0);
     }
 }
