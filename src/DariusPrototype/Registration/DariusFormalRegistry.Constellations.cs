@@ -95,6 +95,7 @@ public static partial class DariusFormalRegistry
         // without creating a parallel persistent scene graph.
         GameObject root = GetRuntimeActorRoot();
         go.transform.SetParent(root.transform, false);
+        if (!go.activeSelf) go.SetActive(true);
         if (warmAbilityInstance)
         {
             DariusLog.Info("AI-PREFAB", "Warm-initialized runtime Actor prefab name=" + name +

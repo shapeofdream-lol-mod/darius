@@ -113,17 +113,9 @@ public static partial class DariusRuntimeResourceCompatibility
                     m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(string));
             patched += PatchOne(harmony, skinIncluded, null, nameof(IsSkinIncludedPostfix), "Dew.IsSkinIncludedInGame");
 
-            MethodInfo actorPrepare = typeof(Actor).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                .FirstOrDefault(m => m.Name == "PrepareAndSpawn");
-            patched += PatchOne(harmony, actorPrepare, nameof(ActorPrepareAndSpawnPrefix), null, "Actor.PrepareAndSpawn");
-
-            MethodInfo entityAbilityStart = typeof(EntityAbility).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                .FirstOrDefault(m => m.Name == "OnStartServer" && m.GetParameters().Length == 0);
-            patched += PatchOne(harmony, entityAbilityStart, nameof(EntityAbilityOnStartServerPrefix), null, "EntityAbility.OnStartServer");
-
             _installed = true;
             DariusLog.Info("RESOURCE-COMPAT", "Runtime resource compatibility installed. patchedMethods=" + patched +
-                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skin inclusion/PrepareAndSpawn/EntityAbility; shared generic DewResources hooks disabled).");
+                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skin inclusion; shared generic DewResources hooks disabled).");
         }
         catch (Exception e)
         {
