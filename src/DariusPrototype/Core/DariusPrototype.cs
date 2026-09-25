@@ -151,18 +151,12 @@ public sealed class DariusPrototypeMod : ModBehaviour
     private void OnApplicationQuit()
     {
         _applicationQuitting = true;
-        try { DariusConstellationPersistence.SaveCurrent(DewSave.profileMain, "application quit"); } catch { }
         ShutdownRuntimeResources("application quit");
     }
 
     private void OnDestroy()
     {
         if (_diagnostics != null) Destroy(_diagnostics);
-
-        // Save before *any* scene or mod lifecycle destruction. A profile Validate can run during
-        // the next transition/reload before the replacement dynamic assembly has re-registered its
-        // StarEffects; without this snapshot newly purchased custom stars could be refunded.
-        try { DariusConstellationPersistence.SaveCurrent(DewSave.profileMain, "ModBehaviour OnDestroy pre-cleanup"); } catch { }
 
         if (_instanceId != 0 && _activeModInstanceId != 0 && _activeModInstanceId != _instanceId)
         {

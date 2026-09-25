@@ -43,7 +43,7 @@ src/DariusPrototype/
 │   ├── BasicAttack/      # 原生普攻与定向普攻扇区
 │   └── Summoners/        # Flash / Ghost / 原生位移
 ├── Traveler/             # Hero_Darius 注册、模型绑定、生命周期
-├── Constellations/       # 星座 + 装备星（含 persistence / presentation）
+├── Constellations/       # 星座 + 装备星（gameplay / presentation；存档由 DewProfile 负责）
 ├── Registration/         # 正式资源注册 / Deja Vu / 运行时查找兼容层
 ├── Presentation/
 │   ├── Vfx/              # 高层表现 facade、LoL VFX interpreter、普攻视觉
@@ -118,12 +118,11 @@ src/DariusPrototype/
 | --- | --- |
 | `Registration/DariusFormalRegistry.cs` | Memory/AbilityInstance/Identity 正式运行时资源注册 |
 | `Registration/DariusDejaVuRegistry.cs` | Deja Vu/profile/content 接入与相关兼容 patch；保持一个候选资源契约 |
-| `Registration/DariusRuntimeResourceCompatibility.cs` | DewResources/Harmony 运行时查找兼容层 |
+| `Registration/DariusRuntimeResourceCompatibility.cs` | runtime-only 资源的最小 DewResources bridge（Load / Preload / network prefab） |
 | `Constellations/DariusConstellationDefinitions.cs` | Darius 星座 ID/StarEffect 类型 |
 | `Constellations/DariusConstellationRegistry.cs` | 星座运行时资源注册 + reflection hydration |
 | `Constellations/DariusConstellationRuntime.cs` | Hero 星座 gameplay 状态机 |
 | `Constellations/DariusConstellationPresentation.cs` | 星座本地化 + Lobby UI/Harmony presentation guard |
-| `Constellations/DariusConstellationPersistence.cs` | 星座购买/存档 capture/restore/persistence |
 | `Constellations/DariusEquipmentConstellationDefinitions.cs` | 装备星 ID/类型/本地化 |
 | `Constellations/DariusEquipmentRuntime.cs` | 装备星 gameplay 状态机 |
 | `Presentation/Media/DariusAwooAudioRuntime.cs` | Awoo 可选本地音频播放 |

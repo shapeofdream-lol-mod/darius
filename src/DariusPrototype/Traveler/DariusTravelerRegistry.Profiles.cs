@@ -52,7 +52,6 @@ public static partial class DariusTravelerRegistry
         EnsureHeroProfileEntries(profile);
         RepairLegacySelectedSkinAliases(profile, "EnsureProfiles");
 
-        DariusConstellationPersistence.RestoreBootBackup(profile);
         RepairDariusConstellationLoadout(profile);
 
         if (profile.preferredGameSettings != null)
