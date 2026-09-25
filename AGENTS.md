@@ -138,7 +138,6 @@ src/DariusPrototype/
 | `Core/DariusDiagnostics.cs` | 首测运行时快照 |
 | `Core/DariusModEnvironment.cs` | 解析 Mod 物理目录；版本读取 `about/metadata.json` |
 | `Core/DariusResourceIds.cs` | 共享资源 GUID 唯一定义处 |
-| `Core/DariusModLifecycle.cs` | 区分真正热卸载与普通场景销毁 |
 | `src/DariusPrototype/UniversalAnimation/*.cs` | 通用动画重定向运行时 |
 | `tools/BuildDariusPass5AuthenticVfx.py` | 解析 Riot `PROP` BIN，生成 LoL VFX 载荷 |
 | `tools/SodReferencePack/New-SodReferencePack.ps1` | 从真实 SOD Managed DLL 生成/打包 reference assemblies |

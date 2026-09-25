@@ -55,62 +55,6 @@ public static partial class DariusRuntimeResourceCompatibility
         }
     }
 
-    private static void CharacterModelDisplaySetupPostfix(object __instance, string __0)
-    {
-        if (__instance == null || !string.Equals(__0, DariusTravelerRegistry.DefaultSkinName, StringComparison.Ordinal)) return;
-        if (!string.Equals(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, "Title", StringComparison.OrdinalIgnoreCase)) return;
-
-        try
-        {
-            Component component = __instance as Component;
-            if (component == null)
-            {
-                DariusLog.Warn("TITLE-MODEL-DIAG", "CharacterModelDisplay.Setup resolved Darius on Title, but instance was not a Component.");
-                return;
-            }
-
-            Transform t = component.transform;
-            string parent = t.parent != null ? t.parent.name : "<root>";
-            string scene = component.gameObject.scene.IsValid() ? component.gameObject.scene.name : "<invalid>";
-            Transform[] all = t.GetComponentsInChildren<Transform>(true);
-            string children = string.Empty;
-            int childCount = all != null ? Mathf.Max(0, all.Length - 1) : 0;
-            int emitted = 0;
-            if (all != null)
-            {
-                for (int i = 0; i < all.Length && emitted < 16; i++)
-                {
-                    Transform child = all[i];
-                    if (child == null || child == t) continue;
-                    if (children.Length > 0) children += ";";
-                    children += child.name +
-                        "@scene=" + (child.gameObject.scene.IsValid() ? child.gameObject.scene.name : "<invalid>") +
-                        "@localPos=" + DariusLog.Vec(child.localPosition) +
-                        "@localScale=" + DariusLog.Vec(child.localScale) +
-                        "@active=" + child.gameObject.activeInHierarchy;
-                    emitted++;
-                }
-            }
-
-            DariusLog.Info("TITLE-MODEL-DIAG",
-                "CharacterModelDisplay.Setup skin=" + __0 +
-                " display=" + component.name +
-                " id=" + component.GetInstanceID() +
-                " scene=" + scene +
-                " parent=" + parent +
-                " worldPos=" + DariusLog.Vec(t.position) +
-                " localPos=" + DariusLog.Vec(t.localPosition) +
-                " localScale=" + DariusLog.Vec(t.localScale) +
-                " active=" + component.gameObject.activeInHierarchy +
-                " children=" + childCount +
-                " childState=[" + children + "]");
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("TITLE-MODEL-DIAG", e, "Failed inspecting Title CharacterModelDisplay for " + __0);
-        }
-    }
-
     private static float _nextHeroDetailLogTime;
 
     private static float _nextHeroDetailRefreshTime;

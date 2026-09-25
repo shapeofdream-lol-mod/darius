@@ -9,42 +9,6 @@ using UnityEngine;
 
 public static partial class DariusRuntimeResourceCompatibility
 {
-    private static void NetworkServerSpawnTemplatePrefix(GameObject __0)
-    {
-        string label;
-        if (!DariusTravelerRegistry.TryGetRuntimeNetworkTemplateLabel(__0, out label)) return;
-        DariusLog.Warn("TRAVELER-NET-DIAG",
-            "NetworkServer.Spawn received the registered Traveler template itself: " + label +
-            " stack=" + Environment.StackTrace);
-    }
-
-    private static void NetworkServerShutdownPrefix()
-    {
-        DariusTravelerRegistry.LogRuntimeNetworkTemplateStates("NetworkServer.Shutdown prefix");
-    }
-
-    private static void NetworkServerDestroyTemplatePrefix(GameObject __0)
-    {
-        DariusTravelerRegistry.LogRuntimeNetworkTemplateDestroyBoundary(__0, "NetworkServer.Destroy");
-    }
-
-    private static void NetworkClientDestroyTemplatePrefix(object __0, MethodBase __originalMethod)
-    {
-        UnityEngine.Object candidate = __0 as UnityEngine.Object;
-        string name = __originalMethod != null ? __originalMethod.DeclaringType.Name + "." + __originalMethod.Name : "NetworkClient destroy";
-        DariusTravelerRegistry.LogRuntimeNetworkTemplateDestroyBoundary(candidate, name);
-    }
-
-    private static void SpawnManagerDestroyTemplatePrefix(GameObject __0)
-    {
-        DariusTravelerRegistry.LogRuntimeNetworkTemplateDestroyBoundary(__0, "SpawnManager.Destroy");
-    }
-
-    private static void NetworkIdentityOnDestroyTemplatePrefix(NetworkIdentity __instance)
-    {
-        DariusTravelerRegistry.LogRuntimeNetworkTemplateDestroyBoundary(__instance, "NetworkIdentity.OnDestroy");
-    }
-
     // DewResources.Load(string, ResourceLoadSettings): the working reference mod intercepts
     // this exact lookup path and returns its runtime prefab instead of asking Addressables.
     private static bool LoadPrefix(string __0, ref UnityEngine.Object __result)

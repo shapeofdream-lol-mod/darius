@@ -12,6 +12,26 @@ using UnityEngine.SceneManagement;
 public static partial class DariusTravelerRegistry
 {
     private static GameObject _lifecycleBridgeObject;
+    private static Transform _modOwner;
+    private static int _modOwnerInstanceId;
+
+    public static void BindOwner(Transform owner)
+    {
+        if (owner == null) throw new ArgumentNullException(nameof(owner));
+        int ownerId = owner.gameObject.GetInstanceID();
+        if (_modOwnerInstanceId == ownerId)
+        {
+            _modOwner = owner;
+            return;
+        }
+
+        if (_resourceRoot != null || _lifecycleBridgeObject != null || _registered)
+            throw new InvalidOperationException("Traveler runtime generation must be cleaned before binding a new ModBehaviour owner.");
+
+        _modOwner = owner;
+        _modOwnerInstanceId = ownerId;
+        DariusLog.Info("TRAVELER-LIFECYCLE", "Bound runtime resource ownership to ModBehaviour owner=" + ownerId + ".");
+    }
 
     public static IEnumerator InitializeWhenReady()
     {
@@ -147,23 +167,29 @@ public static partial class DariusTravelerRegistry
     {
         if (_resourceRoot != null) return;
 
-        // These are MOD-owned runtime prefab templates, not Dew loaded variants. Keep them under one
-        // inactive persistent root, matching the stable FormalRegistry runtime-prefab contract.
-        // UI/lookup/scene repair may only reassert mappings and never recreate this generation.
+        if (_modOwner == null)
+            throw new InvalidOperationException("DariusTravelerRegistry has no ModBehaviour owner.");
+
+        // Runtime prefab templates belong to the current ModBehaviour generation. Parenting the
+        // inactive root to the loader-owned container makes Unity's normal mod lifecycle the final
+        // ownership boundary instead of keeping a parallel persistent scene graph alive.
         _resourceRoot = new GameObject("DariusTraveler_RuntimeResources");
         _resourceRoot.hideFlags = HideFlags.HideAndDontSave;
+        _resourceRoot.transform.SetParent(_modOwner, false);
         _resourceRoot.SetActive(false);
-        UnityEngine.Object.DontDestroyOnLoad(_resourceRoot);
     }
 
     private static void CreateLifecycleBridge()
     {
         if (_lifecycleBridgeObject != null) return;
-        _lifecycleBridgeObject = new GameObject("DariusTraveler_PersistentLifecycle");
+        if (_modOwner == null)
+            throw new InvalidOperationException("DariusTravelerRegistry has no ModBehaviour owner.");
+
+        _lifecycleBridgeObject = new GameObject("DariusTraveler_Lifecycle");
         _lifecycleBridgeObject.hideFlags = HideFlags.HideAndDontSave;
+        _lifecycleBridgeObject.transform.SetParent(_modOwner, false);
         _lifecycleBridgeObject.AddComponent<DariusTravelerLifecycleBridge>();
-        UnityEngine.Object.DontDestroyOnLoad(_lifecycleBridgeObject);
-        DariusLog.Info("TRAVELER-LIFECYCLE", "Persistent scene lifecycle bridge created. Scene/profile hooks only reassert mappings; Dew resource lifecycle owns resource recreation.");
+        DariusLog.Info("TRAVELER-LIFECYCLE", "Scene lifecycle bridge attached to the current ModBehaviour owner.");
     }
 
     private static void DestroyLifecycleBridge()

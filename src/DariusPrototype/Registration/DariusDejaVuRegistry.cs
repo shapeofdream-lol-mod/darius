@@ -79,6 +79,16 @@ public static partial class DariusDejaVuRegistry
         }
     }
 
+    public static void ResetPatchInstallState()
+    {
+        _localizationPatched = false;
+        _selectionCompatibilityPatched = false;
+        _loggedDiscovery = false;
+        TooltipSkillCache.Clear();
+        TooltipTextCache.Clear();
+        _tooltipCacheHeroId = 0;
+    }
+
     public static void InstallLocalizationPatches(Harmony harmony)
     {
         if (_localizationPatched || harmony == null) return;

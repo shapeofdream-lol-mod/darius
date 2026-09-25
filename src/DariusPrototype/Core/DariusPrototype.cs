@@ -20,9 +20,11 @@ public sealed class DariusPrototypeMod : ModBehaviour
         Debug.Log("[DariusAudio] config applied q=" + skillAudioVolume.qVolume.ToString("0.##") + " w=" + skillAudioVolume.wVolume.ToString("0.##") + " e=" + skillAudioVolume.eVolume.ToString("0.##") + " r=" + skillAudioVolume.rVolume.ToString("0.##") + " basic=" + skillAudioVolume.basicAttackVolume.ToString("0.##") + " dodge=" + skillAudioVolume.dodgeVolume.ToString("0.##") + " voice=" + skillAudioVolume.voiceVolume.ToString("0.##"));
     }
 
-    private static bool _bootstrapped;
-    private static bool _applicationQuitting;
-    private static bool _shutdownCompleted;
+    private static int _activeModInstanceId;
+    private bool _bootstrapped;
+    private bool _applicationQuitting;
+    private bool _shutdownCompleted;
+    private int _instanceId;
     private DariusDiagnostics _diagnostics;
 
     private void Awake()
@@ -33,6 +35,17 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusModEnvironment.Configure(this);
         DariusAudioSettingsRuntime.Bind(skillAudioVolume);
         DariusLog.Initialize();
+
+        _instanceId = GetInstanceID();
+        if (_activeModInstanceId != 0 && _activeModInstanceId != _instanceId)
+        {
+            DariusLog.Info("BOOT", "New ModBehaviour instance superseded owner=" + _activeModInstanceId +
+                " with owner=" + _instanceId + "; cleaning the previous runtime generation before bootstrap.");
+            ResetSharedRuntimeForReplacement();
+        }
+        _activeModInstanceId = _instanceId;
+        DariusTravelerRegistry.BindOwner(transform);
+
         TravelerBasicAttackVfxReplication.Initialize();
         try
         {
@@ -78,15 +91,6 @@ public sealed class DariusPrototypeMod : ModBehaviour
 
             try
             {
-                DariusModLifecycle.Install(harmony);
-            }
-            catch (Exception e)
-            {
-                DariusLog.Exception("MOD-LIFECYCLE", e, "DewMod.UnloadAll lifecycle guard install failed; continuing boot");
-            }
-
-            try
-            {
                 DariusRuntimeResourceCompatibility.Install(harmony);
             }
             catch (Exception e)
@@ -113,10 +117,6 @@ public sealed class DariusPrototypeMod : ModBehaviour
             }
 
             _bootstrapped = true;
-        }
-        else
-        {
-            DariusLog.Info("BOOT", "Scene-created ModBehaviour detected; keeping existing Harmony/runtime registrations instead of duplicating them.");
         }
 
         // If Dew's resource database is already online, synchronously install the minimum Hero/Skin
@@ -163,15 +163,25 @@ public sealed class DariusPrototypeMod : ModBehaviour
         // StarEffects; without this snapshot newly purchased custom stars could be refunded.
         try { DariusConstellationPersistence.SaveCurrent(DewSave.profileMain, "ModBehaviour OnDestroy pre-cleanup"); } catch { }
 
-        bool trueModUnload = DariusModLifecycle.IsModManagerUnloading;
-        if (_applicationQuitting || !Application.isPlaying || trueModUnload)
+        if (_instanceId != 0 && _activeModInstanceId != 0 && _activeModInstanceId != _instanceId)
         {
-            ShutdownRuntimeResources(trueModUnload ? "DewMod.UnloadAll hot reload" : "real shutdown");
+            DariusLog.Info("BOOT", "Superseded ModBehaviour destroyed owner=" + _instanceId +
+                " activeOwner=" + _activeModInstanceId + "; shared runtime belongs to the newer instance.");
+            return;
         }
-        else
-        {
-            DariusLog.Info("BOOT", "Ordinary scene lifecycle destroyed ModBehaviour; preserving MOD-owned Darius runtime prefab templates. Constellation state was snapshotted first.");
-        }
+
+        ShutdownRuntimeResources(_applicationQuitting ? "application quit" : "ModBehaviour destroyed");
+        if (_activeModInstanceId == _instanceId) _activeModInstanceId = 0;
+    }
+
+    private void ResetSharedRuntimeForReplacement()
+    {
+        DariusRInputGuard.Uninstall();
+        try { harmony.UnpatchAll(harmony.Id); } catch { }
+        DariusRuntimeResourceCompatibility.ResetInstallState();
+        DariusDejaVuRegistry.ResetPatchInstallState();
+        DariusTravelerRegistry.ShutdownRuntimeResources();
+        DariusFormalRegistry.Unregister();
     }
 
     private void ShutdownRuntimeResources(string reason)
@@ -179,10 +189,12 @@ public sealed class DariusPrototypeMod : ModBehaviour
         if (_shutdownCompleted) return;
         _shutdownCompleted = true;
         DariusLog.Info("BOOT", "Cleaning Darius runtime resources: " + reason);
-        DariusTravelerRegistry.ShutdownRuntimeResources();
-        DariusFormalRegistry.Unregister();
         DariusRInputGuard.Uninstall();
         try { harmony.UnpatchAll(harmony.Id); } catch { }
+        DariusRuntimeResourceCompatibility.ResetInstallState();
+        DariusDejaVuRegistry.ResetPatchInstallState();
+        DariusTravelerRegistry.ShutdownRuntimeResources();
+        DariusFormalRegistry.Unregister();
         _bootstrapped = false;
         DariusLog.Flush();
         if (_applicationQuitting || !Application.isPlaying) DariusLog.Shutdown();

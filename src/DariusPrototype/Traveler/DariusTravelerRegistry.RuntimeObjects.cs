@@ -134,5 +134,7 @@ public static partial class DariusTravelerRegistry
         UnregisterRuntimeOnly();
         DestroyLifecycleBridge();
         DariusNativeModelAssets.Unload();
+        _modOwner = null;
+        _modOwnerInstanceId = 0;
     }
 }

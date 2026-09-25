@@ -14,6 +14,14 @@ public static partial class DariusRuntimeResourceCompatibility
 {
     private static bool _installed;
 
+    public static void ResetInstallState()
+    {
+        _installed = false;
+        _nextHeroDetailLogTime = 0f;
+        _nextHeroDetailRefreshTime = 0f;
+        _lastHeroDetailWindowId = 0;
+    }
+
     public static void Install(Harmony harmony)
     {
         if (_installed || harmony == null) return;
@@ -87,17 +95,6 @@ public static partial class DariusRuntimeResourceCompatibility
                 : null;
             patched += PatchOne(harmony, heroIconSetup, null, nameof(HeroIconSetupPostfix), "UI_HeroIcon.Setup native tint neutralizer");
 
-            // Temporary read-only diagnostic for the remaining Lobby -> Title miniature model issue.
-            // The runtime log shows Title itself resolves Skin_Darius_Default after the transition;
-            // capture only that exact display instance/transform without changing its presentation.
-            Type characterModelDisplayType = AccessTools.TypeByName("CharacterModelDisplay");
-            MethodInfo characterModelDisplaySetup = characterModelDisplayType != null
-                ? characterModelDisplayType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                    .FirstOrDefault(m => m.Name == "Setup" && m.GetParameters().Length >= 1 &&
-                        m.GetParameters()[0].ParameterType == typeof(string))
-                : null;
-            patched += PatchOne(harmony, characterModelDisplaySetup, null, nameof(CharacterModelDisplaySetupPostfix), "CharacterModelDisplay.Setup Title diagnostic");
-
             // v0.18.2: the stock in-run detail panel assumes its Hero/Status/attack references came
             // from an Addressables-backed native hero. Runtime Hero_Darius can otherwise leave this
             // panel reading stale/default values (observed as every field showing 500). For Darius
@@ -129,54 +126,6 @@ public static partial class DariusRuntimeResourceCompatibility
                     m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(string));
             patched += PatchOne(harmony, skinIncluded, null, nameof(IsSkinIncludedPostfix), "Dew.IsSkinIncludedInGame");
 
-            MethodInfo[] networkServerSpawnMethods = typeof(NetworkServer)
-                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                .Where(m => m.Name == "Spawn" &&
-                            m.GetParameters().Length >= 1 &&
-                            m.GetParameters()[0].ParameterType == typeof(GameObject))
-                .ToArray();
-            for (int i = 0; i < networkServerSpawnMethods.Length; i++)
-                patched += PatchOne(harmony, networkServerSpawnMethods[i], nameof(NetworkServerSpawnTemplatePrefix), null, "NetworkServer.Spawn Traveler-template diagnostic");
-
-            MethodInfo networkServerShutdown = typeof(NetworkServer)
-                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                .FirstOrDefault(m => m.Name == "Shutdown" && m.GetParameters().Length == 0);
-            patched += PatchOne(harmony, networkServerShutdown, nameof(NetworkServerShutdownPrefix), null, "NetworkServer.Shutdown Traveler-template diagnostic");
-
-            MethodInfo[] networkServerDestroyMethods = typeof(NetworkServer)
-                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                .Where(m => m.Name == "Destroy" &&
-                            m.GetParameters().Length >= 1 &&
-                            m.GetParameters()[0].ParameterType == typeof(GameObject))
-                .ToArray();
-            for (int i = 0; i < networkServerDestroyMethods.Length; i++)
-                patched += PatchOne(harmony, networkServerDestroyMethods[i], nameof(NetworkServerDestroyTemplatePrefix), null, "NetworkServer.Destroy Traveler-template diagnostic");
-
-            MethodInfo[] networkClientDestroyMethods = typeof(NetworkClient)
-                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                .Where(m => (m.Name.IndexOf("Destroy", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                             m.Name.IndexOf("Unspawn", StringComparison.OrdinalIgnoreCase) >= 0) &&
-                            m.GetParameters().Length >= 1 &&
-                            (m.GetParameters()[0].ParameterType == typeof(GameObject) ||
-                             m.GetParameters()[0].ParameterType == typeof(NetworkIdentity)))
-                .ToArray();
-            for (int i = 0; i < networkClientDestroyMethods.Length; i++)
-                patched += PatchOne(harmony, networkClientDestroyMethods[i], nameof(NetworkClientDestroyTemplatePrefix), null, "NetworkClient destroy/unspawn Traveler-template diagnostic");
-
-            MethodInfo[] spawnManagerDestroyMethods = typeof(SpawnManager)
-                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                .Where(m => m.Name == "Destroy" &&
-                            m.GetParameters().Length >= 1 &&
-                            m.GetParameters()[0].ParameterType == typeof(GameObject))
-                .ToArray();
-            for (int i = 0; i < spawnManagerDestroyMethods.Length; i++)
-                patched += PatchOne(harmony, spawnManagerDestroyMethods[i], nameof(SpawnManagerDestroyTemplatePrefix), null, "SpawnManager.Destroy Traveler-template diagnostic");
-
-            MethodInfo networkIdentityOnDestroy = typeof(NetworkIdentity)
-                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                .FirstOrDefault(m => m.Name == "OnDestroy" && m.GetParameters().Length == 0);
-            patched += PatchOne(harmony, networkIdentityOnDestroy, nameof(NetworkIdentityOnDestroyTemplatePrefix), null, "NetworkIdentity.OnDestroy Traveler-template diagnostic");
-
             MethodInfo actorPrepare = typeof(Actor).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                 .FirstOrDefault(m => m.Name == "PrepareAndSpawn");
             patched += PatchOne(harmony, actorPrepare, nameof(ActorPrepareAndSpawnPrefix), null, "Actor.PrepareAndSpawn");
@@ -191,7 +140,7 @@ public static partial class DariusRuntimeResourceCompatibility
 
             _installed = true;
             DariusLog.Info("RESOURCE-COMPAT", "Runtime resource compatibility installed. patchedMethods=" + patched +
-                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/Title-model-diagnostic/Network-template-diagnostic/Destroy-boundary-diagnostic/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skill-gem-star-skin inclusion/PrepareAndSpawn/EntityAbility/LootManager; shared generic DewResources hooks disabled).");
+                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skill-gem-star-skin inclusion/PrepareAndSpawn/EntityAbility/LootManager; shared generic DewResources hooks disabled).");
         }
         catch (Exception e)
         {
