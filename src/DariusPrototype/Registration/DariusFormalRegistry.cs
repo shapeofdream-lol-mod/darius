@@ -83,16 +83,6 @@ public static partial class DariusFormalRegistry
 
     private const string GuidAiR = DariusResourceIds.AbilityR;
 
-    // Only W/E are ordinary run Memories. Q/R are Hero_Darius character skills and
-    // Hemorrhage is the Identity slot; those three must not enter the random Memory pool.
-    public static readonly KeyValuePair<string, Rarity>[] SkillPoolEntries =
-    {
-        new KeyValuePair<string, Rarity>("St_Darius_CripplingStrike", Rarity.Common),
-        new KeyValuePair<string, Rarity>("St_Darius_Apprehend", Rarity.Common)
-    };
-
-    public static readonly KeyValuePair<string, Rarity>[] GemPoolEntries = new KeyValuePair<string, Rarity>[0];
-
     public static IEnumerator InitializeAndDropWhenReady()
     {
         DariusLog.Info("REG", "InitializeAndDropWhenReady started; waiting for DewResources.database.");

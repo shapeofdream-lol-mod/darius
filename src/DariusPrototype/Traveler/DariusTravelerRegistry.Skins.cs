@@ -49,47 +49,9 @@ public static partial class DariusTravelerRegistry
         return clone;
     }
 
-    private static T ResolveResourceByTypeName<T>(string typeName) where T : UnityEngine.Object
-    {
-        Type resourceType = AccessTools.TypeByName(typeName);
-        if (resourceType == null) return null;
-        MethodInfo[] methods = typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-        for (int i = 0; i < methods.Length; i++)
-        {
-            MethodInfo m = methods[i];
-            if (m.Name != "GetByType" || m.IsGenericMethod) continue;
-            ParameterInfo[] ps = m.GetParameters();
-            if (ps.Length < 1 || ps[0].ParameterType != typeof(Type)) continue;
-            object[] args = new object[ps.Length];
-            args[0] = resourceType;
-            for (int j = 1; j < ps.Length; j++)
-                args[j] = ps[j].HasDefaultValue ? ps[j].DefaultValue : (ps[j].ParameterType.IsValueType ? Activator.CreateInstance(ps[j].ParameterType) : null);
-            try
-            {
-                UnityEngine.Object result = m.Invoke(null, args) as UnityEngine.Object;
-                T direct = result as T;
-                if (direct != null) return direct;
-                GameObject resultGo = result as GameObject;
-                if (resultGo != null)
-                {
-                    T component = resultGo.GetComponent(resourceType) as T;
-                    if (component != null) return component;
-                }
-                Component c = result as Component;
-                if (c != null)
-                {
-                    T component = c.GetComponent(resourceType) as T;
-                    if (component != null) return component;
-                }
-            }
-            catch { }
-        }
-        return null;
-    }
-
     private static void CreateAndRegisterSkin()
     {
-        Skin source = ResolveGenericResource<Skin>("GetByName", "Skin_Vesper_Default", false);
+        Skin source = DewResources.GetByName<Skin>("Skin_Vesper_Default");
         if (source == null) throw new InvalidOperationException("Could not resolve stock Skin template contract.");
         EntityModel sourceModel = source.GetComponent<EntityModel>();
         if (sourceModel == null) throw new InvalidOperationException("Stock Skin template has no EntityModel contract.");

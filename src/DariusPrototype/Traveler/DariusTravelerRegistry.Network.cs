@@ -109,35 +109,6 @@ public static partial class DariusTravelerRegistry
         catch (Exception e) { DariusLog.Exception("TRAVELER-NET", e, "InitializeNetworkBehaviours failed for " + identity.name); }
     }
 
-    private static T ResolveGenericResource<T>(string methodName, string key, bool loadLight) where T : UnityEngine.Object
-    {
-        MethodInfo[] methods = typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-        foreach (MethodInfo raw in methods)
-        {
-            if (raw.Name != methodName || !raw.IsGenericMethodDefinition) continue;
-            MethodInfo m;
-            try { m = raw.MakeGenericMethod(typeof(T)); } catch { continue; }
-            ParameterInfo[] ps = m.GetParameters();
-            if (ps.Length < 1 || ps[0].ParameterType != typeof(string)) continue;
-            object[] args = new object[ps.Length];
-            args[0] = key;
-            for (int i = 1; i < ps.Length; i++)
-            {
-                if (ps[i].ParameterType == typeof(bool) && ps[i].Name != null && ps[i].Name.IndexOf("light", StringComparison.OrdinalIgnoreCase) >= 0)
-                    args[i] = loadLight;
-                else if (ps[i].HasDefaultValue) args[i] = ps[i].DefaultValue;
-                else args[i] = ps[i].ParameterType.IsValueType ? Activator.CreateInstance(ps[i].ParameterType) : null;
-            }
-            try
-            {
-                T result = m.Invoke(null, args) as T;
-                if (result != null) return result;
-            }
-            catch { }
-        }
-        return null;
-    }
-
     private static Dictionary<FieldInfo, object> CaptureUnitySerializedFields(Component source, Type startType)
     {
         Dictionary<FieldInfo, object> values = new Dictionary<FieldInfo, object>();

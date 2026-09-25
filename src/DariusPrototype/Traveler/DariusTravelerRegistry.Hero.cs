@@ -30,7 +30,7 @@ public static partial class DariusTravelerRegistry
 
     private static void CreateAndRegisterHero()
     {
-        Hero source = ResolveGenericResource<Hero>("GetByShortTypeName", "Hero_Vesper", false);
+        Hero source = DewResources.GetByShortTypeName<Hero>("Hero_Vesper");
         if (source == null) throw new InvalidOperationException("Could not resolve stock Hero_Vesper prefab.");
 
         GameObject go = UnityEngine.Object.Instantiate(source.gameObject, _resourceRoot.transform, false);
