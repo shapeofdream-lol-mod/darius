@@ -66,14 +66,14 @@ public static partial class DariusTravelerRegistry
         }
         try
         {
-            string mappedGuid;
-            if (!DewResources.database.netObjectAssetIdToGuid.TryGetValue(HeroAssetId, out mappedGuid) || mappedGuid != HeroGuid)
+            object database = DewResources.database;
+            if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, HeroAssetId, HeroGuid))
                 errors.Add("Hero Mirror assetId map missing/wrong");
-            if (!DewResources.database.netObjectAssetIdToGuid.TryGetValue(AttackAssetId, out mappedGuid) || mappedGuid != AttackGuid)
+            if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackAssetId, AttackGuid))
                 errors.Add("At_DariusAxe Mirror assetId map missing/wrong");
-            if (!DewResources.database.netObjectAssetIdToGuid.TryGetValue(AttackInstanceAssetId, out mappedGuid) || mappedGuid != AttackInstanceGuid)
+            if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackInstanceAssetId, AttackInstanceGuid))
                 errors.Add("Ai_DariusAxe Mirror assetId map missing/wrong");
-            if (!DewResources.database.netObjectAssetIdToGuid.TryGetValue(AttackCritInstanceAssetId, out mappedGuid) || mappedGuid != AttackCritInstanceGuid)
+            if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackCritInstanceAssetId, AttackCritInstanceGuid))
                 errors.Add("Ai_DariusAxe_Crit Mirror assetId map missing/wrong");
         }
         catch { errors.Add("Hero/attack Mirror assetId maps unreadable"); }

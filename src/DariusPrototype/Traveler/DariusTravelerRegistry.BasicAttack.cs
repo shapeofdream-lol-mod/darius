@@ -149,11 +149,11 @@ public static partial class DariusTravelerRegistry
 
         NetworkIdentity identity = go.GetComponent<NetworkIdentity>();
         if (identity == null) identity = go.AddComponent<NetworkIdentity>();
-        DariusRuntimeNetworkBridge.ConfigureTemplateIdentity(identity, AttackAssetId, AttackName);
+        DariusUnsupportedResourceBridge.ConfigureTemplateIdentity(identity, AttackAssetId, AttackName);
         // activeSelf=true is intentional, but the inactive resource root keeps the construction
         // prefab inactiveInHierarchy. Mirror can build its cache without firing DewCollider.OnEnable,
         // while a live clone inherits activeSelf=true and initializes before Dew assigns parentActor.
-        DariusRuntimeNetworkBridge.RebuildNetworkBehaviours(identity, AttackName);
+        DariusUnsupportedResourceBridge.RebuildNetworkBehaviours(identity, AttackName);
 
         go.hideFlags = HideFlags.None;
         AttackPrefab = attack;

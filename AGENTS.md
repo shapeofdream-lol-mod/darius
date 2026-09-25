@@ -118,7 +118,8 @@ src/DariusPrototype/
 | --- | --- |
 | `Registration/DariusFormalRegistry.cs` | Memory/AbilityInstance/Identity 正式运行时资源注册 |
 | `Registration/DariusDejaVuRegistry.cs` | Deja Vu/profile/content 接入与相关兼容 patch；保持一个候选资源契约 |
-| `Registration/DariusRuntimeResourceCompatibility.cs` | runtime-only 资源的最小 DewResources bridge（Load / Preload / network prefab） |
+| `Registration/DariusRuntimeResourceCompatibility.cs` | runtime-only 资源的最小 DewResources lookup bridge（Load / Preload / network prefab） |
+| `Registration/DariusUnsupportedResourceBridge.cs` | 唯一 unsupported 注册边界：Dew 私有 resource indexes/type caches + Mirror runtime-template internals；业务模块不得直接访问这些内部字段 |
 | `Constellations/DariusConstellationDefinitions.cs` | Darius 星座 ID/StarEffect 类型 |
 | `Constellations/DariusConstellationRegistry.cs` | 星座运行时资源注册 + reflection hydration |
 | `Constellations/DariusConstellationRuntime.cs` | Hero 星座 gameplay 状态机 |

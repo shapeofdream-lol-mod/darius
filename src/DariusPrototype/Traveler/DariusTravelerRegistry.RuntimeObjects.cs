@@ -31,9 +31,8 @@ public static partial class DariusTravelerRegistry
             {
                 string expected = RuntimeGuidForAssetId(id);
                 string existing;
-                if (!string.IsNullOrEmpty(expected) && DewResources.database != null &&
-                    DewResources.database.netObjectAssetIdToGuid.TryGetValue(id, out existing) && existing == expected)
-                    DewResources.database.netObjectAssetIdToGuid.Remove(id);
+                if (!string.IsNullOrEmpty(expected))
+                    DariusUnsupportedResourceBridge.RemoveNetworkGuidIfOwned(DewResources.database, id, expected);
             }
             catch { }
         }
@@ -45,48 +44,35 @@ public static partial class DariusTravelerRegistry
         {
             UnityEngine.Object resource = pair.Value;
             if (ReferenceEquals(resource, null)) continue;
-            RemoveDatabaseMappingIfOwned("objectToGuidFallback", resource, pair.Key);
+            DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(DewResources.database, resource, pair.Key);
             Component component = resource as Component;
             if (ReferenceEquals(component, null)) continue;
             try
             {
                 GameObject go = component.gameObject;
                 if (!ReferenceEquals(go, null))
-                    RemoveDatabaseMappingIfOwned("objectToGuidFallback", go, pair.Key);
+                    DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(DewResources.database, go, pair.Key);
             }
             catch { }
         }
 
-        RemoveTypeFromDew("_allHeroes", typeof(Hero_Darius));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_Decimate));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_NoxianGuillotine));
-        RemoveTypeFromDew("_allSkills", typeof(St_D_Darius_Hemorrhage));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_CripplingStrike));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_Apprehend));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_Flash));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_Ghost));
-        RemoveTypeFromDew("_allHeroSkills", typeof(St_Darius_Decimate));
-        RemoveTypeFromDew("_allHeroSkills", typeof(St_Darius_NoxianGuillotine));
-        RemoveTypeFromDew("_allHeroSkills", typeof(St_D_Darius_Hemorrhage));
-        RemoveTypeFromDew("_allHeroSkills", typeof(St_Darius_Flash));
-        RemoveTypeFromDew("_allHeroSkills", typeof(St_Darius_Ghost));
+        DariusUnsupportedResourceBridge.RemoveDewTypeCacheEntries(
+            "_allHeroes", new[] { typeof(Hero_Darius) }, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.RemoveDewTypeCacheEntries(
+            "_allSkills", DariusRegisteredSkillTypes, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.RemoveDewTypeCacheEntries(
+            "_allHeroSkills", DariusRegisteredHeroSkillTypes, "TRAVELER-TYPE");
 
         // Only remove maps where our exact value is still installed. User profile data is intentionally preserved.
         for (int si = 0; si < SkinSpecs.Length; si++)
         {
-            RemoveDatabaseMappingIfOwned("nameToGuid", SkinSpecs[si].name, SkinSpecs[si].guid);
-            RemoveDatabaseMappingIfOwned("guidToName", SkinSpecs[si].guid, SkinSpecs[si].name);
+            DariusUnsupportedResourceBridge.RemoveNamedResourceIdentity(
+                DewResources.database, SkinSpecs[si].name, SkinSpecs[si].guid);
         }
-        RemoveTypedMappings(typeof(Hero_Darius), HeroGuid, HeroName);
-        RemoveTypedMappings(typeof(At_DariusAxe), AttackGuid, AttackName);
-        RemoveTypedMappings(typeof(Ai_DariusAxe), AttackInstanceGuid, AttackInstanceName);
-        RemoveTypedMappings(typeof(Ai_DariusAxe_Crit), AttackCritInstanceGuid, AttackCritInstanceName);
-        List<string> runtimeGuids = new List<string> { HeroGuid, AttackGuid, AttackInstanceGuid, AttackCritInstanceGuid };
-        for (int si = 0; si < SkinSpecs.Length; si++) runtimeGuids.Add(SkinSpecs[si].guid);
-        for (int i = 0; i < runtimeGuids.Count; i++)
-        {
-            try { if (DewResources.database != null && DewResources.database.allGuids.Contains(runtimeGuids[i])) DewResources.database.allGuids.Remove(runtimeGuids[i]); } catch { }
-        }
+        DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(DewResources.database, typeof(Hero_Darius), HeroName, HeroGuid);
+        DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(DewResources.database, typeof(At_DariusAxe), AttackName, AttackGuid);
+        DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(DewResources.database, typeof(Ai_DariusAxe), AttackInstanceName, AttackInstanceGuid);
+        DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(DewResources.database, typeof(Ai_DariusAxe_Crit), AttackCritInstanceName, AttackCritInstanceGuid);
 
         foreach (GameObject go in OwnedObjects)
             if (go != null) UnityEngine.Object.Destroy(go);

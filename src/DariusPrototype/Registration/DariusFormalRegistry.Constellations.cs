@@ -82,7 +82,7 @@ public static partial class DariusFormalRegistry
         // Adding it afterwards leaves netIdentity null and crashes NetworkIdentity.OnStartServer.
         NetworkIdentity preIdentity = go.AddComponent<NetworkIdentity>();
         uint preAssetId = StableAssetId(guid) | 0x80000000u;
-        DariusRuntimeNetworkBridge.ConfigureTemplateIdentity(preIdentity, preAssetId, name);
+        DariusUnsupportedResourceBridge.ConfigureTemplateIdentity(preIdentity, preAssetId, name);
 
         // Match the working reference mod's exact order: the NetworkIdentity already has
         // its runtime assetId before the NetworkBehaviour (SkillTrigger/Gem/Ai) is added.
@@ -124,49 +124,17 @@ public static partial class DariusFormalRegistry
 
     private static void RegisterObject(UnityEngine.Object obj, string name, string guid)
     {
-        var db = DewResources.database;
+        object database = DewResources.database;
         Type type = obj.GetType();
-
-        // Match the resource registration path used by current 2026 mods:
-        // register the assembly-qualified type -> stable GUID, ensure the GUID is in
-        // the runtime database, then rebuild the runtime lookup tables.
-        string aqn = type.AssemblyQualifiedName;
-        if (string.IsNullOrEmpty(aqn))
-            throw new InvalidOperationException("Could not resolve AssemblyQualifiedName for " + name);
-
         uint assetId = StableAssetId(guid) | 0x80000000u;
         RegistrationsByGuid[guid] = new RuntimeRegistration(type, name, guid, assetId);
 
-        db.typeAssemblyQualifiedNameToGuid[aqn] = guid;
-        if (!db.allGuids.Contains(guid)) db.allGuids.Add(guid);
-        DariusLog.DebugInfo("REG", "DB mapping AQN->GUID name=" + name + " aqn=" + aqn + " guid=" + guid);
-
-        // The working Elemental Summon mod populates Dew's complete runtime index set directly.
-        // This matters in heavily modded installs where InitForRuntime() may abort on another mod's
-        // duplicate key before it finishes rebuilding these secondary dictionaries.
-        SetDatabaseMap(db, "typeToGuid", type, guid);
-        SetDatabaseMap(db, "guidToType", guid, type);
-        SetDatabaseMap(db, "typeNameToGuid", type.Name, guid);
-        SetDatabaseMap(db, "nameToGuid", name, guid);
-        SetDatabaseMap(db, "guidToName", guid, name);
-        SetDatabaseMap(db, "typeNameToType", type.Name, type);
-        SetDatabaseMap(db, "typeNameToType", name, type);
+        DariusUnsupportedResourceBridge.RegisterTypedResourceIdentity(
+            database, type, name, guid, obj, (obj as Component)?.gameObject);
 
         ResourcesByGuid[guid] = obj;
         GuidByObject[obj] = guid;
         RegisterNetworkIdentity(obj, guid);
     }
 
-    private static void SetDatabaseMap(object database, string fieldName, object key, object value)
-    {
-        try
-        {
-            if (DariusRuntimeResourceDatabaseBridge.SetMap(database, fieldName, key, value))
-                DariusLog.DebugInfo("REG-MAP", fieldName + "[" + key + "]=" + value);
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("REG-MAP", e, "Failed runtime DB map " + fieldName + " key=" + key);
-        }
-    }
 }

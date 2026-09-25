@@ -14,26 +14,13 @@ public static partial class DariusTravelerRegistry
     private static void RegisterTypedResource(Component component, GameObject go, string name, string guid, uint assetId)
     {
         Type type = component.GetType();
-        object db = DewResources.database;
-        if (db == null) throw new InvalidOperationException("database null");
-        string aqn = type.AssemblyQualifiedName;
-        DewResources.database.typeAssemblyQualifiedNameToGuid[aqn] = guid;
-        if (!DewResources.database.allGuids.Contains(guid)) DewResources.database.allGuids.Add(guid);
-        SetDatabaseMap("typeToGuid", type, guid);
-        SetDatabaseMap("guidToType", guid, type);
-        SetDatabaseMap("typeNameToGuid", type.Name, guid);
-        SetDatabaseMap("typeNameToType", type.Name, type);
-        SetDatabaseMap("nameToGuid", name, guid);
-        SetDatabaseMap("guidToName", guid, name);
-        SetDatabaseMap("objectToGuidFallback", component, guid);
-        SetDatabaseMap("objectToGuidFallback", go, guid);
+        object database = DewResources.database;
+        DariusUnsupportedResourceBridge.RegisterTypedResourceIdentity(database, type, name, guid, component, go);
+
         ResourcesByGuid[guid] = component;
         ResourcesByType[type] = component;
 
-        string collision;
-        if (DewResources.database.netObjectAssetIdToGuid.TryGetValue(assetId, out collision) && collision != guid)
-            throw new InvalidOperationException("Mirror assetId collision: " + assetId + " already maps to " + collision);
-        DewResources.database.netObjectAssetIdToGuid[assetId] = guid;
+        DariusUnsupportedResourceBridge.RegisterNetworkGuid(database, assetId, guid);
         NetworkPrefabs[assetId] = go;
         try { NetworkClient.RegisterSpawnHandler(assetId, SpawnHandler, UnspawnHandler); }
         catch (Exception e) { DariusLog.Exception("TRAVELER-NET", e, "RegisterSpawnHandler failed assetId=" + assetId); }
@@ -41,13 +28,10 @@ public static partial class DariusTravelerRegistry
 
     private static void RegisterNamedResource(Component component, GameObject go, string name, string guid)
     {
-        if (!DewResources.database.allGuids.Contains(guid)) DewResources.database.allGuids.Add(guid);
-        SetDatabaseMap("nameToGuid", name, guid);
-        SetDatabaseMap("guidToName", guid, name);
-        SetDatabaseMap("objectToGuidFallback", component, guid);
-        SetDatabaseMap("objectToGuidFallback", go, guid);
+        DariusUnsupportedResourceBridge.RegisterNamedResourceIdentity(
+            DewResources.database, name, guid, component, go);
         ResourcesByGuid[guid] = component;
-        // Deliberately do NOT write typeToGuid[typeof(Skin)]: Skin is a shared stock type.
+        // Deliberately do NOT register Skin by Type: Skin is a shared stock type linked by name.
     }
 
     private static GameObject SpawnHandler(SpawnMessage msg)

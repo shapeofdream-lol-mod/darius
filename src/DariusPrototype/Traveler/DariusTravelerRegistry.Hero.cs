@@ -118,8 +118,8 @@ public static partial class DariusTravelerRegistry
 
         NetworkIdentity identity = go.GetComponent<NetworkIdentity>();
         if (identity == null) throw new InvalidOperationException("Cloned Hero prefab has no NetworkIdentity.");
-        DariusRuntimeNetworkBridge.ConfigureTemplateIdentity(identity, HeroAssetId, HeroName);
-        DariusRuntimeNetworkBridge.RebuildNetworkBehaviours(identity, HeroName);
+        DariusUnsupportedResourceBridge.ConfigureTemplateIdentity(identity, HeroAssetId, HeroName);
+        DariusUnsupportedResourceBridge.RebuildNetworkBehaviours(identity, HeroName);
 
         HeroPrefab = hero;
         ValidateNativeCosmeticIconContract("hero-created");

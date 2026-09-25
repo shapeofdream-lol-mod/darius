@@ -22,15 +22,6 @@ public static partial class DariusDejaVuRegistry
         "St_D_Darius_Hemorrhage"
     };
 
-    private static readonly Type[] SkillTypes =
-    {
-        typeof(St_Darius_Decimate),
-        typeof(St_Darius_CripplingStrike),
-        typeof(St_Darius_Apprehend),
-        typeof(St_Darius_NoxianGuillotine),
-        typeof(St_D_Darius_Hemorrhage)
-    };
-
     private static bool _localizationPatched;
 
     // The Ctrl skill-drag UI calls ConvertDescriptionNodesToText several times per second, and

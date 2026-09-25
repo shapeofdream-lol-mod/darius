@@ -50,34 +50,5 @@ public static partial class DariusTravelerRegistry
         return targetType.IsInstanceOfType(value) || (targetType.IsEnum && value.GetType() == targetType);
     }
 
-    private static void SetDatabaseMap(string fieldName, object key, object value)
-    {
-        DariusRuntimeResourceDatabaseBridge.SetMap(DewResources.database, fieldName, key, value);
-    }
-
-    private static void RemoveDatabaseMappingIfOwned(string fieldName, object key, object expected)
-    {
-        try { DariusRuntimeResourceDatabaseBridge.RemoveMapIfOwned(DewResources.database, fieldName, key, expected); }
-        catch { }
-    }
-
-    private static void RemoveTypedMappings(Type type, string guid, string name)
-    {
-        if (DewResources.database == null) return;
-        try
-        {
-            string aqn = type.AssemblyQualifiedName;
-            string current;
-            if (DewResources.database.typeAssemblyQualifiedNameToGuid.TryGetValue(aqn, out current) && current == guid)
-                DewResources.database.typeAssemblyQualifiedNameToGuid.Remove(aqn);
-        }
-        catch { }
-        RemoveDatabaseMappingIfOwned("typeToGuid", type, guid);
-        RemoveDatabaseMappingIfOwned("guidToType", guid, type);
-        RemoveDatabaseMappingIfOwned("typeNameToGuid", type.Name, guid);
-        RemoveDatabaseMappingIfOwned("typeNameToType", type.Name, type);
-        RemoveDatabaseMappingIfOwned("nameToGuid", name, guid);
-        RemoveDatabaseMappingIfOwned("guidToName", guid, name);
-    }
 
 }

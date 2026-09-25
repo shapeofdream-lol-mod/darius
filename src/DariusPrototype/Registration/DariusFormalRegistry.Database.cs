@@ -10,12 +10,6 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusFormalRegistry
 {
-    private static void RemoveDatabaseMapIfOwned(object database, string fieldName, object key, object expectedValue)
-    {
-        try { DariusRuntimeResourceDatabaseBridge.RemoveMapIfOwned(database, fieldName, key, expectedValue); }
-        catch { }
-    }
-
     private static void RegisterNetworkIdentity(UnityEngine.Object obj, string guid)
     {
         Component component = obj as Component;
@@ -37,21 +31,10 @@ public static partial class DariusFormalRegistry
         }
 
         uint assetId = StableAssetId(guid) | 0x80000000u;
-        DariusRuntimeNetworkBridge.ConfigureTemplateIdentity(identity, assetId, obj.name);
+        DariusUnsupportedResourceBridge.ConfigureTemplateIdentity(identity, assetId, obj.name);
 
-        string collision;
-        if (DewResources.database.netObjectAssetIdToGuid.TryGetValue(assetId, out collision) && collision != guid)
-            throw new InvalidOperationException("Mirror assetId collision: " + assetId + " already maps to " + collision);
-
-        try
-        {
-            DewResources.database.netObjectAssetIdToGuid[assetId] = guid;
-            DariusLog.Info("NET", "Registered network mapping name=" + obj.name + " assetId=" + assetId + " guid=" + guid);
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("NET", e, "Failed DB network mapping for " + obj.name);
-        }
+        DariusUnsupportedResourceBridge.RegisterNetworkGuid(DewResources.database, assetId, guid);
+        DariusLog.Info("NET", "Registered network mapping name=" + obj.name + " assetId=" + assetId + " guid=" + guid);
 
         NetworkPrefabs[assetId] = component.gameObject;
 

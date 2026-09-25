@@ -15,44 +15,19 @@ public static partial class DariusFormalRegistry
         DariusLog.Info("REG", "Unregister started. resources=" + ResourcesByGuid.Count + " networkPrefabs=" + NetworkPrefabs.Count);
         _registered = false;
         _lastDroppedHeroInstanceId = 0;
-        DariusConstellationRegistry.RemoveInjectedTypes();
+        DariusConstellationRegistry.UnregisterTypeCache();
 
-        var db = DewResources.database;
-        if (db != null)
+        object database = DewResources.database;
+        if (database != null)
         {
-            // Cleanup must not depend on Unity object liveness. A destroyed UnityEngine.Object
-            // compares equal to null, but its resource identity still has to be removed from Dew's maps.
+            // Stable registration metadata survives Unity fake-null, so resource identity cleanup
+            // stays symmetric even when the template object was already destroyed.
             foreach (RuntimeRegistration record in RegistrationsByGuid.Values.ToArray())
             {
-                Type type = record.type;
-                string guid = record.guid;
-                string name = record.name;
-                string aqn = type != null ? type.AssemblyQualifiedName : null;
-
-                try
-                {
-                    string existing;
-                    if (!string.IsNullOrEmpty(aqn) &&
-                        db.typeAssemblyQualifiedNameToGuid.TryGetValue(aqn, out existing) &&
-                        existing == guid)
-                    {
-                        db.typeAssemblyQualifiedNameToGuid.Remove(aqn);
-                    }
-                    if (db.allGuids.Contains(guid)) db.allGuids.Remove(guid);
-
-                    RemoveDatabaseMapIfOwned(db, "typeToGuid", type, guid);
-                    RemoveDatabaseMapIfOwned(db, "guidToType", guid, type);
-                    RemoveDatabaseMapIfOwned(db, "typeNameToGuid", type != null ? type.Name : null, guid);
-                    RemoveDatabaseMapIfOwned(db, "nameToGuid", name, guid);
-                    RemoveDatabaseMapIfOwned(db, "guidToName", guid, name);
-                    RemoveDatabaseMapIfOwned(db, "typeNameToType", type != null ? type.Name : null, type);
-                    RemoveDatabaseMapIfOwned(db, "typeNameToType", name, type);
-
-                    if (db.netObjectAssetIdToGuid.TryGetValue(record.assetId, out existing) && existing == guid)
-                        db.netObjectAssetIdToGuid.Remove(record.assetId);
-                }
-                catch { }
-
+                DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(
+                    database, record.type, record.name, record.guid);
+                DariusUnsupportedResourceBridge.RemoveNetworkGuidIfOwned(
+                    database, record.assetId, record.guid);
             }
         }
 
