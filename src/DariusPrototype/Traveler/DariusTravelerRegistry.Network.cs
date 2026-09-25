@@ -79,36 +79,6 @@ public static partial class DariusTravelerRegistry
         if (spawned != null) SpawnManager.Destroy(spawned);
     }
 
-    private static void ConfigureNetworkIdentity(NetworkIdentity identity, uint assetId)
-    {
-        if (identity == null) return;
-        FieldInfo field = typeof(NetworkIdentity).GetField("_assetId", BindingFlags.Instance | BindingFlags.NonPublic)
-                       ?? typeof(NetworkIdentity).GetField("assetId", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                       ?? typeof(NetworkIdentity).GetField("<assetId>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
-        if (field != null) field.SetValue(identity, assetId);
-        else
-        {
-            PropertyInfo p = typeof(NetworkIdentity).GetProperty("assetId", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (p != null && p.CanWrite) p.SetValue(identity, assetId, null);
-        }
-        identity.sceneId = 0UL;
-        FieldInfo scene = typeof(NetworkIdentity).GetField("_isSceneObject", BindingFlags.Instance | BindingFlags.NonPublic);
-        if (scene != null) scene.SetValue(identity, false);
-        FieldInfo spawned = typeof(NetworkIdentity).GetField("hasSpawned", BindingFlags.Instance | BindingFlags.NonPublic);
-        if (spawned != null) spawned.SetValue(identity, false);
-    }
-
-    internal static void ReinitializeNetworkBehaviours(NetworkIdentity identity)
-    {
-        if (identity == null) return;
-        try
-        {
-            MethodInfo m = typeof(NetworkIdentity).GetMethod("InitializeNetworkBehaviours", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            if (m != null) m.Invoke(identity, null);
-        }
-        catch (Exception e) { DariusLog.Exception("TRAVELER-NET", e, "InitializeNetworkBehaviours failed for " + identity.name); }
-    }
-
     private static Dictionary<FieldInfo, object> CaptureUnitySerializedFields(Component source, Type startType)
     {
         Dictionary<FieldInfo, object> values = new Dictionary<FieldInfo, object>();

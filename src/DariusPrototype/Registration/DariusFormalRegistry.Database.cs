@@ -16,43 +16,6 @@ public static partial class DariusFormalRegistry
         catch { }
     }
 
-    private static void ConfigureNetworkIdentity(NetworkIdentity identity, uint assetId, string label)
-    {
-        if (identity == null) return;
-        try
-        {
-            // Mirror 2026 uses _assetId internally; keep fallbacks for older builds.
-            FieldInfo field = typeof(NetworkIdentity).GetField("_assetId", BindingFlags.Instance | BindingFlags.NonPublic)
-                           ?? typeof(NetworkIdentity).GetField("assetId", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                           ?? typeof(NetworkIdentity).GetField("<assetId>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (field != null)
-            {
-                field.SetValue(identity, assetId);
-            }
-            else
-            {
-                PropertyInfo prop = typeof(NetworkIdentity).GetProperty("assetId", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (prop != null && prop.CanWrite) prop.SetValue(identity, assetId);
-                else DariusLog.Warn("NET", "Could not find writable assetId for " + label);
-            }
-
-            identity.sceneId = 0UL;
-            FieldInfo sceneField = typeof(NetworkIdentity).GetField("_isSceneObject", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (sceneField != null) sceneField.SetValue(identity, false);
-
-            // Runtime-created prefab templates execute NetworkIdentity.Awake once during construction.
-            // Mirror serializes its private hasSpawned flag; if it stays true on the template, every
-            // later Instantiate inherits true and destroys itself with "has already spawned". Keep
-            // the template in prefab state so the clone's own Awake is the first real spawn.
-            FieldInfo spawnedField = typeof(NetworkIdentity).GetField("hasSpawned", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (spawnedField != null) spawnedField.SetValue(identity, false);
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("NET", e, "Could not configure network identity for " + label);
-        }
-    }
-
     private static void RegisterNetworkIdentity(UnityEngine.Object obj, string guid)
     {
         Component component = obj as Component;
@@ -74,7 +37,7 @@ public static partial class DariusFormalRegistry
         }
 
         uint assetId = StableAssetId(guid) | 0x80000000u;
-        ConfigureNetworkIdentity(identity, assetId, obj.name);
+        DariusRuntimeNetworkBridge.ConfigureTemplateIdentity(identity, assetId, obj.name);
 
         string collision;
         if (DewResources.database.netObjectAssetIdToGuid.TryGetValue(assetId, out collision) && collision != guid)
