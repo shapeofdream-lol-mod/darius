@@ -45,6 +45,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         }
         _activeModInstanceId = _instanceId;
         DariusTravelerRegistry.BindOwner(transform);
+        DariusFormalRegistry.BindOwner(transform);
 
         TravelerBasicAttackVfxReplication.Initialize();
         try
@@ -181,7 +182,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusRuntimeResourceCompatibility.ResetInstallState();
         DariusDejaVuRegistry.ResetPatchInstallState();
         DariusTravelerRegistry.ShutdownRuntimeResources();
-        DariusFormalRegistry.Unregister();
+        DariusFormalRegistry.ShutdownRuntimeResources();
     }
 
     private void ShutdownRuntimeResources(string reason)
@@ -194,7 +195,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusRuntimeResourceCompatibility.ResetInstallState();
         DariusDejaVuRegistry.ResetPatchInstallState();
         DariusTravelerRegistry.ShutdownRuntimeResources();
-        DariusFormalRegistry.Unregister();
+        DariusFormalRegistry.ShutdownRuntimeResources();
         _bootstrapped = false;
         DariusLog.Flush();
         if (_applicationQuitting || !Application.isPlaying) DariusLog.Shutdown();

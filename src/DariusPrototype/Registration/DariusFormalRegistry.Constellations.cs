@@ -76,7 +76,6 @@ public static partial class DariusFormalRegistry
         // Actor.set_parentActor. SkillTrigger/Gem prefabs keep the older inactive construction path.
         if (!warmAbilityInstance) go.SetActive(false);
         go.hideFlags = HideFlags.HideAndDontSave;
-        UnityEngine.Object.DontDestroyOnLoad(go);
 
         // Mirror NetworkBehaviour caches its NetworkIdentity during component initialization.
         // Current working SoD runtime-prefab mods add NetworkIdentity FIRST, then SkillTrigger/Gem.
@@ -91,15 +90,13 @@ public static partial class DariusFormalRegistry
         component.name = name;
         if (configure != null) configure(component);
 
+        // Every Formal template belongs to the current ModBehaviour generation. Warm Actor
+        // templates stay activeSelf=true beneath the inactive root so Awake state is preserved
+        // without creating a parallel persistent scene graph.
+        GameObject root = GetRuntimeActorRoot();
+        go.transform.SetParent(root.transform, false);
         if (warmAbilityInstance)
         {
-            // AbilityInstance/StarEffect templates must stay activeSelf=true. Dew clones the prefab
-            // and assigns Actor.parentActor before it gets a chance to activate an inactive clone.
-            // Keeping the child active under an inactive persistent root preserves Awake-initialized
-            // Actor state while keeping the template itself out of gameplay. This is the same lifecycle
-            // contract used by the stable Darius native attack prefabs.
-            GameObject root = GetRuntimeActorRoot();
-            go.transform.SetParent(root.transform, false);
             DariusLog.Info("AI-PREFAB", "Warm-initialized runtime Actor prefab name=" + name +
                 " activeSelf=" + go.activeSelf + " activeInHierarchy=" + go.activeInHierarchy +
                 " networkIdentity=" + (preIdentity != null));
@@ -114,9 +111,12 @@ public static partial class DariusFormalRegistry
     private static GameObject GetRuntimeActorRoot()
     {
         if (_runtimeActorRoot != null) return _runtimeActorRoot;
-        _runtimeActorRoot = new GameObject("DariusPrototype_FormalRuntimeActors");
+        if (_modOwner == null)
+            throw new InvalidOperationException("DariusFormalRegistry has no ModBehaviour owner.");
+
+        _runtimeActorRoot = new GameObject("DariusPrototype_FormalRuntimeResources");
         _runtimeActorRoot.hideFlags = HideFlags.HideAndDontSave;
-        UnityEngine.Object.DontDestroyOnLoad(_runtimeActorRoot);
+        _runtimeActorRoot.transform.SetParent(_modOwner, false);
         _runtimeActorRoot.SetActive(false);
         return _runtimeActorRoot;
     }

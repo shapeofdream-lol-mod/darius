@@ -42,6 +42,8 @@ public static partial class DariusFormalRegistry
     private static readonly List<GameObject> OwnedPrefabs = new List<GameObject>();
 
     private static GameObject _runtimeActorRoot;
+    private static Transform _modOwner;
+    private static int _modOwnerInstanceId;
 
     private static bool _registered;
 
@@ -102,6 +104,31 @@ public static partial class DariusFormalRegistry
     private const string GuidAiE = DariusResourceIds.AbilityE;
 
     private const string GuidAiR = DariusResourceIds.AbilityR;
+
+    public static void BindOwner(Transform owner)
+    {
+        if (owner == null) throw new ArgumentNullException(nameof(owner));
+        int ownerId = owner.gameObject.GetInstanceID();
+        if (_modOwnerInstanceId == ownerId)
+        {
+            _modOwner = owner;
+            return;
+        }
+
+        if (_runtimeActorRoot != null || _registered || OwnedPrefabs.Count > 0)
+            throw new InvalidOperationException("Formal runtime generation must be cleaned before binding a new ModBehaviour owner.");
+
+        _modOwner = owner;
+        _modOwnerInstanceId = ownerId;
+        DariusLog.Info("REG-LIFECYCLE", "Bound Formal runtime resource ownership to ModBehaviour owner=" + ownerId + ".");
+    }
+
+    public static void ShutdownRuntimeResources()
+    {
+        Unregister();
+        _modOwner = null;
+        _modOwnerInstanceId = 0;
+    }
 
     public static IEnumerator InitializeAndDropWhenReady()
     {
