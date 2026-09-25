@@ -62,17 +62,8 @@ public static class DariusConstellationStarListRefreshPatch
             __instance.hoveredIndex = -1;
             if (__instance.listGroup != null) __instance.listGroup.currentIndex = -1;
 
-            // Dew.ClearTypeReferences only resets _allHeroes. If another Mod interrupts the ensuing
-            // rebuild, _allHeroes can be populated while _allStarTypes remains empty forever. Repair
-            // that impossible partial-cache state once before the stock UI enumerates constellations.
-            IReadOnlyList<Type> stars = Dew.allStarTypes;
-            if (stars == null || stars.Count == 0)
-            {
-                Dew.ClearTypeReferences();
-                Dew.InitAllTypeReferences();
-                DariusConstellationRegistry.ReassertTypeCache();
-                DariusLog.Warn("CONSTELLATION-UI", "Recovered an empty Dew star-type cache before constellation refresh.");
-            }
+            // Resource/type registration is owned by bootstrap. Presentation code must never
+            // mutate global Dew type caches while the lobby is rendering.
         }
         catch (Exception e) { DariusLog.Exception("CONSTELLATION-UI", e, "Could not prepare global constellation list refresh"); }
     }
