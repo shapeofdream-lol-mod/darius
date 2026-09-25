@@ -114,12 +114,6 @@ public static partial class DariusTravelerRegistry
         return false;
     }
 
-    public static bool TryGetByType(Type type, out UnityEngine.Object obj)
-    {
-        obj = null;
-        return type != null && ResourcesByType.TryGetValue(type, out obj) && obj != null;
-    }
-
     public static bool TryGetNetworkPrefab(uint assetId, out GameObject prefab)
     {
         return NetworkPrefabs.TryGetValue(assetId, out prefab) && prefab != null;

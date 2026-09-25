@@ -25,102 +25,67 @@ public static partial class DariusRuntimeResourceCompatibility
     public static void Install(Harmony harmony)
     {
         if (_installed || harmony == null) return;
-        int patched = 0;
         try
         {
-            patched += PatchOne(harmony,
+            int requiredPatched = 0;
+            int optionalPatched = 0;
+
+            requiredPatched += PatchOne(harmony,
                 typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                    .FirstOrDefault(m => m.Name == "Load" && m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(string)),
+                    .FirstOrDefault(m => m.Name == "Load" && m.GetParameters().Length >= 1 &&
+                        m.GetParameters()[0].ParameterType == typeof(string)),
                 nameof(LoadPrefix), null, "DewResources.Load");
 
-            patched += PatchOne(harmony,
+            requiredPatched += PatchOne(harmony,
                 typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                    .FirstOrDefault(m => m.Name == "Preload" && m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType == typeof(string)),
+                    .FirstOrDefault(m => m.Name == "Preload" && m.GetParameters().Length == 1 &&
+                        m.GetParameters()[0].ParameterType == typeof(string)),
                 nameof(PreloadPrefix), null, "DewResources.Preload");
 
-            patched += PatchOne(harmony,
+            requiredPatched += PatchOne(harmony,
                 typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                    .FirstOrDefault(m => m.Name == "GetNetworkedPrefab" && m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(uint)),
+                    .FirstOrDefault(m => m.Name == "GetNetworkedPrefab" && m.GetParameters().Length >= 1 &&
+                        m.GetParameters()[0].ParameterType == typeof(uint)),
                 nameof(GetNetworkedPrefabPrefix), null, "DewResources.GetNetworkedPrefab");
 
-            patched += PatchOne(harmony,
-                typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                    .FirstOrDefault(m => m.Name == "GetByType" && !m.IsGenericMethod && m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(Type)),
-                nameof(GetByTypePrefix), null, "DewResources.GetByType(Type,...)");
-
-            // Do not patch a closed reference-type generic. Mono shares this method body with
-            // GetByType<Actor>, used by the stock Obliteration menu; a StarEffect wrapper turns
-            // native skills into null item resources. Exact non-generic registration and the
-            // constellation icon mapping already resolve Darius runtime stars.
-
-            // Workshop boot compatibility: the stock UI/profile path commonly resolves persisted
-            // Hero/Skin references through GetByShortTypeName<T>/GetByName<T>. Do not patch the
-            // shared generic bodies (Mono reference-type generic sharing can leak a prefix into
-            // unrelated T). Instead patch the public non-generic base lookups for exact Darius keys.
-            // The generic wrappers in current SoD builds can then receive the correct Object and
-            // convert it to Hero/Skin without ever touching Addressables.
-            patched += PatchOne(harmony,
-                typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                    .FirstOrDefault(m => m.Name == "GetByName" && !m.IsGenericMethod && m.ReturnType == typeof(UnityEngine.Object) &&
-                        m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(string)),
-                nameof(GetByNameObjectPrefix), null, "DewResources.GetByName(string,...)");
-
-            patched += PatchOne(harmony,
-                typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                    .FirstOrDefault(m => m.Name == "GetByShortTypeName" && !m.IsGenericMethod && m.ReturnType == typeof(UnityEngine.Object) &&
-                        m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(string)),
-                nameof(GetByShortTypeNameObjectPrefix), null, "DewResources.GetByShortTypeName(string,...)");
-
-            patched += PatchOne(harmony,
-                typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                    .FirstOrDefault(m => m.Name == "GetByGuid" && !m.IsGenericMethod && m.ReturnType == typeof(UnityEngine.Object) &&
-                        m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(string)),
-                nameof(GetByGuidObjectPrefix), null, "DewResources.GetByGuid(string,...)");
-
-            // v0.18.2b: DO NOT patch any closed/shared generic DewResources lookup.
-            // Mono shares reference-type generic method bodies, so even a UnityEngine.Object-typed
-            // prefix leaks into GetByName<Acc/Emote/Skin/...> and corrupts unrelated native arrays.
-            // Runtime Darius lookup is handled by the non-generic Load/GetByType/network paths and
-            // by keeping the stock resource database maps/profile aliases valid.
-
-            // Native cosmetic contract: stock UI_HeroIcon.Setup resolves Hero_Darius and reads
-            // Hero.icon/mainColor. Keep that native sprite source. The only UI-side adjustment is a
-            // narrow postfix that removes the stock Image RGB multiply from the exact serialized
-            // `icon` target, matching the previously validated icon hotfix without scanning children
-            // or replacing sprites.
+            // Name/type/guid resolution is intentionally left to DewResources itself. Darius
+            // registers the corresponding Dew DB indexes; only the final runtime-only load/network
+            // boundary is intercepted because these objects have no Addressables locations.
             Type heroIconType = AccessTools.TypeByName("UI_HeroIcon");
             MethodInfo heroIconSetup = heroIconType != null
                 ? heroIconType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                    .FirstOrDefault(m => m.Name == "Setup" && m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(string))
+                    .FirstOrDefault(m => m.Name == "Setup" && m.GetParameters().Length >= 1 &&
+                        m.GetParameters()[0].ParameterType == typeof(string))
                 : null;
-            patched += PatchOne(harmony, heroIconSetup, null, nameof(HeroIconSetupPostfix), "UI_HeroIcon.Setup native tint neutralizer");
+            optionalPatched += PatchOne(harmony, heroIconSetup, null, nameof(HeroIconSetupPostfix),
+                "UI_HeroIcon.Setup native tint neutralizer");
 
-            // v0.18.2: the stock in-run detail panel assumes its Hero/Status/attack references came
-            // from an Addressables-backed native hero. Runtime Hero_Darius can otherwise leave this
-            // panel reading stale/default values (observed as every field showing 500). For Darius
-            // only, feed the exact live Hero_Darius EntityStatus/EntityAbility values into the same
-            // UI text fields. Reflection is used only for TMP text assignment, keeping the mod free
-            // of an extra TextMeshPro compile-time dependency.
             Type heroDetailType = AccessTools.TypeByName("UI_InGame_HeroDetailWindow");
             MethodInfo heroDetailUpdate = heroDetailType != null
                 ? heroDetailType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                     .FirstOrDefault(m => m.Name == "UpdateText" && m.GetParameters().Length == 0)
                 : null;
-            patched += PatchOne(harmony, heroDetailUpdate, nameof(HeroDetailUpdateTextPrefix), null, "UI_InGame_HeroDetailWindow.UpdateText");
+            optionalPatched += PatchOne(harmony, heroDetailUpdate, nameof(HeroDetailUpdateTextPrefix), null,
+                "UI_InGame_HeroDetailWindow.UpdateText");
 
             MethodInfo skinIncluded = typeof(Dew).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
                 .FirstOrDefault(m => m.Name == "IsSkinIncludedInGame" && m.ReturnType == typeof(bool) &&
                     m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(string));
-            patched += PatchOne(harmony, skinIncluded, null, nameof(IsSkinIncludedPostfix), "Dew.IsSkinIncludedInGame");
+            optionalPatched += PatchOne(harmony, skinIncluded, null, nameof(IsSkinIncludedPostfix),
+                "Dew.IsSkinIncludedInGame");
+
+            if (requiredPatched != 3)
+                throw new InvalidOperationException("Required runtime resource bridge incomplete: " + requiredPatched + "/3");
 
             _installed = true;
-            DariusLog.Info("RESOURCE-COMPAT", "Runtime resource compatibility installed. patchedMethods=" + patched +
-                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skin inclusion; shared generic DewResources hooks disabled).");
+            DariusLog.Info("RESOURCE-COMPAT", "Runtime resource compatibility installed. required=3/3 optional=" +
+                optionalPatched + " (Load/Preload/GetNetworkedPrefab only; Dew owns name/type/guid resolution).");
         }
         catch (Exception e)
         {
+            _installed = false;
             DariusLog.Exception("RESOURCE-COMPAT", e, "Runtime resource compatibility install failed");
+            throw;
         }
     }
-
 }

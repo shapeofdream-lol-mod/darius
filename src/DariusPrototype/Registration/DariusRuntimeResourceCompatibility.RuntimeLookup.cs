@@ -43,16 +43,5 @@ public static partial class DariusRuntimeResourceCompatibility
         return false;
     }
 
-    private static bool GetByTypePrefix(Type __0, ref UnityEngine.Object __result)
-    {
-        UnityEngine.Object obj;
-        bool travelerFound = DariusTravelerRegistry.TryGetByType(__0, out obj);
-        if (!travelerFound && !DariusFormalRegistry.TryGetResourceByExactType(__0, out obj)) return true;
-        __result = obj;
-        string typeKey = __0 != null ? __0.FullName : "<null>";
-        DariusLog.DebugInfoThrottled("RES-TYPE", typeKey, "GetByType intercepted type=" + typeKey +
-            " obj=" + (obj != null ? obj.name : "<null>"), 1.25);
-        return false;
-    }
 
 }

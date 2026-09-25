@@ -11,28 +11,6 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusTravelerRegistry
 {
-    private static void ReassertTypedRuntimeResource(Component component, string name, string guid, uint assetId)
-    {
-        if (component == null || DewResources.database == null) return;
-        Type type = component.GetType();
-        string aqn = type.AssemblyQualifiedName;
-        DewResources.database.typeAssemblyQualifiedNameToGuid[aqn] = guid;
-        if (!DewResources.database.allGuids.Contains(guid)) DewResources.database.allGuids.Add(guid);
-        SetDatabaseMap("typeToGuid", type, guid);
-        SetDatabaseMap("guidToType", guid, type);
-        SetDatabaseMap("typeNameToGuid", type.Name, guid);
-        SetDatabaseMap("typeNameToType", type.Name, type);
-        SetDatabaseMap("nameToGuid", name, guid);
-        SetDatabaseMap("guidToName", guid, name);
-        SetDatabaseMap("objectToGuidFallback", component, guid);
-        SetDatabaseMap("objectToGuidFallback", component.gameObject, guid);
-        ResourcesByGuid[guid] = component;
-        ResourcesByType[type] = component;
-        DewResources.database.netObjectAssetIdToGuid[assetId] = guid;
-        NetworkPrefabs[assetId] = component.gameObject;
-        try { NetworkClient.RegisterSpawnHandler(assetId, SpawnHandler, UnspawnHandler); } catch { }
-    }
-
     private static string RuntimeGuidForAssetId(uint assetId)
     {
         if (assetId == HeroAssetId) return HeroGuid;
