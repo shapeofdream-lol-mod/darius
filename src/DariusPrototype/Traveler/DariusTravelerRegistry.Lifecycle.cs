@@ -47,7 +47,7 @@ public static partial class DariusTravelerRegistry
         EnsureCoreRegisteredForBootstrap("InitializeWhenReady core phase");
 
         // Profile/content may come online a few frames later on Workshop boot. Once ready, perform
-        // the same native unlock/loadout validation pass used by local installs.
+        // one targeted native unlock/loadout registration pass; scene transitions do not re-inject it.
         while (DewBuildProfile.current == null || DewBuildProfile.current.content == null ||
                DewSave.profileMain == null || DewSave.profileStats == null)
             yield return null;
@@ -113,7 +113,6 @@ public static partial class DariusTravelerRegistry
             RegisterTypes();
             RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
             EnsureProfiles();
-            RepairRuntimeRegistration(reason);
             RepairHeroCosmeticContract(HeroPrefab);
             DariusLog.Info("TRAVELER", "Late profile/content registration completed reason=" + reason);
         }
@@ -144,7 +143,6 @@ public static partial class DariusTravelerRegistry
             ValidateRegistration();
             _registered = true;
             CreateLifecycleBridge();
-            RepairRuntimeRegistration("initial post-register finalization");
 
             DariusLog.Info("TRAVELER", "Hero_Darius registration READY. heroGuid=" + HeroGuid + " heroAssetId=" + HeroAssetId +
                 " skins=" + string.Join(",", Array.ConvertAll(SkinSpecs, s => s.name)) + " Q=" + DariusFormalRegistry.Decimate.name + " R=" + DariusFormalRegistry.NoxianGuillotine.name +

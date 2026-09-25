@@ -144,7 +144,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         // Always start the critical registration coroutine even when an optional Harmony/UI patch
         // failed. This is the authoritative path that creates Hero_Darius/Skin_Darius_Default.
         StartCoroutine(DariusTravelerRegistry.InitializeWhenReady());
-        DariusLog.Info("BOOT", "Registration/repair coroutine started. Target=independent Hero_Darius, native Hero/Skin/Loadout/Profile/Mirror paths.");
+        DariusLog.Info("BOOT", "Registration coroutine started. Target=independent Hero_Darius, native Hero/Skin/Loadout/Profile/Mirror paths.");
     }
 
     private void OnApplicationQuit()

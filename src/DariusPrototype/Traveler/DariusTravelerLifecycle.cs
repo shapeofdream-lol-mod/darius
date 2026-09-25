@@ -1,18 +1,11 @@
 using System;
-using System.IO;
 using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using HarmonyLib;
-using Mirror;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public sealed class DariusTravelerLifecycleBridge : MonoBehaviour
 {
-    private Coroutine _repairRoutine;
-
     private void OnEnable()
     {
         SceneManager.sceneLoaded += OnSceneLoaded;
@@ -27,15 +20,21 @@ public sealed class DariusTravelerLifecycleBridge : MonoBehaviour
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        QueueRepair("sceneLoaded:" + scene.name + "/" + mode);
         if (!string.IsNullOrEmpty(scene.name) && scene.name.StartsWith("Room_", StringComparison.OrdinalIgnoreCase))
             StartCoroutine(HardResetUltimateAcrossRoomLoad(scene.name + "#" + scene.handle));
     }
 
+    private void OnActiveSceneChanged(Scene oldScene, Scene newScene)
+    {
+        if (!string.IsNullOrEmpty(newScene.name) && newScene.name.StartsWith("Room_", StringComparison.OrdinalIgnoreCase))
+            StartCoroutine(HardResetUltimateAcrossRoomLoad(newScene.name + "#" + newScene.handle));
+    }
+
     private IEnumerator HardResetUltimateAcrossRoomLoad(string roomToken)
     {
-        // Room transitions can rebuild the live SkillTrigger a few frames after sceneLoaded. Probe
-        // several short beats; each specific trigger instance self-deduplicates this room token.
+        // This is gameplay state, not resource repair. The live SkillTrigger can appear a few
+        // frames after a Room_* scene load, so probe a few short beats; each trigger de-duplicates
+        // the room token itself.
         int[] beats = { 0, 1, 3, 7, 15 };
         int frame = 0;
         int beatIndex = 0;
@@ -52,72 +51,6 @@ public sealed class DariusTravelerLifecycleBridge : MonoBehaviour
         }
         DariusLog.Info("R-ROOM-RESET", "Room-load reset sweep complete token=" + roomToken + " resetCalls=" + total);
     }
-
-    private void OnActiveSceneChanged(Scene oldScene, Scene newScene)
-    {
-        QueueRepair("activeSceneChanged:" + oldScene.name + "->" + newScene.name);
-        if (!string.IsNullOrEmpty(newScene.name) && newScene.name.StartsWith("Room_", StringComparison.OrdinalIgnoreCase))
-            StartCoroutine(HardResetUltimateAcrossRoomLoad(newScene.name + "#" + newScene.handle));
-    }
-
-    private void QueueRepair(string reason)
-    {
-        if (_repairRoutine != null) StopCoroutine(_repairRoutine);
-        _repairRoutine = StartCoroutine(RepairAcrossRebuildFrames(reason));
-    }
-
-    private IEnumerator RepairAcrossRebuildFrames(string reason)
-    {
-        // SoD rebuilds Dew type/content/profile caches over several frames while leaving/entering
-        // a run. Reassert the same persistent runtime resource contract after those rebuild beats.
-        int[] beats = { 0, 1, 3, 7, 15 };
-        int frame = 0;
-        int beatIndex = 0;
-        while (beatIndex < beats.Length)
-        {
-            if (frame >= beats[beatIndex])
-            {
-                DariusTravelerRegistry.RepairRuntimeRegistration(reason + "/frame" + frame);
-                beatIndex++;
-            }
-            frame++;
-            yield return null;
-        }
-        _repairRoutine = null;
-    }
-}
-
-[HarmonyPatch]
-public static class DariusTravelerLifecyclePatches
-{
-    [HarmonyPostfix]
-    [HarmonyPatch(typeof(DewProfile), nameof(DewProfile.Validate))]
-    private static void ProfileValidatePostfix()
-    {
-        DariusTravelerRegistry.RepairRuntimeRegistration("DewProfile.Validate");
-    }
-
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(DewGameContentSettings), nameof(DewGameContentSettings.Init))]
-    private static void ContentInitPrefix(DewGameContentSettings __instance)
-    {
-        DariusTravelerRegistry.RepairRuntimeRegistration("DewGameContentSettings.Init prefix");
-    }
-
-    [HarmonyPostfix]
-    [HarmonyPatch(typeof(DewGameContentSettings), nameof(DewGameContentSettings.Init))]
-    private static void ContentInitPostfix(DewGameContentSettings __instance)
-    {
-        if (__instance == (DewBuildProfile.current != null ? DewBuildProfile.current.content : null))
-            DariusTravelerRegistry.RepairRuntimeRegistration("DewGameContentSettings.Init");
-    }
-
-    [HarmonyPostfix]
-    [HarmonyPatch(typeof(DewProfileStats), nameof(DewProfileStats.Validate))]
-    private static void ProfileStatsValidatePostfix()
-    {
-        DariusTravelerRegistry.RepairRuntimeRegistration("DewProfileStats.Validate");
-    }
 }
 
 [HarmonyPatch]
@@ -126,7 +59,6 @@ public static class DariusTravelerLocalizationPatch
     private static bool TryResolveHeroText(string key, out string value)
     {
         value = null;
-        // Ahri baseline: Japanese localization wins before the English/Chinese fallback.
         if (DariusLanguage.IsJapanese &&
             DariusJapaneseLocalization.TryGet(key, key != null && key.IndexOf("Description", StringComparison.OrdinalIgnoreCase) >= 0, out value))
             return true;
