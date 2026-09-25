@@ -9,33 +9,6 @@ using UnityEngine;
 
 public static partial class DariusRuntimeResourceCompatibility
 {
-    private static void IsSkillIncludedPostfix(string __0, ref bool __result)
-    {
-        if (DariusFormalRegistry.IsDariusSkillKey(__0))
-        {
-            __result = true;
-            DariusLog.DebugInfoThrottled("RESOURCE-COMPAT", "skill:" + __0, "Forced IsSkillIncludedInGame=true for " + __0, 2.0);
-        }
-    }
-
-    private static void IsGemIncludedPostfix(string __0, ref bool __result)
-    {
-        if (DariusFormalRegistry.IsDariusGemKey(__0))
-        {
-            __result = true;
-            DariusLog.DebugInfoThrottled("RESOURCE-COMPAT", "gem:" + __0, "Forced IsGemIncludedInGame=true for " + __0, 2.0);
-        }
-    }
-
-    private static void IsStarIncludedPostfix(string __0, ref bool __result)
-    {
-        if (DariusConstellationLocalization.IsDariusStarKey(__0))
-        {
-            __result = true;
-            DariusLog.DebugInfoThrottled("RESOURCE-COMPAT", "star:" + __0, "Forced IsStarIncludedInGame=true for " + __0, 2.0);
-        }
-    }
-
     private static void IsSkinIncludedPostfix(string __0, ref bool __result)
     {
         if (DariusTravelerRegistry.IsRuntimeSkinKey(__0))
@@ -94,48 +67,4 @@ public static partial class DariusRuntimeResourceCompatibility
         }
     }
 
-    // Add Darius to the same server-side pools used by normal Memory/Essence rewards.
-    // This mirrors the reference mod's LootManager.OnStartServer patch, and handles gems symmetrically.
-    private static void LootManagerOnStartServerPostfix(LootManager __instance)
-    {
-        if (__instance == null) return;
-        try
-        {
-            AddPoolEntries(__instance, "poolSkills", "poolSkillsByRarity", DariusFormalRegistry.SkillPoolEntries);
-            AddPoolEntries(__instance, "poolGems", "poolGemsByRarity", DariusFormalRegistry.GemPoolEntries);
-            DariusLog.Info("LOOT-POOL", "Darius W/E added to normal Memory pool. Q/R/Identity stay in Hero_Darius loadout slots.");
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("LOOT-POOL", e, "Failed to inject Darius into LootManager pools");
-        }
-    }
-
-    private static void AddPoolEntries(object manager, string poolFieldName, string rarityFieldName, IEnumerable<KeyValuePair<string, Rarity>> entries)
-    {
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-        Type t = manager.GetType();
-        FieldInfo poolField = t.GetField(poolFieldName, flags);
-        FieldInfo rarityField = t.GetField(rarityFieldName, flags);
-        IList pool = poolField != null ? poolField.GetValue(manager) as IList : null;
-        IDictionary byRarity = rarityField != null ? rarityField.GetValue(manager) as IDictionary : null;
-
-        foreach (KeyValuePair<string, Rarity> entry in entries)
-        {
-            if (pool != null && !ContainsListValue(pool, entry.Key)) pool.Add(entry.Key);
-            if (byRarity != null && byRarity.Contains(entry.Value))
-            {
-                IList rarityList = byRarity[entry.Value] as IList;
-                if (rarityList != null && !ContainsListValue(rarityList, entry.Key)) rarityList.Add(entry.Key);
-            }
-        }
-    }
-
-    private static bool ContainsListValue(IList list, object value)
-    {
-        if (list == null) return false;
-        foreach (object item in list)
-            if (Equals(item, value)) return true;
-        return false;
-    }
 }

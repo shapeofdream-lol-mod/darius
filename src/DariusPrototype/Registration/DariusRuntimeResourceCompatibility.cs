@@ -108,19 +108,6 @@ public static partial class DariusRuntimeResourceCompatibility
                 : null;
             patched += PatchOne(harmony, heroDetailUpdate, nameof(HeroDetailUpdateTextPrefix), null, "UI_InGame_HeroDetailWindow.UpdateText");
 
-            MethodInfo skillIncluded = typeof(Dew).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                .FirstOrDefault(m => m.Name == "IsSkillIncludedInGame" && m.ReturnType == typeof(bool) && m.GetParameters().Length >= 1);
-            patched += PatchOne(harmony, skillIncluded, null, nameof(IsSkillIncludedPostfix), "Dew.IsSkillIncludedInGame");
-
-            MethodInfo gemIncluded = typeof(Dew).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                .FirstOrDefault(m => m.Name == "IsGemIncludedInGame" && m.ReturnType == typeof(bool) && m.GetParameters().Length >= 1);
-            patched += PatchOne(harmony, gemIncluded, null, nameof(IsGemIncludedPostfix), "Dew.IsGemIncludedInGame");
-
-            MethodInfo starIncluded = typeof(Dew).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                .FirstOrDefault(m => m.Name == "IsStarIncludedInGame" && m.ReturnType == typeof(bool) &&
-                    m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(string));
-            patched += PatchOne(harmony, starIncluded, null, nameof(IsStarIncludedPostfix), "Dew.IsStarIncludedInGame");
-
             MethodInfo skinIncluded = typeof(Dew).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
                 .FirstOrDefault(m => m.Name == "IsSkinIncludedInGame" && m.ReturnType == typeof(bool) &&
                     m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType == typeof(string));
@@ -134,13 +121,9 @@ public static partial class DariusRuntimeResourceCompatibility
                 .FirstOrDefault(m => m.Name == "OnStartServer" && m.GetParameters().Length == 0);
             patched += PatchOne(harmony, entityAbilityStart, nameof(EntityAbilityOnStartServerPrefix), null, "EntityAbility.OnStartServer");
 
-            MethodInfo lootStart = typeof(LootManager).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                .FirstOrDefault(m => m.Name == "OnStartServer" && m.GetParameters().Length == 0);
-            patched += PatchOne(harmony, lootStart, null, nameof(LootManagerOnStartServerPostfix), "LootManager.OnStartServer");
-
             _installed = true;
             DariusLog.Info("RESOURCE-COMPAT", "Runtime resource compatibility installed. patchedMethods=" + patched +
-                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skill-gem-star-skin inclusion/PrepareAndSpawn/EntityAbility/LootManager; shared generic DewResources hooks disabled).");
+                " (runtime Load/GetByName/GetByShortTypeName/GetByGuid/HeroIcon-native-tint/HeroDetail/Preload/GetByType/GetNetworkedPrefab/skin inclusion/PrepareAndSpawn/EntityAbility; shared generic DewResources hooks disabled).");
         }
         catch (Exception e)
         {
