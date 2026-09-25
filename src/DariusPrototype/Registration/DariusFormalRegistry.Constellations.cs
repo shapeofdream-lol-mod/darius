@@ -155,14 +155,10 @@ public static partial class DariusFormalRegistry
 
     private static void SetDatabaseMap(object database, string fieldName, object key, object value)
     {
-        if (database == null || key == null) return;
         try
         {
-            FieldInfo field = database.GetType().GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            IDictionary map = field != null ? field.GetValue(database) as IDictionary : null;
-            if (map == null) return;
-            map[key] = value;
-            DariusLog.DebugInfo("REG-MAP", fieldName + "[" + key + "]=" + value);
+            if (DariusRuntimeResourceDatabaseBridge.SetMap(database, fieldName, key, value))
+                DariusLog.DebugInfo("REG-MAP", fieldName + "[" + key + "]=" + value);
         }
         catch (Exception e)
         {

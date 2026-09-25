@@ -52,22 +52,12 @@ public static partial class DariusTravelerRegistry
 
     private static void SetDatabaseMap(string fieldName, object key, object value)
     {
-        if (DewResources.database == null || key == null) return;
-        FieldInfo f = DewResources.database.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        IDictionary map = f != null ? f.GetValue(DewResources.database) as IDictionary : null;
-        if (map == null) return;
-        map[key] = value;
+        DariusRuntimeResourceDatabaseBridge.SetMap(DewResources.database, fieldName, key, value);
     }
 
     private static void RemoveDatabaseMappingIfOwned(string fieldName, object key, object expected)
     {
-        if (DewResources.database == null || key == null) return;
-        try
-        {
-            FieldInfo f = DewResources.database.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            IDictionary map = f != null ? f.GetValue(DewResources.database) as IDictionary : null;
-            if (map != null && map.Contains(key) && Equals(map[key], expected)) map.Remove(key);
-        }
+        try { DariusRuntimeResourceDatabaseBridge.RemoveMapIfOwned(DewResources.database, fieldName, key, expected); }
         catch { }
     }
 

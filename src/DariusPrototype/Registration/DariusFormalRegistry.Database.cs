@@ -12,15 +12,7 @@ public static partial class DariusFormalRegistry
 {
     private static void RemoveDatabaseMapIfOwned(object database, string fieldName, object key, object expectedValue)
     {
-        if (database == null || key == null) return;
-        try
-        {
-            FieldInfo field = database.GetType().GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            IDictionary map = field != null ? field.GetValue(database) as IDictionary : null;
-            if (map == null || !map.Contains(key)) return;
-            object current = map[key];
-            if (Equals(current, expectedValue)) map.Remove(key);
-        }
+        try { DariusRuntimeResourceDatabaseBridge.RemoveMapIfOwned(database, fieldName, key, expectedValue); }
         catch { }
     }
 
