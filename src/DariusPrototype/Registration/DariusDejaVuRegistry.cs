@@ -31,25 +31,7 @@ public static partial class DariusDejaVuRegistry
         typeof(St_D_Darius_Hemorrhage)
     };
 
-    private const string LegacyGemName = "Gem_Darius_Hemorrhage";
-
-    private static readonly HashSet<string> CandidateKeys = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "St_Darius_Decimate",
-        "St_Darius_CripplingStrike",
-        "St_Darius_Apprehend",
-        "St_Darius_NoxianGuillotine",
-        "St_D_Darius_Hemorrhage",
-        DariusResourceIds.Q,
-        DariusResourceIds.W,
-        DariusResourceIds.E,
-        DariusResourceIds.R,
-        DariusResourceIds.Identity
-    };
-
     private static bool _localizationPatched;
-
-    private static bool _selectionCompatibilityPatched;
 
     // The Ctrl skill-drag UI calls ConvertDescriptionNodesToText several times per second, and
     // sometimes multiple times in one frame. Cache both equipped trigger lookup and the final
@@ -78,7 +60,6 @@ public static partial class DariusDejaVuRegistry
     public static void ResetPatchInstallState()
     {
         _localizationPatched = false;
-        _selectionCompatibilityPatched = false;
         TooltipSkillCache.Clear();
         TooltipTextCache.Clear();
         _tooltipCacheHeroId = 0;
