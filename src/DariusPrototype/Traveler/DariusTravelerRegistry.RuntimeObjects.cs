@@ -38,8 +38,8 @@ public static partial class DariusTravelerRegistry
         }
         NetworkPrefabs.Clear();
 
-        // objectToGuidFallback is keyed by the runtime Unity objects themselves. Remove our entries
-        // before destroying a generation so repeated Dew variant clears cannot retain stale wrappers.
+        // Dew's object fallback index is keyed by the runtime Unity objects themselves. Remove our
+        // entries before destroying a generation so variant clears cannot retain stale wrappers.
         foreach (KeyValuePair<string, UnityEngine.Object> pair in ResourcesByGuid.ToArray())
         {
             UnityEngine.Object resource = pair.Value;

@@ -20,19 +20,17 @@ public static partial class DariusFormalRegistry
             if (!ResourcesByGuid.TryGetValue(record.guid, out resource) || resource == null || resource.GetType() != record.type)
                 return false;
 
-            string mappedGuid;
-            string aqn = record.type.AssemblyQualifiedName;
-            if (string.IsNullOrEmpty(aqn) ||
-                !DewResources.database.typeAssemblyQualifiedNameToGuid.TryGetValue(aqn, out mappedGuid) ||
-                mappedGuid != record.guid)
+            object database = DewResources.database;
+            if (!DariusUnsupportedResourceBridge.IsTypedResourceIdentityMapped(
+                    database, record.type, record.name, record.guid))
                 return false;
 
             GameObject networkPrefab;
             if (!record.networkHandlerRegistered ||
                 !NetworkPrefabs.TryGetValue(record.assetId, out networkPrefab) || networkPrefab == null)
                 return false;
-            if (!DewResources.database.netObjectAssetIdToGuid.TryGetValue(record.assetId, out mappedGuid) ||
-                mappedGuid != record.guid)
+            if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(
+                    database, record.assetId, record.guid))
                 return false;
         }
 

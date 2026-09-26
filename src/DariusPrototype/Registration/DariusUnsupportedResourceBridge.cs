@@ -157,6 +157,22 @@ internal static class DariusUnsupportedResourceBridge
         RemoveMapIfOwned(database, "objectToGuidFallback", obj, guid);
     }
 
+    internal static bool IsTypedResourceIdentityMapped(object database, Type type, string name, string guid)
+    {
+        if (database == null || type == null || string.IsNullOrEmpty(name) || string.IsNullOrEmpty(guid))
+            return false;
+
+        string aqn = type.AssemblyQualifiedName;
+        IDictionary aqnToGuid = GetInstanceMap(database, "typeAssemblyQualifiedNameToGuid");
+        IDictionary nameToGuid = GetInstanceMap(database, "nameToGuid");
+        IDictionary guidToType = GetInstanceMap(database, "guidToType");
+
+        return !string.IsNullOrEmpty(aqn) &&
+               aqnToGuid != null && aqnToGuid.Contains(aqn) && Equals(aqnToGuid[aqn], guid) &&
+               nameToGuid != null && nameToGuid.Contains(name) && Equals(nameToGuid[name], guid) &&
+               guidToType != null && guidToType.Contains(guid) && Equals(guidToType[guid], type);
+    }
+
     internal static void RegisterNetworkGuid(object database, uint assetId, string guid)
     {
         IDictionary map = GetInstanceMap(database, "netObjectAssetIdToGuid");
