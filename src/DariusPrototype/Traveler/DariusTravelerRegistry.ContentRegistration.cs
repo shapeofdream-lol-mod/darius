@@ -11,6 +11,8 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusTravelerRegistry
 {
+    private static DewGameContentSettings _contentOwner;
+
     private static readonly Type[] DariusRegisteredSkillTypes =
     {
         typeof(St_Darius_Decimate),
@@ -107,9 +109,54 @@ public static partial class DariusTravelerRegistry
             runtimeNames.Add(value);
     }
 
+    private static void RemoveContentEntry(ref string[] serializedNames, List<string> runtimeNames, string value)
+    {
+        if (string.IsNullOrEmpty(value)) return;
+        if (serializedNames != null)
+            serializedNames = serializedNames.Where(x => !string.Equals(x, value, StringComparison.Ordinal)).ToArray();
+        if (runtimeNames != null)
+            runtimeNames.RemoveAll(x => string.Equals(x, value, StringComparison.Ordinal));
+    }
+
+    public static void UnregisterContent()
+    {
+        DewGameContentSettings content = _contentOwner;
+        _contentOwner = null;
+        if (content == null) return;
+
+        RemoveContentEntry(ref content._availableHeroes, content.availableHeroes, HeroName);
+
+        string[] skillNames =
+        {
+            "St_Darius_Decimate",
+            "St_Darius_NoxianGuillotine",
+            "St_D_Darius_Hemorrhage",
+            "St_Darius_CripplingStrike",
+            "St_Darius_Apprehend",
+            "St_Darius_Flash",
+            "St_Darius_Ghost"
+        };
+        for (int i = 0; i < skillNames.Length; i++)
+            RemoveContentEntry(ref content._availableSkills, content.availableSkills, skillNames[i]);
+
+        if (content._availableStars != null)
+            content._availableStars = content._availableStars
+                .Where(x => string.IsNullOrEmpty(x) || !x.StartsWith("Se_Star_Darius_", StringComparison.Ordinal))
+                .ToArray();
+        if (content.availableStars != null)
+            content.availableStars.RemoveAll(x =>
+                !string.IsNullOrEmpty(x) && x.StartsWith("Se_Star_Darius_", StringComparison.Ordinal));
+
+        DariusLog.DebugInfo("TRAVELER-CONTENT",
+            "Removed runtime Hero_Darius/skill/star entries from the owned DewGameContentSettings instance.");
+    }
+
     public static void RegisterContent(DewGameContentSettings content)
     {
         if (content == null) return;
+        if (_contentOwner != null && !ReferenceEquals(_contentOwner, content))
+            UnregisterContent();
+        _contentOwner = content;
 
         EnsureContentEntry(ref content._availableHeroes, content.availableHeroes, HeroName);
 

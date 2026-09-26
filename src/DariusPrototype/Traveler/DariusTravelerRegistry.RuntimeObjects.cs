@@ -63,6 +63,8 @@ public static partial class DariusTravelerRegistry
             catch { }
         }
 
+        UnregisterContent();
+
         DariusUnsupportedResourceBridge.RemoveHeroTypes(
             new[] { typeof(Hero_Darius) }, "TRAVELER-TYPE");
         DariusUnsupportedResourceBridge.RemoveSkillTypes(
