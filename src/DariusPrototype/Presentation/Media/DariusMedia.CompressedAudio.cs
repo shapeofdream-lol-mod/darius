@@ -12,6 +12,7 @@ public static partial class DariusMedia
     // Loads the packaged League Flash activation asset from assets/audio/flash.ogg as Ogg Vorbis.
     public static IEnumerator PreloadCompressedAudio()
     {
+        int generation = CaptureLifecycleGeneration();
         string path = AssetPath("audio", "flash.ogg");
         if (string.IsNullOrEmpty(path) || !File.Exists(path))
         {
@@ -41,6 +42,12 @@ public static partial class DariusMedia
             if (clip == null)
             {
                 DariusLog.Error("SFX-ASSET", "Flash OGG request succeeded but returned a null AudioClip.");
+                yield break;
+            }
+            if (!IsLifecycleGenerationCurrent(generation))
+            {
+                UnityEngine.Object.Destroy(clip);
+                DariusLog.DebugInfo("SFX-ASSET", "Discarded stale Flash OGG decode from an unloaded media generation.");
                 yield break;
             }
             clip.name = "DariusSfx_flash_League";
@@ -79,6 +86,7 @@ public static partial class DariusMedia
 
     private static IEnumerator LoadVoiceOggAndPlay(Hero owner, string key, string path, DariusAudioChannel channel, float volume)
     {
+        int generation = CaptureLifecycleGeneration();
         string uri;
         try { uri = new Uri(path).AbsoluteUri; }
         catch (Exception e)
@@ -101,6 +109,12 @@ public static partial class DariusMedia
         }
 
         if (clip == null) yield break;
+        if (!IsLifecycleGenerationCurrent(generation))
+        {
+            UnityEngine.Object.Destroy(clip);
+            DariusLog.DebugInfo("VO-ASSET", "Discarded stale voice OGG decode key=" + key + " from an unloaded media generation.");
+            yield break;
+        }
 
         AudioClip cached;
         if (Clips.TryGetValue(key, out cached) && cached != null)

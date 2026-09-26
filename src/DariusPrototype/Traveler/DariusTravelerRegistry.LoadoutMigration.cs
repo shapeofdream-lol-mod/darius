@@ -123,7 +123,11 @@ public static partial class DariusTravelerRegistry
                 try
                 {
                     StarEffect prefab = DewResources.GetByShortTypeName<StarEffect>(item.name);
-                    clear = prefab == null || (prefab.heroType != null && prefab.heroType != typeof(Hero_Darius));
+                    // A null lookup is unresolved, not proof that the selection belongs to another
+                    // Hero. Only remove entries whose resolved resource explicitly names one.
+                    clear = prefab != null &&
+                            prefab.heroType != null &&
+                            prefab.heroType != typeof(Hero_Darius);
                 }
                 catch (Exception e)
                 {

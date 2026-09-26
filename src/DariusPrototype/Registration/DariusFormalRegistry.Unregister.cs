@@ -20,6 +20,24 @@ public static partial class DariusFormalRegistry
         object database = DewResources.database;
         if (database != null)
         {
+            // Dew's fallback GUID index is keyed by the runtime Unity objects themselves. Remove
+            // both the Component and its GameObject before destroying this Formal generation.
+            foreach (KeyValuePair<string, UnityEngine.Object> pair in ResourcesByGuid.ToArray())
+            {
+                UnityEngine.Object resource = pair.Value;
+                if (ReferenceEquals(resource, null)) continue;
+                DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, resource, pair.Key);
+                Component component = resource as Component;
+                if (ReferenceEquals(component, null)) continue;
+                try
+                {
+                    GameObject go = component.gameObject;
+                    if (!ReferenceEquals(go, null))
+                        DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, go, pair.Key);
+                }
+                catch { }
+            }
+
             // Stable registration metadata survives Unity fake-null, so resource identity cleanup
             // stays symmetric even when the template object was already destroyed.
             foreach (RuntimeRegistration record in RegistrationsByGuid.Values.ToArray())
