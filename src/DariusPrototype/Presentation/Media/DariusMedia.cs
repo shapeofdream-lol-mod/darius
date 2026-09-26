@@ -32,6 +32,20 @@ public static partial class DariusMedia
 
     private static bool _loggedRoot;
 
+    // Async OGG requests can outlive a ModBehaviour generation. Every unload advances this token;
+    // stale requests must discard their decoded clip instead of repopulating the shared cache.
+    private static int _lifecycleGeneration;
+
+    private static int CaptureLifecycleGeneration()
+    {
+        return _lifecycleGeneration;
+    }
+
+    private static bool IsLifecycleGenerationCurrent(int generation)
+    {
+        return generation == _lifecycleGeneration;
+    }
+
     public static string Root
     {
         get
@@ -45,6 +59,27 @@ public static partial class DariusMedia
             }
             return _root;
         }
+    }
+
+    public static void Unload()
+    {
+        unchecked { _lifecycleGeneration++; }
+
+        HashSet<UnityEngine.Object> destroyed = new HashSet<UnityEngine.Object>();
+        foreach (Texture2D texture in Textures.Values)
+            if (texture != null && destroyed.Add(texture)) UnityEngine.Object.Destroy(texture);
+        foreach (AudioClip clip in Clips.Values)
+            if (clip != null && destroyed.Add(clip)) UnityEngine.Object.Destroy(clip);
+
+        Textures.Clear();
+        Clips.Clear();
+        LastPoolIndex.Clear();
+        LastVoiceAt.Clear();
+        Pass2SfxBySkin.Clear();
+        Pass2VoiceBySkin.Clear();
+        _pass2PoolsLoaded = false;
+        _root = null;
+        _loggedRoot = false;
     }
 
     public static void PreloadAll()

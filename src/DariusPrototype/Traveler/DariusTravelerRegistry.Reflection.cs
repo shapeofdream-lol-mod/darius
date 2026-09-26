@@ -135,46 +135,4 @@ public static partial class DariusTravelerRegistry
         return null;
     }
 
-    private static void AddUniqueTypeToDew(string fieldName, Type type)
-    {
-        FieldInfo f = typeof(Dew).GetField(fieldName, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-        IList list = f != null ? f.GetValue(null) as IList : null;
-        if (list == null)
-        {
-            DariusLog.Warn("TRAVELER-TYPE", "Dew backing list unavailable: " + fieldName);
-            return;
-        }
-
-        bool haveCurrent = false;
-        int removed = 0;
-        // Mod assemblies are timestamp-renamed on reload. An old Hero_Darius Type from the previous
-        // loaded assembly is not reference-equal to the new Type, even though the game sees the same
-        // hero name. Remove stale same-FullName entries before adding the current canonical Type.
-        for (int i = list.Count - 1; i >= 0; i--)
-        {
-            Type existing = list[i] as Type;
-            if (existing == null || !string.Equals(existing.FullName, type.FullName, StringComparison.Ordinal)) continue;
-            if (Equals(existing, type) && !haveCurrent) { haveCurrent = true; continue; }
-            list.RemoveAt(i);
-            removed++;
-        }
-        if (!haveCurrent) list.Add(type);
-        if (removed > 0) DariusLog.Info("TRAVELER-TYPE", "Removed stale/duplicate " + type.FullName + " entries=" + removed + " from " + fieldName);
-    }
-
-    private static void RemoveTypeFromDew(string fieldName, Type type)
-    {
-        try
-        {
-            FieldInfo f = typeof(Dew).GetField(fieldName, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            IList list = f != null ? f.GetValue(null) as IList : null;
-            if (list == null) return;
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                Type existing = list[i] as Type;
-                if (existing != null && string.Equals(existing.FullName, type.FullName, StringComparison.Ordinal)) list.RemoveAt(i);
-            }
-        }
-        catch { }
-    }
 }

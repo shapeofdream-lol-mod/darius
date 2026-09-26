@@ -28,7 +28,10 @@ public static partial class DariusTravelerRegistry
         // components which Dew expects on a native attack prefab, but the concrete Vesper attack
         // components and every presentation component are removed BEFORE registration. Runtime
         // Hero_Darius therefore spawns only At_DariusAxe/Ai_DariusAxe resources.
-        AttackTrigger sourceAttack = ResolveResourceByTypeName<AttackTrigger>("At_Atk_VesperMace");
+        Type sourceAttackType = AccessTools.TypeByName("At_Atk_VesperMace");
+        AttackTrigger sourceAttack = sourceAttackType != null
+            ? DewResources.GetByType<AttackTrigger>(sourceAttackType)
+            : null;
         if (sourceAttack == null)
             throw new InvalidOperationException("Could not resolve stock melee AttackTrigger structural template.");
 
@@ -45,8 +48,16 @@ public static partial class DariusTravelerRegistry
                 else if (sourceNormal == null) sourceNormal = inst;
             }
         }
-        if (sourceNormal == null) sourceNormal = ResolveResourceByTypeName<MeleeAttackInstance>("Ai_Atk_VesperMace");
-        if (sourceCrit == null) sourceCrit = ResolveResourceByTypeName<MeleeAttackInstance>("Ai_Atk_VesperMace_Crit");
+        if (sourceNormal == null)
+        {
+            Type normalType = AccessTools.TypeByName("Ai_Atk_VesperMace");
+            if (normalType != null) sourceNormal = DewResources.GetByType<MeleeAttackInstance>(normalType);
+        }
+        if (sourceCrit == null)
+        {
+            Type critType = AccessTools.TypeByName("Ai_Atk_VesperMace_Crit");
+            if (critType != null) sourceCrit = DewResources.GetByType<MeleeAttackInstance>(critType);
+        }
         if (sourceNormal == null) throw new InvalidOperationException("Could not resolve stock melee AttackInstance structural template.");
         if (sourceCrit == null) sourceCrit = sourceNormal;
 
@@ -138,11 +149,11 @@ public static partial class DariusTravelerRegistry
 
         NetworkIdentity identity = go.GetComponent<NetworkIdentity>();
         if (identity == null) identity = go.AddComponent<NetworkIdentity>();
-        ConfigureNetworkIdentity(identity, AttackAssetId);
+        DariusUnsupportedResourceBridge.ConfigureTemplateIdentity(identity, AttackAssetId, AttackName);
         // activeSelf=true is intentional, but the inactive resource root keeps the construction
         // prefab inactiveInHierarchy. Mirror can build its cache without firing DewCollider.OnEnable,
         // while a live clone inherits activeSelf=true and initializes before Dew assigns parentActor.
-        ReinitializeNetworkBehaviours(identity);
+        DariusUnsupportedResourceBridge.RebuildNetworkBehaviours(identity, AttackName);
 
         go.hideFlags = HideFlags.None;
         AttackPrefab = attack;

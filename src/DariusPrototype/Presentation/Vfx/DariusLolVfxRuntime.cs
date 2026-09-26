@@ -28,6 +28,28 @@ public static partial class DariusLolVfxRuntime
 
     private static Mesh _quad;
 
+    public static void Unload()
+    {
+        foreach (Material material in Materials.Values)
+            if (material != null) UnityEngine.Object.Destroy(material);
+        Materials.Clear();
+
+        foreach (Mesh mesh in Meshes.Values)
+            if (mesh != null) UnityEngine.Object.Destroy(mesh);
+        Meshes.Clear();
+        if (_quad != null) UnityEngine.Object.Destroy(_quad);
+        _quad = null;
+
+        foreach (Texture2D texture in Textures.Values)
+            if (texture != null) UnityEngine.Object.Destroy(texture);
+        Textures.Clear();
+
+        _manifest = null;
+        _systems = null;
+        _coordinateScale = DefaultCoordinateScale;
+        _loadAttempted = false;
+    }
+
     public static bool Ready { get { EnsureLoaded(); return _systems != null; } }
 
     private static void EnsureLoaded()

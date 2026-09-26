@@ -6,8 +6,8 @@ using Mirror;
 
 // Shape of Dreams - Darius / Hand of Noxus Traveler.
 // Release runtime: independent Hero_Darius, Darius-owned skin/attack resources,
-// League-authentic presentation assets, native constellation integration, and persistent
-// scene-transition self-healing.
+// League-authentic presentation assets, native constellation integration, and MOD-owned
+// runtime prefab templates registered into Dew's lookup/network maps.
 
 public sealed class DariusPrototypeMod : ModBehaviour
 {
@@ -20,9 +20,12 @@ public sealed class DariusPrototypeMod : ModBehaviour
         Debug.Log("[DariusAudio] config applied q=" + skillAudioVolume.qVolume.ToString("0.##") + " w=" + skillAudioVolume.wVolume.ToString("0.##") + " e=" + skillAudioVolume.eVolume.ToString("0.##") + " r=" + skillAudioVolume.rVolume.ToString("0.##") + " basic=" + skillAudioVolume.basicAttackVolume.ToString("0.##") + " dodge=" + skillAudioVolume.dodgeVolume.ToString("0.##") + " voice=" + skillAudioVolume.voiceVolume.ToString("0.##"));
     }
 
-    private static bool _bootstrapped;
-    private static bool _applicationQuitting;
-    private static bool _shutdownCompleted;
+    private static int _activeModInstanceId;
+    private bool _bootstrapped;
+    private bool _resourceBridgeReady;
+    private bool _applicationQuitting;
+    private bool _shutdownCompleted;
+    private int _instanceId;
     private DariusDiagnostics _diagnostics;
 
     private void Awake()
@@ -33,11 +36,36 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusModEnvironment.Configure(this);
         DariusAudioSettingsRuntime.Bind(skillAudioVolume);
         DariusLog.Initialize();
-        TravelerBasicAttackVfxReplication.Initialize();
+
+        _instanceId = GetInstanceID();
+        if (_activeModInstanceId != 0 && _activeModInstanceId != _instanceId)
+        {
+            DariusLog.Info("BOOT", "New ModBehaviour instance superseded owner=" + _activeModInstanceId +
+                " with owner=" + _instanceId + "; cleaning the previous runtime generation before bootstrap.");
+            ResetSharedRuntimeForReplacement();
+        }
+        _activeModInstanceId = _instanceId;
+        DariusTravelerRegistry.BindOwner(transform);
+        DariusFormalRegistry.BindOwner(transform);
+
+        try
+        {
+            DariusRuntimeResourceCompatibility.Install(harmony);
+            _resourceBridgeReady = true;
+        }
+        catch (Exception e)
+        {
+            // Runtime-only Hero/Skin/Skill resources must never enter Dew's maps before the three
+            // required lookup endpoints are bridged. Start() gets one clean retry; no registration
+            // is allowed from this Awake generation until that succeeds.
+            DariusLog.Exception("PATCH", e, "Required runtime resource bridge failed in Awake; early Darius bootstrap is blocked");
+            return;
+        }
+
         try
         {
             if (DewResources.database != null && !string.IsNullOrEmpty(DariusModEnvironment.Root))
-                DariusTravelerRegistry.EnsureCoreRegisteredForLookup("Mod Awake synchronous Workshop bootstrap");
+                DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap("Mod Awake synchronous Workshop bootstrap");
         }
         catch (Exception e)
         {
@@ -60,6 +88,22 @@ public sealed class DariusPrototypeMod : ModBehaviour
         _diagnostics.Initialize();
         DariusLog.Info("BOOT", "Initial snapshot: " + DariusDiagnostics.Snapshot());
 
+        if (!_resourceBridgeReady)
+        {
+            try
+            {
+                DariusRuntimeResourceCompatibility.Install(harmony);
+                _resourceBridgeReady = true;
+            }
+            catch (Exception e)
+            {
+                DariusLog.Exception("PATCH", e, "Required runtime resource bridge failed in Start; aborting this Darius runtime generation");
+                ShutdownRuntimeResources("required runtime resource bridge unavailable");
+                return;
+            }
+        }
+
+        TravelerBasicAttackVfxReplication.Initialize();
         instance.isAlteringGameplay = true;
         if (!_bootstrapped)
         {
@@ -76,23 +120,6 @@ public sealed class DariusPrototypeMod : ModBehaviour
                 DariusLog.Exception("PATCH", e, "Harmony PatchAll reported a failure; continuing critical Darius boot so the Traveler can still register");
             }
 
-            try
-            {
-                DariusModLifecycle.Install(harmony);
-            }
-            catch (Exception e)
-            {
-                DariusLog.Exception("MOD-LIFECYCLE", e, "DewMod.UnloadAll lifecycle guard install failed; continuing boot");
-            }
-
-            try
-            {
-                DariusRuntimeResourceCompatibility.Install(harmony);
-            }
-            catch (Exception e)
-            {
-                DariusLog.Exception("PATCH", e, "Runtime resource compatibility install failed; continuing boot for diagnostics/self-heal");
-            }
 
             try
             {
@@ -114,10 +141,6 @@ public sealed class DariusPrototypeMod : ModBehaviour
 
             _bootstrapped = true;
         }
-        else
-        {
-            DariusLog.Info("BOOT", "Scene-created ModBehaviour detected; keeping existing Harmony/runtime registrations instead of duplicating them.");
-        }
 
         // If Dew's resource database is already online, synchronously install the minimum Hero/Skin
         // resource bridge before lobby/mastery UI gets another frame to resolve persisted Hero_Darius.
@@ -125,7 +148,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         try
         {
             if (DewResources.database != null)
-                DariusTravelerRegistry.EnsureCoreRegisteredForLookup("Mod Start synchronous Workshop bootstrap");
+                DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap("Mod Start synchronous Workshop bootstrap");
         }
         catch (Exception e)
         {
@@ -144,13 +167,12 @@ public sealed class DariusPrototypeMod : ModBehaviour
         // Always start the critical registration coroutine even when an optional Harmony/UI patch
         // failed. This is the authoritative path that creates Hero_Darius/Skin_Darius_Default.
         StartCoroutine(DariusTravelerRegistry.InitializeWhenReady());
-        DariusLog.Info("BOOT", "Registration/repair coroutine started. Target=independent Hero_Darius, native Hero/Skin/Loadout/Profile/Mirror paths.");
+        DariusLog.Info("BOOT", "Registration coroutine started. Target=independent Hero_Darius, native Hero/Skin/Loadout/Profile/Mirror paths.");
     }
 
     private void OnApplicationQuit()
     {
         _applicationQuitting = true;
-        try { DariusConstellationPersistence.SaveCurrent(DewSave.profileMain, "application quit"); } catch { }
         ShutdownRuntimeResources("application quit");
     }
 
@@ -158,20 +180,30 @@ public sealed class DariusPrototypeMod : ModBehaviour
     {
         if (_diagnostics != null) Destroy(_diagnostics);
 
-        // Save before *any* scene or mod lifecycle destruction. A profile Validate can run during
-        // the next transition/reload before the replacement dynamic assembly has re-registered its
-        // StarEffects; without this snapshot newly purchased custom stars could be refunded.
-        try { DariusConstellationPersistence.SaveCurrent(DewSave.profileMain, "ModBehaviour OnDestroy pre-cleanup"); } catch { }
+        if (_instanceId != 0 && _activeModInstanceId != 0 && _activeModInstanceId != _instanceId)
+        {
+            DariusLog.Info("BOOT", "Superseded ModBehaviour destroyed owner=" + _instanceId +
+                " activeOwner=" + _activeModInstanceId + "; shared runtime belongs to the newer instance.");
+            return;
+        }
 
-        bool trueModUnload = DariusModLifecycle.IsModManagerUnloading;
-        if (_applicationQuitting || !Application.isPlaying || trueModUnload)
-        {
-            ShutdownRuntimeResources(trueModUnload ? "DewMod.UnloadAll hot reload" : "real shutdown");
-        }
-        else
-        {
-            DariusLog.Info("BOOT", "Ordinary scene lifecycle destroyed ModBehaviour; preserving persistent Darius resources. Constellation state was snapshotted first.");
-        }
+        ShutdownRuntimeResources(_applicationQuitting ? "application quit" : "ModBehaviour destroyed");
+        if (_activeModInstanceId == _instanceId) _activeModInstanceId = 0;
+    }
+
+    private void ResetSharedRuntimeForReplacement()
+    {
+        TravelerBasicAttackVfxReplication.Shutdown();
+        DariusRInputGuard.Uninstall();
+        try { harmony.UnpatchAll(harmony.Id); } catch { }
+        DariusRuntimeResourceCompatibility.ResetInstallState();
+        DariusDejaVuRegistry.ResetPatchInstallState();
+        DariusTravelerRegistry.ShutdownRuntimeResources();
+        DariusFormalRegistry.ShutdownRuntimeResources();
+        DariusLolVfxRuntime.Unload();
+        DariusMedia.Unload();
+        DariusPrototypeIcons.Unload();
+        _resourceBridgeReady = false;
     }
 
     private void ShutdownRuntimeResources(string reason)
@@ -179,9 +211,17 @@ public sealed class DariusPrototypeMod : ModBehaviour
         if (_shutdownCompleted) return;
         _shutdownCompleted = true;
         DariusLog.Info("BOOT", "Cleaning Darius runtime resources: " + reason);
-        DariusTravelerRegistry.UnregisterRuntimeOnly();
-        DariusFormalRegistry.Unregister();
+        TravelerBasicAttackVfxReplication.Shutdown();
+        DariusRInputGuard.Uninstall();
         try { harmony.UnpatchAll(harmony.Id); } catch { }
+        DariusRuntimeResourceCompatibility.ResetInstallState();
+        DariusDejaVuRegistry.ResetPatchInstallState();
+        DariusTravelerRegistry.ShutdownRuntimeResources();
+        DariusFormalRegistry.ShutdownRuntimeResources();
+        DariusLolVfxRuntime.Unload();
+        DariusMedia.Unload();
+        DariusPrototypeIcons.Unload();
+        _resourceBridgeReady = false;
         _bootstrapped = false;
         DariusLog.Flush();
         if (_applicationQuitting || !Application.isPlaying) DariusLog.Shutdown();

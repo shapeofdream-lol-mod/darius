@@ -76,14 +76,13 @@ public static partial class DariusFormalRegistry
         // Actor.set_parentActor. SkillTrigger/Gem prefabs keep the older inactive construction path.
         if (!warmAbilityInstance) go.SetActive(false);
         go.hideFlags = HideFlags.HideAndDontSave;
-        UnityEngine.Object.DontDestroyOnLoad(go);
 
         // Mirror NetworkBehaviour caches its NetworkIdentity during component initialization.
         // Current working SoD runtime-prefab mods add NetworkIdentity FIRST, then SkillTrigger/Gem.
         // Adding it afterwards leaves netIdentity null and crashes NetworkIdentity.OnStartServer.
         NetworkIdentity preIdentity = go.AddComponent<NetworkIdentity>();
         uint preAssetId = StableAssetId(guid) | 0x80000000u;
-        ConfigureNetworkIdentity(preIdentity, preAssetId, name);
+        DariusUnsupportedResourceBridge.ConfigureTemplateIdentity(preIdentity, preAssetId, name);
 
         // Match the working reference mod's exact order: the NetworkIdentity already has
         // its runtime assetId before the NetworkBehaviour (SkillTrigger/Gem/Ai) is added.
@@ -91,15 +90,14 @@ public static partial class DariusFormalRegistry
         component.name = name;
         if (configure != null) configure(component);
 
+        // Every Formal template belongs to the current ModBehaviour generation. Warm Actor
+        // templates stay activeSelf=true beneath the inactive root so Awake state is preserved
+        // without creating a parallel persistent scene graph.
+        GameObject root = GetRuntimeActorRoot();
+        go.transform.SetParent(root.transform, false);
+        if (!go.activeSelf) go.SetActive(true);
         if (warmAbilityInstance)
         {
-            // AbilityInstance/StarEffect templates must stay activeSelf=true. Dew clones the prefab
-            // and assigns Actor.parentActor before it gets a chance to activate an inactive clone.
-            // Keeping the child active under an inactive persistent root preserves Awake-initialized
-            // Actor state while keeping the template itself out of gameplay. This is the same lifecycle
-            // contract used by the stable Darius native attack prefabs.
-            GameObject root = GetRuntimeActorRoot();
-            go.transform.SetParent(root.transform, false);
             DariusLog.Info("AI-PREFAB", "Warm-initialized runtime Actor prefab name=" + name +
                 " activeSelf=" + go.activeSelf + " activeInHierarchy=" + go.activeInHierarchy +
                 " networkIdentity=" + (preIdentity != null));
@@ -114,59 +112,29 @@ public static partial class DariusFormalRegistry
     private static GameObject GetRuntimeActorRoot()
     {
         if (_runtimeActorRoot != null) return _runtimeActorRoot;
-        _runtimeActorRoot = new GameObject("DariusPrototype_FormalRuntimeActors");
+        if (_modOwner == null)
+            throw new InvalidOperationException("DariusFormalRegistry has no ModBehaviour owner.");
+
+        _runtimeActorRoot = new GameObject("DariusPrototype_FormalRuntimeResources");
         _runtimeActorRoot.hideFlags = HideFlags.HideAndDontSave;
-        UnityEngine.Object.DontDestroyOnLoad(_runtimeActorRoot);
+        _runtimeActorRoot.transform.SetParent(_modOwner, false);
         _runtimeActorRoot.SetActive(false);
         return _runtimeActorRoot;
     }
 
     private static void RegisterObject(UnityEngine.Object obj, string name, string guid)
     {
-        var db = DewResources.database;
+        object database = DewResources.database;
         Type type = obj.GetType();
+        uint assetId = StableAssetId(guid) | 0x80000000u;
+        RegistrationsByGuid[guid] = new RuntimeRegistration(type, name, guid, assetId);
 
-        // Match the resource registration path used by current 2026 mods:
-        // register the assembly-qualified type -> stable GUID, ensure the GUID is in
-        // the runtime database, then rebuild the runtime lookup tables.
-        string aqn = type.AssemblyQualifiedName;
-        if (string.IsNullOrEmpty(aqn))
-            throw new InvalidOperationException("Could not resolve AssemblyQualifiedName for " + name);
-
-        db.typeAssemblyQualifiedNameToGuid[aqn] = guid;
-        if (!db.allGuids.Contains(guid)) db.allGuids.Add(guid);
-        DariusLog.DebugInfo("REG", "DB mapping AQN->GUID name=" + name + " aqn=" + aqn + " guid=" + guid);
-
-        // The working Elemental Summon mod populates Dew's complete runtime index set directly.
-        // This matters in heavily modded installs where InitForRuntime() may abort on another mod's
-        // duplicate key before it finishes rebuilding these secondary dictionaries.
-        SetDatabaseMap(db, "typeToGuid", type, guid);
-        SetDatabaseMap(db, "guidToType", guid, type);
-        SetDatabaseMap(db, "typeNameToGuid", type.Name, guid);
-        SetDatabaseMap(db, "nameToGuid", name, guid);
-        SetDatabaseMap(db, "guidToName", guid, name);
-        SetDatabaseMap(db, "typeNameToType", type.Name, type);
-        SetDatabaseMap(db, "typeNameToType", name, type);
+        DariusUnsupportedResourceBridge.RegisterTypedResourceIdentity(
+            database, type, name, guid, obj, (obj as Component)?.gameObject);
 
         ResourcesByGuid[guid] = obj;
         GuidByObject[obj] = guid;
         RegisterNetworkIdentity(obj, guid);
     }
 
-    private static void SetDatabaseMap(object database, string fieldName, object key, object value)
-    {
-        if (database == null || key == null) return;
-        try
-        {
-            FieldInfo field = database.GetType().GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            IDictionary map = field != null ? field.GetValue(database) as IDictionary : null;
-            if (map == null) return;
-            map[key] = value;
-            DariusLog.DebugInfo("REG-MAP", fieldName + "[" + key + "]=" + value);
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("REG-MAP", e, "Failed runtime DB map " + fieldName + " key=" + key);
-        }
-    }
 }

@@ -10,61 +10,11 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusFormalRegistry
 {
-    private static void RemoveDatabaseMapIfOwned(object database, string fieldName, object key, object expectedValue)
-    {
-        if (database == null || key == null) return;
-        try
-        {
-            FieldInfo field = database.GetType().GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            IDictionary map = field != null ? field.GetValue(database) as IDictionary : null;
-            if (map == null || !map.Contains(key)) return;
-            object current = map[key];
-            if (Equals(current, expectedValue)) map.Remove(key);
-        }
-        catch { }
-    }
-
-    private static void ConfigureNetworkIdentity(NetworkIdentity identity, uint assetId, string label)
-    {
-        if (identity == null) return;
-        try
-        {
-            // Mirror 2026 uses _assetId internally; keep fallbacks for older builds.
-            FieldInfo field = typeof(NetworkIdentity).GetField("_assetId", BindingFlags.Instance | BindingFlags.NonPublic)
-                           ?? typeof(NetworkIdentity).GetField("assetId", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                           ?? typeof(NetworkIdentity).GetField("<assetId>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (field != null)
-            {
-                field.SetValue(identity, assetId);
-            }
-            else
-            {
-                PropertyInfo prop = typeof(NetworkIdentity).GetProperty("assetId", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (prop != null && prop.CanWrite) prop.SetValue(identity, assetId);
-                else DariusLog.Warn("NET", "Could not find writable assetId for " + label);
-            }
-
-            identity.sceneId = 0UL;
-            FieldInfo sceneField = typeof(NetworkIdentity).GetField("_isSceneObject", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (sceneField != null) sceneField.SetValue(identity, false);
-
-            // Runtime-created prefab templates execute NetworkIdentity.Awake once during construction.
-            // Mirror serializes its private hasSpawned flag; if it stays true on the template, every
-            // later Instantiate inherits true and destroys itself with "has already spawned". Keep
-            // the template in prefab state so the clone's own Awake is the first real spawn.
-            FieldInfo spawnedField = typeof(NetworkIdentity).GetField("hasSpawned", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (spawnedField != null) spawnedField.SetValue(identity, false);
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("NET", e, "Could not configure network identity for " + label);
-        }
-    }
-
     private static void RegisterNetworkIdentity(UnityEngine.Object obj, string guid)
     {
         Component component = obj as Component;
-        if (component == null) return;
+        if (component == null)
+            throw new InvalidOperationException("Runtime network resource is not a Component: " + (obj != null ? obj.name : "<null>"));
 
         NetworkIdentity identity = component.GetComponent<NetworkIdentity>();
         if (identity == null)
@@ -77,33 +27,38 @@ public static partial class DariusFormalRegistry
             catch (Exception e)
             {
                 DariusLog.Exception("NET", e, "Could not add NetworkIdentity to " + obj.name);
-                return;
+                throw;
             }
         }
 
         uint assetId = StableAssetId(guid) | 0x80000000u;
-        ConfigureNetworkIdentity(identity, assetId, obj.name);
+        DariusUnsupportedResourceBridge.ConfigureTemplateIdentity(identity, assetId, obj.name);
 
-        try
-        {
-            DewResources.database.netObjectAssetIdToGuid[assetId] = guid;
-            DariusLog.Info("NET", "Registered network mapping name=" + obj.name + " assetId=" + assetId + " guid=" + guid);
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("NET", e, "Failed DB network mapping for " + obj.name);
-        }
+        DariusUnsupportedResourceBridge.RegisterNetworkGuid(DewResources.database, assetId, guid);
+        DariusLog.Info("NET", "Registered network mapping name=" + obj.name + " assetId=" + assetId + " guid=" + guid);
 
-        NetworkPrefabs[assetId] = component.gameObject;
-
+        bool handlerRegistered = false;
         try
         {
             NetworkClient.RegisterSpawnHandler(assetId, SpawnHandler, UnspawnHandler);
+            handlerRegistered = true;
+            NetworkPrefabs[assetId] = component.gameObject;
+            RuntimeRegistration registration;
+            if (!RegistrationsByGuid.TryGetValue(guid, out registration))
+                throw new InvalidOperationException("Missing runtime registration metadata for " + obj.name + " guid=" + guid);
+            registration.networkHandlerRegistered = true;
             DariusLog.Info("NET", "Registered spawn handler name=" + obj.name + " assetId=" + assetId);
         }
         catch (Exception e)
         {
-            DariusLog.Exception("NET", e, "Could not register spawn handler for " + obj.name);
+            if (handlerRegistered)
+            {
+                try { NetworkClient.UnregisterSpawnHandler(assetId); } catch { }
+            }
+            NetworkPrefabs.Remove(assetId);
+            DariusUnsupportedResourceBridge.RemoveNetworkGuidIfOwned(DewResources.database, assetId, guid);
+            DariusLog.Exception("NET", e, "Could not register spawn handler for " + obj.name + "; formal registration will roll back");
+            throw;
         }
     }
 
@@ -124,16 +79,9 @@ public static partial class DariusFormalRegistry
             {
                 spawned.transform.localScale = msg.scale;
                 spawned.name = prefab.name;
+                // Mirror applies the SpawnMessage and owns the clone's live NetworkIdentity state.
+                // Do not rewrite scene/private flags or rebuild NetworkBehaviours after Instantiate.
                 if (!spawned.activeSelf) spawned.SetActive(true);
-                NetworkIdentity identity = spawned.GetComponent<NetworkIdentity>();
-                if (identity != null)
-                {
-                    identity.sceneId = 0UL;
-                    FieldInfo sceneField = typeof(NetworkIdentity).GetField("_isSceneObject", BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (sceneField != null) sceneField.SetValue(identity, false);
-                    MethodInfo init = typeof(NetworkIdentity).GetMethod("InitializeNetworkBehaviours", BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (init != null) init.Invoke(identity, null);
-                }
             }
             DariusLog.Info("NET-SPAWN", "Spawn handler assetId=" + msg.assetId + " prefab=" + prefab.name +
                 " result=" + (spawned != null) + " pos=" + DariusLog.Vec(msg.position));

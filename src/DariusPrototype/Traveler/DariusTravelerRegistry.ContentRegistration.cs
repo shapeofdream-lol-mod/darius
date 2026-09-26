@@ -11,6 +11,28 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusTravelerRegistry
 {
+    private static DewGameContentSettings _contentOwner;
+
+    private static readonly Type[] DariusRegisteredSkillTypes =
+    {
+        typeof(St_Darius_Decimate),
+        typeof(St_Darius_NoxianGuillotine),
+        typeof(St_D_Darius_Hemorrhage),
+        typeof(St_Darius_CripplingStrike),
+        typeof(St_Darius_Apprehend),
+        typeof(St_Darius_Flash),
+        typeof(St_Darius_Ghost)
+    };
+
+    private static readonly Type[] DariusRegisteredHeroSkillTypes =
+    {
+        typeof(St_Darius_Decimate),
+        typeof(St_Darius_NoxianGuillotine),
+        typeof(St_D_Darius_Hemorrhage),
+        typeof(St_Darius_Flash),
+        typeof(St_Darius_Ghost)
+    };
+
     private static int CopySameNamedMember(object source, object target, string name)
     {
         if (source == null || target == null) return 0;
@@ -55,36 +77,88 @@ public static partial class DariusTravelerRegistry
 
     private static void RegisterTypes()
     {
-        // Force lazy caches to exist first, then append only our exact types.
-        try { var _ = Dew.allHeroes; } catch { }
-        try { var _ = Dew.allSkills; } catch { }
-        AddUniqueTypeToDew("_allHeroes", typeof(Hero_Darius));
-        AddUniqueTypeToDew("_allSkills", typeof(St_Darius_Decimate));
-        AddUniqueTypeToDew("_allSkills", typeof(St_Darius_NoxianGuillotine));
-        AddUniqueTypeToDew("_allSkills", typeof(St_D_Darius_Hemorrhage));
-        AddUniqueTypeToDew("_allSkills", typeof(St_Darius_CripplingStrike));
-        AddUniqueTypeToDew("_allSkills", typeof(St_Darius_Apprehend));
-        AddUniqueTypeToDew("_allSkills", typeof(St_Darius_Flash));
-        AddUniqueTypeToDew("_allSkills", typeof(St_Darius_Ghost));
-        AddUniqueTypeToDew("_allHeroSkills", typeof(St_Darius_Decimate));
-        AddUniqueTypeToDew("_allHeroSkills", typeof(St_Darius_NoxianGuillotine));
-        AddUniqueTypeToDew("_allHeroSkills", typeof(St_D_Darius_Hemorrhage));
-        AddUniqueTypeToDew("_allHeroSkills", typeof(St_Darius_Flash));
-        AddUniqueTypeToDew("_allHeroSkills", typeof(St_Darius_Ghost));
-        DariusConstellationRegistry.ReassertTypeCache();
-        DariusLog.DebugInfoThrottled("TRAVELER-TYPE", "type-caches", "Dew type caches appended: Hero_Darius + Q/R/Identity + Flash/Ghost movement + ordinary W/E Memories + Darius constellation StarEffects.", 20.0);
+        DariusUnsupportedResourceBridge.EnsureHeroTypes(
+            new[] { typeof(Hero_Darius) }, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.EnsureSkillTypes(
+            DariusRegisteredSkillTypes, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.EnsureHeroSkillTypes(
+            DariusRegisteredHeroSkillTypes, "TRAVELER-TYPE");
+        DariusConstellationRegistry.RegisterTypeCache();
+
+        DariusLog.DebugInfoThrottled("TRAVELER-TYPE", "type-caches",
+            "Unsupported Dew type-cache bridge registered Hero_Darius, Darius skills and constellation StarEffects.", 20.0);
+    }
+
+    private static void EnsureContentEntry(ref string[] serializedNames, List<string> runtimeNames, string value)
+    {
+        if (string.IsNullOrEmpty(value)) return;
+
+        if (serializedNames == null)
+        {
+            serializedNames = new[] { value };
+        }
+        else if (!serializedNames.Contains(value))
+        {
+            string[] next = new string[serializedNames.Length + 1];
+            Array.Copy(serializedNames, next, serializedNames.Length);
+            next[serializedNames.Length] = value;
+            serializedNames = next;
+        }
+
+        if (runtimeNames != null && !runtimeNames.Contains(value))
+            runtimeNames.Add(value);
+    }
+
+    private static void RemoveContentEntry(ref string[] serializedNames, List<string> runtimeNames, string value)
+    {
+        if (string.IsNullOrEmpty(value)) return;
+        if (serializedNames != null)
+            serializedNames = serializedNames.Where(x => !string.Equals(x, value, StringComparison.Ordinal)).ToArray();
+        if (runtimeNames != null)
+            runtimeNames.RemoveAll(x => string.Equals(x, value, StringComparison.Ordinal));
+    }
+
+    public static void UnregisterContent()
+    {
+        DewGameContentSettings content = _contentOwner;
+        _contentOwner = null;
+        if (content == null) return;
+
+        RemoveContentEntry(ref content._availableHeroes, content.availableHeroes, HeroName);
+
+        string[] skillNames =
+        {
+            "St_Darius_Decimate",
+            "St_Darius_NoxianGuillotine",
+            "St_D_Darius_Hemorrhage",
+            "St_Darius_CripplingStrike",
+            "St_Darius_Apprehend",
+            "St_Darius_Flash",
+            "St_Darius_Ghost"
+        };
+        for (int i = 0; i < skillNames.Length; i++)
+            RemoveContentEntry(ref content._availableSkills, content.availableSkills, skillNames[i]);
+
+        if (content._availableStars != null)
+            content._availableStars = content._availableStars
+                .Where(x => string.IsNullOrEmpty(x) || !x.StartsWith("Se_Star_Darius_", StringComparison.Ordinal))
+                .ToArray();
+        if (content.availableStars != null)
+            content.availableStars.RemoveAll(x =>
+                !string.IsNullOrEmpty(x) && x.StartsWith("Se_Star_Darius_", StringComparison.Ordinal));
+
+        DariusLog.DebugInfo("TRAVELER-CONTENT",
+            "Removed runtime Hero_Darius/skill/star entries from the owned DewGameContentSettings instance.");
     }
 
     public static void RegisterContent(DewGameContentSettings content)
     {
         if (content == null) return;
-        AddStringMember(content, "_availableHeroes", HeroName);
-        AddStringMember(content, "availableHeroes", HeroName);
-        for (int i = 0; i < SkinSpecs.Length; i++)
-        {
-            AddStringMember(content, "_availableSkins", SkinSpecs[i].name);
-            AddStringMember(content, "availableSkins", SkinSpecs[i].name);
-        }
+        if (_contentOwner != null && !ReferenceEquals(_contentOwner, content))
+            UnregisterContent();
+        _contentOwner = content;
+
+        EnsureContentEntry(ref content._availableHeroes, content.availableHeroes, HeroName);
 
         string[] skillNames =
         {
@@ -97,16 +171,17 @@ public static partial class DariusTravelerRegistry
             DariusFormalRegistry.Ghost != null ? DariusFormalRegistry.Ghost.name : "St_Darius_Ghost"
         };
         foreach (string skill in skillNames)
-        {
-            AddStringMember(content, "_availableSkills", skill);
-            AddStringMember(content, "availableSkills", skill);
-        }
+            EnsureContentEntry(ref content._availableSkills, content.availableSkills, skill);
+
         foreach (Type starType in Dew.allStarTypes)
         {
             if (starType == null || !starType.Name.StartsWith("Se_Star_Darius_", StringComparison.Ordinal)) continue;
-            AddStringMember(content, "_availableStars", starType.Name);
-            AddStringMember(content, "availableStars", starType.Name);
+            EnsureContentEntry(ref content._availableStars, content.availableStars, starType.Name);
         }
-        DariusLog.DebugInfoThrottled("TRAVELER-CONTENT", "content", "Content includes Hero_Darius, " + SkinSpecs.Length + " explicit skins, and seven Darius skill resources including Flash/Ghost movement choices.", 20.0);
+
+        // DewGameContentSettings has no skin list in the documented runtime contract. Skin unlock
+        // and selection are handled through DewProfile and the custom resource identity bridge.
+        DariusLog.DebugInfoThrottled("TRAVELER-CONTENT", "content",
+            "Content includes Hero_Darius and seven Darius skill resources including Flash/Ghost movement choices.", 20.0);
     }
 }

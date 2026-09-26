@@ -11,43 +11,67 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusTravelerRegistry
 {
+    private static readonly HashSet<uint> RegisteredSpawnHandlerIds = new HashSet<uint>();
+
     private static void RegisterTypedResource(Component component, GameObject go, string name, string guid, uint assetId)
     {
-        Type type = component.GetType();
-        object db = DewResources.database;
-        if (db == null) throw new InvalidOperationException("database null");
-        string aqn = type.AssemblyQualifiedName;
-        DewResources.database.typeAssemblyQualifiedNameToGuid[aqn] = guid;
-        if (!DewResources.database.allGuids.Contains(guid)) DewResources.database.allGuids.Add(guid);
-        SetDatabaseMap("typeToGuid", type, guid);
-        SetDatabaseMap("guidToType", guid, type);
-        SetDatabaseMap("typeNameToGuid", type.Name, guid);
-        SetDatabaseMap("typeNameToType", type.Name, type);
-        SetDatabaseMap("nameToGuid", name, guid);
-        SetDatabaseMap("guidToName", guid, name);
-        SetDatabaseMap("objectToGuidFallback", component, guid);
-        SetDatabaseMap("objectToGuidFallback", go, guid);
-        ResourcesByGuid[guid] = component;
-        ResourcesByType[type] = component;
+        if (component == null || go == null)
+            throw new ArgumentNullException(component == null ? nameof(component) : nameof(go));
 
-        string collision;
-        if (DewResources.database.netObjectAssetIdToGuid.TryGetValue(assetId, out collision) && collision != guid)
-            throw new InvalidOperationException("Mirror assetId collision: " + assetId + " already maps to " + collision);
-        DewResources.database.netObjectAssetIdToGuid[assetId] = guid;
-        NetworkPrefabs[assetId] = go;
-        try { NetworkClient.RegisterSpawnHandler(assetId, SpawnHandler, UnspawnHandler); }
-        catch (Exception e) { DariusLog.Exception("TRAVELER-NET", e, "RegisterSpawnHandler failed assetId=" + assetId); }
+        Type type = component.GetType();
+        object database = DewResources.database;
+        try
+        {
+            DariusUnsupportedResourceBridge.RegisterTypedResourceIdentity(database, type, name, guid, component, go);
+            ResourcesByGuid[guid] = component;
+            ResourcesByType[type] = component;
+
+            DariusUnsupportedResourceBridge.RegisterNetworkGuid(database, assetId, guid);
+            NetworkClient.RegisterSpawnHandler(assetId, SpawnHandler, UnspawnHandler);
+            RegisteredSpawnHandlerIds.Add(assetId);
+            NetworkPrefabs[assetId] = go;
+            DariusLog.Info("TRAVELER-NET", "Registered runtime resource name=" + name + " assetId=" + assetId + " guid=" + guid);
+        }
+        catch (Exception e)
+        {
+            if (RegisteredSpawnHandlerIds.Remove(assetId))
+            {
+                try { NetworkClient.UnregisterSpawnHandler(assetId); } catch { }
+            }
+            NetworkPrefabs.Remove(assetId);
+            DariusUnsupportedResourceBridge.RemoveNetworkGuidIfOwned(database, assetId, guid);
+            DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, component, guid);
+            DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, go, guid);
+            DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(database, type, name, guid);
+            ResourcesByGuid.Remove(guid);
+            UnityEngine.Object current;
+            if (ResourcesByType.TryGetValue(type, out current) && ReferenceEquals(current, component))
+                ResourcesByType.Remove(type);
+            DariusLog.Exception("TRAVELER-NET", e, "Runtime resource registration failed name=" + name + " assetId=" + assetId + "; rolling back this resource");
+            throw;
+        }
     }
 
     private static void RegisterNamedResource(Component component, GameObject go, string name, string guid)
     {
-        if (!DewResources.database.allGuids.Contains(guid)) DewResources.database.allGuids.Add(guid);
-        SetDatabaseMap("nameToGuid", name, guid);
-        SetDatabaseMap("guidToName", guid, name);
-        SetDatabaseMap("objectToGuidFallback", component, guid);
-        SetDatabaseMap("objectToGuidFallback", go, guid);
-        ResourcesByGuid[guid] = component;
-        // Deliberately do NOT write typeToGuid[typeof(Skin)]: Skin is a shared stock type.
+        object database = DewResources.database;
+        try
+        {
+            DariusUnsupportedResourceBridge.RegisterNamedResourceIdentity(
+                database, name, guid, component, go);
+            ResourcesByGuid[guid] = component;
+            // Deliberately do NOT register Skin by Type: Skin is a shared stock type linked by name.
+        }
+        catch (Exception e)
+        {
+            DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, component, guid);
+            DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, go, guid);
+            DariusUnsupportedResourceBridge.RemoveNamedResourceIdentity(database, name, guid);
+            ResourcesByGuid.Remove(guid);
+            DariusLog.Exception("TRAVELER-SKIN", e,
+                "Named runtime resource registration failed name=" + name + "; rolling back this resource");
+            throw;
+        }
     }
 
     private static GameObject SpawnHandler(SpawnMessage msg)
@@ -77,65 +101,6 @@ public static partial class DariusTravelerRegistry
     private static void UnspawnHandler(GameObject spawned)
     {
         if (spawned != null) SpawnManager.Destroy(spawned);
-    }
-
-    private static void ConfigureNetworkIdentity(NetworkIdentity identity, uint assetId)
-    {
-        if (identity == null) return;
-        FieldInfo field = typeof(NetworkIdentity).GetField("_assetId", BindingFlags.Instance | BindingFlags.NonPublic)
-                       ?? typeof(NetworkIdentity).GetField("assetId", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                       ?? typeof(NetworkIdentity).GetField("<assetId>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
-        if (field != null) field.SetValue(identity, assetId);
-        else
-        {
-            PropertyInfo p = typeof(NetworkIdentity).GetProperty("assetId", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (p != null && p.CanWrite) p.SetValue(identity, assetId, null);
-        }
-        identity.sceneId = 0UL;
-        FieldInfo scene = typeof(NetworkIdentity).GetField("_isSceneObject", BindingFlags.Instance | BindingFlags.NonPublic);
-        if (scene != null) scene.SetValue(identity, false);
-        FieldInfo spawned = typeof(NetworkIdentity).GetField("hasSpawned", BindingFlags.Instance | BindingFlags.NonPublic);
-        if (spawned != null) spawned.SetValue(identity, false);
-    }
-
-    internal static void ReinitializeNetworkBehaviours(NetworkIdentity identity)
-    {
-        if (identity == null) return;
-        try
-        {
-            MethodInfo m = typeof(NetworkIdentity).GetMethod("InitializeNetworkBehaviours", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            if (m != null) m.Invoke(identity, null);
-        }
-        catch (Exception e) { DariusLog.Exception("TRAVELER-NET", e, "InitializeNetworkBehaviours failed for " + identity.name); }
-    }
-
-    private static T ResolveGenericResource<T>(string methodName, string key, bool loadLight) where T : UnityEngine.Object
-    {
-        MethodInfo[] methods = typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-        foreach (MethodInfo raw in methods)
-        {
-            if (raw.Name != methodName || !raw.IsGenericMethodDefinition) continue;
-            MethodInfo m;
-            try { m = raw.MakeGenericMethod(typeof(T)); } catch { continue; }
-            ParameterInfo[] ps = m.GetParameters();
-            if (ps.Length < 1 || ps[0].ParameterType != typeof(string)) continue;
-            object[] args = new object[ps.Length];
-            args[0] = key;
-            for (int i = 1; i < ps.Length; i++)
-            {
-                if (ps[i].ParameterType == typeof(bool) && ps[i].Name != null && ps[i].Name.IndexOf("light", StringComparison.OrdinalIgnoreCase) >= 0)
-                    args[i] = loadLight;
-                else if (ps[i].HasDefaultValue) args[i] = ps[i].DefaultValue;
-                else args[i] = ps[i].ParameterType.IsValueType ? Activator.CreateInstance(ps[i].ParameterType) : null;
-            }
-            try
-            {
-                T result = m.Invoke(null, args) as T;
-                if (result != null) return result;
-            }
-            catch { }
-        }
-        return null;
     }
 
     private static Dictionary<FieldInfo, object> CaptureUnitySerializedFields(Component source, Type startType)

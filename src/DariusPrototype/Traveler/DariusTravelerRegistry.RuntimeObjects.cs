@@ -11,86 +11,6 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusTravelerRegistry
 {
-    private static void EnsurePersistentRuntimeObjects(string reason)
-    {
-        // Remove Unity-destroyed entries from our ownership list so later application-quit cleanup
-        // only walks live objects. UnityEngine.Object's overloaded == makes destroyed GameObjects
-        // compare null even though the managed wrapper still exists.
-        OwnedObjects.RemoveAll(go => go == null);
-        CreateResourceRoot();
-        ConfigureDariusSkillOwnership();
-
-        bool rebuiltAttack = false;
-        bool rebuiltSkin = false;
-        bool rebuiltHero = false;
-
-        // Hero construction depends on the Darius attack preset. Rebuild the complete attack chain
-        // only if a teardown unexpectedly removed any of it; the normal first-run bug destroys only
-        // Hero_Darius, so this branch should ordinarily remain untouched.
-        if (AttackPrefab == null || AttackInstancePrefab == null || AttackCritInstancePrefab == null)
-        {
-            DariusLog.Warn("TRAVELER-SELFHEAL", "Darius native attack runtime prefab missing; rebuilding attack chain reason=" + reason);
-            CreateAndRegisterNativeBasicAttack();
-            rebuiltAttack = true;
-        }
-
-        bool heroPresentationWasDestroyed = HeroPrefab == null;
-        if (heroPresentationWasDestroyed)
-        {
-            // The observed run teardown destroys Hero_* and invalidates the Skin -> EntityModel
-            // presentation generation in the same transition even when Skin wrappers still compare
-            // non-null. Rebuild the whole generation transactionally before constructing the Hero.
-            DariusLog.Warn("TRAVELER-SELFHEAL", "Hero_Darius runtime prefab was destroyed; invalidating Skin presentation generation reason=" + reason);
-            RebuildSkinPresentationGeneration(reason);
-            rebuiltSkin = true;
-        }
-        else if (!AreSkinResourcesReady())
-        {
-            DariusLog.Warn("TRAVELER-SELFHEAL", "One or more Darius Skin/EntityModel presentation resources are stale; rebuilding full skin generation reason=" + reason);
-            RebuildSkinPresentationGeneration(reason);
-            rebuiltSkin = true;
-            RepairHeroCosmeticContract(HeroPrefab);
-        }
-
-        if (HeroPrefab == null)
-        {
-            DariusLog.Warn("TRAVELER-SELFHEAL", "Hero_Darius runtime prefab was destroyed by run teardown; rebuilding from native structural template reason=" + reason);
-            CreateAndRegisterHero();
-            rebuiltHero = true;
-        }
-
-        if (rebuiltAttack || rebuiltSkin || rebuiltHero)
-        {
-            CreateLifecycleBridge();
-            DariusLog.Info("TRAVELER-SELFHEAL", "Rebuilt runtime resources hero=" + rebuiltHero +
-                " skin=" + rebuiltSkin + " attack=" + rebuiltAttack +
-                " heroInstanceId=" + (HeroPrefab != null ? HeroPrefab.GetInstanceID().ToString() : "<null>") +
-                " reason=" + reason);
-        }
-    }
-
-    private static void ReassertTypedRuntimeResource(Component component, string name, string guid, uint assetId)
-    {
-        if (component == null || DewResources.database == null) return;
-        Type type = component.GetType();
-        string aqn = type.AssemblyQualifiedName;
-        DewResources.database.typeAssemblyQualifiedNameToGuid[aqn] = guid;
-        if (!DewResources.database.allGuids.Contains(guid)) DewResources.database.allGuids.Add(guid);
-        SetDatabaseMap("typeToGuid", type, guid);
-        SetDatabaseMap("guidToType", guid, type);
-        SetDatabaseMap("typeNameToGuid", type.Name, guid);
-        SetDatabaseMap("typeNameToType", type.Name, type);
-        SetDatabaseMap("nameToGuid", name, guid);
-        SetDatabaseMap("guidToName", guid, name);
-        SetDatabaseMap("objectToGuidFallback", component, guid);
-        SetDatabaseMap("objectToGuidFallback", component.gameObject, guid);
-        ResourcesByGuid[guid] = component;
-        ResourcesByType[type] = component;
-        DewResources.database.netObjectAssetIdToGuid[assetId] = guid;
-        NetworkPrefabs[assetId] = component.gameObject;
-        try { NetworkClient.RegisterSpawnHandler(assetId, SpawnHandler, UnspawnHandler); } catch { }
-    }
-
     private static string RuntimeGuidForAssetId(uint assetId)
     {
         if (assetId == HeroAssetId) return HeroGuid;
@@ -104,51 +24,64 @@ public static partial class DariusTravelerRegistry
     {
         _registered = false;
         _registering = false;
-        foreach (uint id in NetworkPrefabs.Keys.ToArray())
+        // Spawn-handler ownership is tracked separately from prefab lookup. Never unregister a
+        // handler merely because a prefab map entry exists; only release handlers this generation
+        // actually installed.
+        foreach (uint id in RegisteredSpawnHandlerIds.ToArray())
         {
             try { NetworkClient.UnregisterSpawnHandler(id); } catch { }
+        }
+        RegisteredSpawnHandlerIds.Clear();
+
+        foreach (uint id in NetworkPrefabs.Keys.ToArray())
+        {
             try
             {
                 string expected = RuntimeGuidForAssetId(id);
-                string existing;
-                if (!string.IsNullOrEmpty(expected) && DewResources.database != null &&
-                    DewResources.database.netObjectAssetIdToGuid.TryGetValue(id, out existing) && existing == expected)
-                    DewResources.database.netObjectAssetIdToGuid.Remove(id);
+                if (!string.IsNullOrEmpty(expected))
+                    DariusUnsupportedResourceBridge.RemoveNetworkGuidIfOwned(DewResources.database, id, expected);
             }
             catch { }
         }
         NetworkPrefabs.Clear();
 
-        RemoveTypeFromDew("_allHeroes", typeof(Hero_Darius));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_Decimate));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_NoxianGuillotine));
-        RemoveTypeFromDew("_allSkills", typeof(St_D_Darius_Hemorrhage));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_CripplingStrike));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_Apprehend));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_Flash));
-        RemoveTypeFromDew("_allSkills", typeof(St_Darius_Ghost));
-        RemoveTypeFromDew("_allHeroSkills", typeof(St_Darius_Decimate));
-        RemoveTypeFromDew("_allHeroSkills", typeof(St_Darius_NoxianGuillotine));
-        RemoveTypeFromDew("_allHeroSkills", typeof(St_D_Darius_Hemorrhage));
-        RemoveTypeFromDew("_allHeroSkills", typeof(St_Darius_Flash));
-        RemoveTypeFromDew("_allHeroSkills", typeof(St_Darius_Ghost));
+        // Dew's object fallback index is keyed by the runtime Unity objects themselves. Remove our
+        // entries before destroying a generation so variant clears cannot retain stale wrappers.
+        foreach (KeyValuePair<string, UnityEngine.Object> pair in ResourcesByGuid.ToArray())
+        {
+            UnityEngine.Object resource = pair.Value;
+            if (ReferenceEquals(resource, null)) continue;
+            DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(DewResources.database, resource, pair.Key);
+            Component component = resource as Component;
+            if (ReferenceEquals(component, null)) continue;
+            try
+            {
+                GameObject go = component.gameObject;
+                if (!ReferenceEquals(go, null))
+                    DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(DewResources.database, go, pair.Key);
+            }
+            catch { }
+        }
+
+        UnregisterContent();
+
+        DariusUnsupportedResourceBridge.RemoveHeroTypes(
+            new[] { typeof(Hero_Darius) }, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.RemoveSkillTypes(
+            DariusRegisteredSkillTypes, "TRAVELER-TYPE");
+        DariusUnsupportedResourceBridge.RemoveHeroSkillTypes(
+            DariusRegisteredHeroSkillTypes, "TRAVELER-TYPE");
 
         // Only remove maps where our exact value is still installed. User profile data is intentionally preserved.
         for (int si = 0; si < SkinSpecs.Length; si++)
         {
-            RemoveDatabaseMappingIfOwned("nameToGuid", SkinSpecs[si].name, SkinSpecs[si].guid);
-            RemoveDatabaseMappingIfOwned("guidToName", SkinSpecs[si].guid, SkinSpecs[si].name);
+            DariusUnsupportedResourceBridge.RemoveNamedResourceIdentity(
+                DewResources.database, SkinSpecs[si].name, SkinSpecs[si].guid);
         }
-        RemoveTypedMappings(typeof(Hero_Darius), HeroGuid, HeroName);
-        RemoveTypedMappings(typeof(At_DariusAxe), AttackGuid, AttackName);
-        RemoveTypedMappings(typeof(Ai_DariusAxe), AttackInstanceGuid, AttackInstanceName);
-        RemoveTypedMappings(typeof(Ai_DariusAxe_Crit), AttackCritInstanceGuid, AttackCritInstanceName);
-        List<string> runtimeGuids = new List<string> { HeroGuid, AttackGuid, AttackInstanceGuid, AttackCritInstanceGuid };
-        for (int si = 0; si < SkinSpecs.Length; si++) runtimeGuids.Add(SkinSpecs[si].guid);
-        for (int i = 0; i < runtimeGuids.Count; i++)
-        {
-            try { if (DewResources.database != null && DewResources.database.allGuids.Contains(runtimeGuids[i])) DewResources.database.allGuids.Remove(runtimeGuids[i]); } catch { }
-        }
+        DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(DewResources.database, typeof(Hero_Darius), HeroName, HeroGuid);
+        DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(DewResources.database, typeof(At_DariusAxe), AttackName, AttackGuid);
+        DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(DewResources.database, typeof(Ai_DariusAxe), AttackInstanceName, AttackInstanceGuid);
+        DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(DewResources.database, typeof(Ai_DariusAxe_Crit), AttackCritInstanceName, AttackCritInstanceGuid);
 
         foreach (GameObject go in OwnedObjects)
             if (go != null) UnityEngine.Object.Destroy(go);
@@ -166,7 +99,15 @@ public static partial class DariusTravelerRegistry
         AttackCritInstancePrefab = null;
         if (_resourceRoot != null) UnityEngine.Object.Destroy(_resourceRoot);
         _resourceRoot = null;
-        DariusNativeModelAssets.Unload();
         DariusLog.Info("TRAVELER", "Runtime Hero_Darius resources unregistered; persistent profile data left untouched.");
+    }
+
+    public static void ShutdownRuntimeResources()
+    {
+        UnregisterRuntimeOnly();
+        DestroyLifecycleBridge();
+        DariusNativeModelAssets.Unload();
+        _modOwner = null;
+        _modOwnerInstanceId = 0;
     }
 }

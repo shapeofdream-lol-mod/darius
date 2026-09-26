@@ -15,55 +15,46 @@ public static partial class DariusFormalRegistry
         DariusLog.Info("REG", "Unregister started. resources=" + ResourcesByGuid.Count + " networkPrefabs=" + NetworkPrefabs.Count);
         _registered = false;
         _lastDroppedHeroInstanceId = 0;
-        DariusConstellationRegistry.RemoveInjectedTypes();
+        DariusConstellationRegistry.UnregisterTypeCache();
 
-        var db = DewResources.database;
-        if (db != null)
+        object database = DewResources.database;
+        if (database != null)
         {
-            // Current (2026) runtime resource registration is keyed by the type's
-            // assembly-qualified name. Remove only entries owned by this mod.
-            foreach (var pair in GuidByObject.ToArray())
+            // Dew's fallback GUID index is keyed by the runtime Unity objects themselves. Remove
+            // both the Component and its GameObject before destroying this Formal generation.
+            foreach (KeyValuePair<string, UnityEngine.Object> pair in ResourcesByGuid.ToArray())
             {
-                UnityEngine.Object obj = pair.Key;
-                string guid = pair.Value;
-                if (obj == null) continue;
-
-                Type type = obj.GetType();
-                string aqn = type.AssemblyQualifiedName;
-
+                UnityEngine.Object resource = pair.Value;
+                if (ReferenceEquals(resource, null)) continue;
+                DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, resource, pair.Key);
+                Component component = resource as Component;
+                if (ReferenceEquals(component, null)) continue;
                 try
                 {
-                    string existing;
-                    if (!string.IsNullOrEmpty(aqn) &&
-                        db.typeAssemblyQualifiedNameToGuid.TryGetValue(aqn, out existing) &&
-                        existing == guid)
-                    {
-                        db.typeAssemblyQualifiedNameToGuid.Remove(aqn);
-                    }
-                    if (db.allGuids.Contains(guid)) db.allGuids.Remove(guid);
-
-                    // Remove the complete runtime index set that RegisterObject installs.
-                    // This prevents stale Type objects from surviving DewMod hot reloads.
-                    RemoveDatabaseMapIfOwned(db, "typeToGuid", type, guid);
-                    RemoveDatabaseMapIfOwned(db, "guidToType", guid, type);
-                    RemoveDatabaseMapIfOwned(db, "typeNameToGuid", type.Name, guid);
-                    RemoveDatabaseMapIfOwned(db, "nameToGuid", obj.name, guid);
-                    RemoveDatabaseMapIfOwned(db, "guidToName", guid, obj.name);
-                    RemoveDatabaseMapIfOwned(db, "typeNameToType", type.Name, type);
-                    RemoveDatabaseMapIfOwned(db, "typeNameToType", obj.name, type);
+                    GameObject go = component.gameObject;
+                    if (!ReferenceEquals(go, null))
+                        DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, go, pair.Key);
                 }
                 catch { }
             }
 
-            foreach (uint id in NetworkPrefabs.Keys.ToArray())
+            // Stable registration metadata survives Unity fake-null, so resource identity cleanup
+            // stays symmetric even when the template object was already destroyed.
+            foreach (RuntimeRegistration record in RegistrationsByGuid.Values.ToArray())
             {
-                try
-                {
-                    if (db.netObjectAssetIdToGuid.ContainsKey(id)) db.netObjectAssetIdToGuid.Remove(id);
-                }
-                catch { }
-                try { NetworkClient.UnregisterSpawnHandler(id); } catch { }
+                DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(
+                    database, record.type, record.name, record.guid);
+                DariusUnsupportedResourceBridge.RemoveNetworkGuidIfOwned(
+                    database, record.assetId, record.guid);
             }
+        }
+
+        // Mirror handler ownership is independent from DewResources.database availability.
+        // Always release handlers that this generation successfully installed.
+        foreach (RuntimeRegistration record in RegistrationsByGuid.Values.ToArray())
+        {
+            if (!record.networkHandlerRegistered) continue;
+            try { NetworkClient.UnregisterSpawnHandler(record.assetId); } catch { }
         }
 
         foreach (GameObject go in OwnedPrefabs)
@@ -77,6 +68,7 @@ public static partial class DariusFormalRegistry
         ResourcesByGuid.Clear();
         GuidByObject.Clear();
         NetworkPrefabs.Clear();
+        RegistrationsByGuid.Clear();
         Decimate = null;
         CripplingStrike = null;
         Apprehend = null;

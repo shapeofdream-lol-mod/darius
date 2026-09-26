@@ -58,8 +58,6 @@ public static partial class DariusTravelerRegistry
     private static GameObject _resourceRoot;
     private static bool _registered;
     private static bool _registering;
-    private static bool _repairing;
-    private static bool _presentationGenerationRebuilt;
 
     public static Hero_Darius HeroPrefab { get; private set; }
     public static Skin DefaultSkin { get; private set; }

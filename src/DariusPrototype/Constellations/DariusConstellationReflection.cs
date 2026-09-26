@@ -16,7 +16,7 @@ public static partial class DariusConstellationReflection
     public static int ReadRuntimeLevel(StarEffect star, int fallbackMax)
     {
         if (star == null) return 1;
-        foreach (string name in new[] { "level", "currentLevel", "starLevel", "_level", "<level>k__BackingField", "<currentLevel>k__BackingField" })
+        foreach (string name in new[] { "effectiveLevel", "skillLevel", "Network_skillLevel", "_skillLevel", "level", "currentLevel", "starLevel", "_level", "<level>k__BackingField", "<currentLevel>k__BackingField" })
         {
             object value;
             if (TryReadMember(star, name, out value))

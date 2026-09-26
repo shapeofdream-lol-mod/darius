@@ -19,9 +19,31 @@ public static partial class DariusFormalRegistry
 
     private static readonly Dictionary<uint, GameObject> NetworkPrefabs = new Dictionary<uint, GameObject>();
 
+    private sealed class RuntimeRegistration
+    {
+        public readonly Type type;
+        public readonly string name;
+        public readonly string guid;
+        public readonly uint assetId;
+        public bool networkHandlerRegistered;
+
+        public RuntimeRegistration(Type type, string name, string guid, uint assetId)
+        {
+            this.type = type;
+            this.name = name;
+            this.guid = guid;
+            this.assetId = assetId;
+        }
+    }
+
+    private static readonly Dictionary<string, RuntimeRegistration> RegistrationsByGuid =
+        new Dictionary<string, RuntimeRegistration>(StringComparer.Ordinal);
+
     private static readonly List<GameObject> OwnedPrefabs = new List<GameObject>();
 
     private static GameObject _runtimeActorRoot;
+    private static Transform _modOwner;
+    private static int _modOwnerInstanceId;
 
     private static bool _registered;
 
@@ -83,15 +105,30 @@ public static partial class DariusFormalRegistry
 
     private const string GuidAiR = DariusResourceIds.AbilityR;
 
-    // Only W/E are ordinary run Memories. Q/R are Hero_Darius character skills and
-    // Hemorrhage is the Identity slot; those three must not enter the random Memory pool.
-    public static readonly KeyValuePair<string, Rarity>[] SkillPoolEntries =
+    public static void BindOwner(Transform owner)
     {
-        new KeyValuePair<string, Rarity>("St_Darius_CripplingStrike", Rarity.Common),
-        new KeyValuePair<string, Rarity>("St_Darius_Apprehend", Rarity.Common)
-    };
+        if (owner == null) throw new ArgumentNullException(nameof(owner));
+        int ownerId = owner.gameObject.GetInstanceID();
+        if (_modOwnerInstanceId == ownerId)
+        {
+            _modOwner = owner;
+            return;
+        }
 
-    public static readonly KeyValuePair<string, Rarity>[] GemPoolEntries = new KeyValuePair<string, Rarity>[0];
+        if (_runtimeActorRoot != null || _registered || OwnedPrefabs.Count > 0)
+            throw new InvalidOperationException("Formal runtime generation must be cleaned before binding a new ModBehaviour owner.");
+
+        _modOwner = owner;
+        _modOwnerInstanceId = ownerId;
+        DariusLog.Info("REG-LIFECYCLE", "Bound Formal runtime resource ownership to ModBehaviour owner=" + ownerId + ".");
+    }
+
+    public static void ShutdownRuntimeResources()
+    {
+        Unregister();
+        _modOwner = null;
+        _modOwnerInstanceId = 0;
+    }
 
     public static IEnumerator InitializeAndDropWhenReady()
     {
