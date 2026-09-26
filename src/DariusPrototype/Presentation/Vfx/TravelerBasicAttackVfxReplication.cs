@@ -39,6 +39,8 @@ public static class TravelerBasicAttackVfxReplication
             _initialized = false;
             try { NetworkClient.UnregisterHandler<TravelerBasicAttackVfxMessage>(); } catch { }
             try { NetworkServer.UnregisterHandler<TravelerBasicAttackVfxMessage>(); } catch { }
+            Writer<TravelerBasicAttackVfxMessage>.write = null;
+            Reader<TravelerBasicAttackVfxMessage>.read = null;
             // Optional presentation networking must never abort Hero_Darius registration.
             DariusLog.Exception("ATK-NET", e, "Basic-attack VFX replication initialization failed");
         }

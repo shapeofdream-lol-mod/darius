@@ -54,10 +54,24 @@ public static partial class DariusTravelerRegistry
 
     private static void RegisterNamedResource(Component component, GameObject go, string name, string guid)
     {
-        DariusUnsupportedResourceBridge.RegisterNamedResourceIdentity(
-            DewResources.database, name, guid, component, go);
-        ResourcesByGuid[guid] = component;
-        // Deliberately do NOT register Skin by Type: Skin is a shared stock type linked by name.
+        object database = DewResources.database;
+        try
+        {
+            DariusUnsupportedResourceBridge.RegisterNamedResourceIdentity(
+                database, name, guid, component, go);
+            ResourcesByGuid[guid] = component;
+            // Deliberately do NOT register Skin by Type: Skin is a shared stock type linked by name.
+        }
+        catch (Exception e)
+        {
+            DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, component, guid);
+            DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, go, guid);
+            DariusUnsupportedResourceBridge.RemoveNamedResourceIdentity(database, name, guid);
+            ResourcesByGuid.Remove(guid);
+            DariusLog.Exception("TRAVELER-SKIN", e,
+                "Named runtime resource registration failed name=" + name + "; rolling back this resource");
+            throw;
+        }
     }
 
     private static GameObject SpawnHandler(SpawnMessage msg)
