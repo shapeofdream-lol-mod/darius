@@ -137,12 +137,10 @@ public static class DariusConstellationStarItemSetupPresentationPatch
     }
 }
 
-// Defensive release guard for stock constellation UI. Runtime-injected stars are hydrated from a
-// native StarEffect contract above; if a game build still indexes a stock presentation array beyond
-// its bounds, contain that UI-only exception for Hero_Darius instead of leaving the constellation
-// menu in a permanently corrupted hover/detail state.
+// Reapply the remembered Darius-owned icon after the stock item refresh. Runtime contract failures
+// are intentionally allowed to surface; presentation code must not swallow stock UI exceptions.
 [HarmonyPatch(typeof(UI_Lobby_Constellations_StarItem), "Refresh", new Type[] { })]
-public static class DariusConstellationStarItemRefreshGuard
+public static class DariusConstellationStarItemRefreshPresentationPatch
 {
     [HarmonyPostfix]
     private static void Postfix(UI_Lobby_Constellations_StarItem __instance)
@@ -150,21 +148,4 @@ public static class DariusConstellationStarItemRefreshGuard
         DariusConstellationItemPresentation.ApplyRemembered(__instance);
     }
 
-    [HarmonyFinalizer]
-    private static Exception Finalizer(Exception __exception)
-    {
-        if (__exception == null) return null;
-        try
-        {
-            bool darius = DewPlayer.local != null &&
-                string.Equals(DewPlayer.local.selectedHeroType, DariusTravelerRegistry.HeroName, StringComparison.Ordinal);
-            if (darius && (__exception is IndexOutOfRangeException || __exception is ArgumentOutOfRangeException))
-            {
-                DariusLog.Warn("CONSTELLATION-UI", "Contained stock StarItem.Refresh bounds exception for Hero_Darius: " + __exception.GetType().Name);
-                return null;
-            }
-        }
-        catch { }
-        return __exception;
-    }
 }

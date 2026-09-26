@@ -13,7 +13,8 @@ public static partial class DariusFormalRegistry
     private static void RegisterNetworkIdentity(UnityEngine.Object obj, string guid)
     {
         Component component = obj as Component;
-        if (component == null) return;
+        if (component == null)
+            throw new InvalidOperationException("Runtime network resource is not a Component: " + (obj != null ? obj.name : "<null>"));
 
         NetworkIdentity identity = component.GetComponent<NetworkIdentity>();
         if (identity == null)
@@ -26,7 +27,7 @@ public static partial class DariusFormalRegistry
             catch (Exception e)
             {
                 DariusLog.Exception("NET", e, "Could not add NetworkIdentity to " + obj.name);
-                return;
+                throw;
             }
         }
 
@@ -36,19 +37,28 @@ public static partial class DariusFormalRegistry
         DariusUnsupportedResourceBridge.RegisterNetworkGuid(DewResources.database, assetId, guid);
         DariusLog.Info("NET", "Registered network mapping name=" + obj.name + " assetId=" + assetId + " guid=" + guid);
 
-        NetworkPrefabs[assetId] = component.gameObject;
-
+        bool handlerRegistered = false;
         try
         {
             NetworkClient.RegisterSpawnHandler(assetId, SpawnHandler, UnspawnHandler);
+            handlerRegistered = true;
+            NetworkPrefabs[assetId] = component.gameObject;
             RuntimeRegistration registration;
-            if (RegistrationsByGuid.TryGetValue(guid, out registration))
-                registration.networkHandlerRegistered = true;
+            if (!RegistrationsByGuid.TryGetValue(guid, out registration))
+                throw new InvalidOperationException("Missing runtime registration metadata for " + obj.name + " guid=" + guid);
+            registration.networkHandlerRegistered = true;
             DariusLog.Info("NET", "Registered spawn handler name=" + obj.name + " assetId=" + assetId);
         }
         catch (Exception e)
         {
-            DariusLog.Exception("NET", e, "Could not register spawn handler for " + obj.name);
+            if (handlerRegistered)
+            {
+                try { NetworkClient.UnregisterSpawnHandler(assetId); } catch { }
+            }
+            NetworkPrefabs.Remove(assetId);
+            DariusUnsupportedResourceBridge.RemoveNetworkGuidIfOwned(DewResources.database, assetId, guid);
+            DariusLog.Exception("NET", e, "Could not register spawn handler for " + obj.name + "; formal registration will roll back");
+            throw;
         }
     }
 

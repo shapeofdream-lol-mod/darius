@@ -21,7 +21,8 @@ public static partial class DariusRuntimeResourceCompatibility
 
     public static void Install(Harmony harmony)
     {
-        if (_installed || harmony == null) return;
+        if (_installed) return;
+        if (harmony == null) throw new ArgumentNullException(nameof(harmony));
         try
         {
             int requiredPatched = 0;
@@ -54,7 +55,11 @@ public static partial class DariusRuntimeResourceCompatibility
         catch (Exception e)
         {
             _installed = false;
-            DariusLog.Exception("RESOURCE-COMPAT", e, "Runtime resource compatibility install failed");
+            // Install() is always the first Harmony operation in a ModBehaviour generation.
+            // If one required endpoint was patched before a later endpoint failed discovery,
+            // remove that partial generation so Start() can either retry cleanly or fail closed.
+            try { harmony.UnpatchAll(harmony.Id); } catch { }
+            DariusLog.Exception("RESOURCE-COMPAT", e, "Runtime resource compatibility install failed; partial Harmony state was rolled back");
             throw;
         }
     }

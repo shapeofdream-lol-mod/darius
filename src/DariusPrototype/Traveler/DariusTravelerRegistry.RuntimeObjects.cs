@@ -24,13 +24,20 @@ public static partial class DariusTravelerRegistry
     {
         _registered = false;
         _registering = false;
-        foreach (uint id in NetworkPrefabs.Keys.ToArray())
+        // Spawn-handler ownership is tracked separately from prefab lookup. Never unregister a
+        // handler merely because a prefab map entry exists; only release handlers this generation
+        // actually installed.
+        foreach (uint id in RegisteredSpawnHandlerIds.ToArray())
         {
             try { NetworkClient.UnregisterSpawnHandler(id); } catch { }
+        }
+        RegisteredSpawnHandlerIds.Clear();
+
+        foreach (uint id in NetworkPrefabs.Keys.ToArray())
+        {
             try
             {
                 string expected = RuntimeGuidForAssetId(id);
-                string existing;
                 if (!string.IsNullOrEmpty(expected))
                     DariusUnsupportedResourceBridge.RemoveNetworkGuidIfOwned(DewResources.database, id, expected);
             }

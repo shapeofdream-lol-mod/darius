@@ -75,6 +75,14 @@ public static partial class DariusTravelerRegistry
                 errors.Add("Ai_DariusAxe Mirror assetId map missing/wrong");
             if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackCritInstanceAssetId, AttackCritInstanceGuid))
                 errors.Add("Ai_DariusAxe_Crit Mirror assetId map missing/wrong");
+            if (!RegisteredSpawnHandlerIds.Contains(HeroAssetId))
+                errors.Add("Hero spawn handler ownership missing");
+            if (!RegisteredSpawnHandlerIds.Contains(AttackAssetId))
+                errors.Add("At_DariusAxe spawn handler ownership missing");
+            if (!RegisteredSpawnHandlerIds.Contains(AttackInstanceAssetId))
+                errors.Add("Ai_DariusAxe spawn handler ownership missing");
+            if (!RegisteredSpawnHandlerIds.Contains(AttackCritInstanceAssetId))
+                errors.Add("Ai_DariusAxe_Crit spawn handler ownership missing");
         }
         catch { errors.Add("Hero/attack Mirror assetId maps unreadable"); }
         try

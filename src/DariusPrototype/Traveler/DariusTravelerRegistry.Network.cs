@@ -11,19 +11,45 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusTravelerRegistry
 {
+    private static readonly HashSet<uint> RegisteredSpawnHandlerIds = new HashSet<uint>();
+
     private static void RegisterTypedResource(Component component, GameObject go, string name, string guid, uint assetId)
     {
+        if (component == null || go == null)
+            throw new ArgumentNullException(component == null ? nameof(component) : nameof(go));
+
         Type type = component.GetType();
         object database = DewResources.database;
-        DariusUnsupportedResourceBridge.RegisterTypedResourceIdentity(database, type, name, guid, component, go);
+        try
+        {
+            DariusUnsupportedResourceBridge.RegisterTypedResourceIdentity(database, type, name, guid, component, go);
+            ResourcesByGuid[guid] = component;
+            ResourcesByType[type] = component;
 
-        ResourcesByGuid[guid] = component;
-        ResourcesByType[type] = component;
-
-        DariusUnsupportedResourceBridge.RegisterNetworkGuid(database, assetId, guid);
-        NetworkPrefabs[assetId] = go;
-        try { NetworkClient.RegisterSpawnHandler(assetId, SpawnHandler, UnspawnHandler); }
-        catch (Exception e) { DariusLog.Exception("TRAVELER-NET", e, "RegisterSpawnHandler failed assetId=" + assetId); }
+            DariusUnsupportedResourceBridge.RegisterNetworkGuid(database, assetId, guid);
+            NetworkClient.RegisterSpawnHandler(assetId, SpawnHandler, UnspawnHandler);
+            RegisteredSpawnHandlerIds.Add(assetId);
+            NetworkPrefabs[assetId] = go;
+            DariusLog.Info("TRAVELER-NET", "Registered runtime resource name=" + name + " assetId=" + assetId + " guid=" + guid);
+        }
+        catch (Exception e)
+        {
+            if (RegisteredSpawnHandlerIds.Remove(assetId))
+            {
+                try { NetworkClient.UnregisterSpawnHandler(assetId); } catch { }
+            }
+            NetworkPrefabs.Remove(assetId);
+            DariusUnsupportedResourceBridge.RemoveNetworkGuidIfOwned(database, assetId, guid);
+            DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, component, guid);
+            DariusUnsupportedResourceBridge.RemoveObjectGuidIfOwned(database, go, guid);
+            DariusUnsupportedResourceBridge.RemoveTypedResourceIdentity(database, type, name, guid);
+            ResourcesByGuid.Remove(guid);
+            UnityEngine.Object current;
+            if (ResourcesByType.TryGetValue(type, out current) && ReferenceEquals(current, component))
+                ResourcesByType.Remove(type);
+            DariusLog.Exception("TRAVELER-NET", e, "Runtime resource registration failed name=" + name + " assetId=" + assetId + "; rolling back this resource");
+            throw;
+        }
     }
 
     private static void RegisterNamedResource(Component component, GameObject go, string name, string guid)

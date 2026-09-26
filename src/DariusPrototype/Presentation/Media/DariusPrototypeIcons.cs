@@ -52,6 +52,20 @@ public static partial class DariusPrototypeIcons
         { "STAR_AWOO", "star_awoo.png" }
     };
 
+    public static void Unload()
+    {
+        HashSet<Texture> textures = new HashSet<Texture>();
+        foreach (Sprite sprite in Cache.Values)
+        {
+            if (sprite == null) continue;
+            if (sprite.texture != null) textures.Add(sprite.texture);
+            UnityEngine.Object.Destroy(sprite);
+        }
+        foreach (Texture texture in textures)
+            if (texture != null) UnityEngine.Object.Destroy(texture);
+        Cache.Clear();
+    }
+
     public static Sprite Get(string key)
     {
         Sprite sprite;
@@ -79,6 +93,7 @@ public static partial class DariusPrototypeIcons
                         DariusLog.Info("ICON", "Loaded League icon key=" + key + " file=" + path + " size=" + tex.width + "x" + tex.height);
                         return sprite;
                     }
+                    UnityEngine.Object.Destroy(tex);
                     DariusLog.Warn("ICON", "ImageConversion.LoadImage returned false for key=" + key + " file=" + path);
                 }
                 catch (Exception e)
@@ -148,6 +163,7 @@ public static partial class DariusPrototypeIcons
             DariusLog.DebugInfoThrottled("ICON", key + ":ui-upscale",
                 "Upscaled packaged UI icon key=" + key + " from " + source.width + "x" + source.height +
                 " to " + width + "x" + height + ".", 5.0);
+            UnityEngine.Object.Destroy(source);
             return upscaled;
         }
         catch (Exception e)

@@ -47,6 +47,25 @@ public static partial class DariusMedia
         }
     }
 
+    public static void Unload()
+    {
+        HashSet<UnityEngine.Object> destroyed = new HashSet<UnityEngine.Object>();
+        foreach (Texture2D texture in Textures.Values)
+            if (texture != null && destroyed.Add(texture)) UnityEngine.Object.Destroy(texture);
+        foreach (AudioClip clip in Clips.Values)
+            if (clip != null && destroyed.Add(clip)) UnityEngine.Object.Destroy(clip);
+
+        Textures.Clear();
+        Clips.Clear();
+        LastPoolIndex.Clear();
+        LastVoiceAt.Clear();
+        Pass2SfxBySkin.Clear();
+        Pass2VoiceBySkin.Clear();
+        _pass2PoolsLoaded = false;
+        _root = null;
+        _loggedRoot = false;
+    }
+
     public static void PreloadAll()
     {
         EnsurePass2PoolsLoaded();

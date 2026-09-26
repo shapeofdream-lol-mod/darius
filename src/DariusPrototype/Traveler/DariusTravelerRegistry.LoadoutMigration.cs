@@ -125,7 +125,16 @@ public static partial class DariusTravelerRegistry
                     StarEffect prefab = DewResources.GetByShortTypeName<StarEffect>(item.name);
                     clear = prefab == null || (prefab.heroType != null && prefab.heroType != typeof(Hero_Darius));
                 }
-                catch { clear = true; }
+                catch (Exception e)
+                {
+                    // Profile migration is destructive, so unresolved resources are preserved.
+                    // A transient lookup failure must never be interpreted as proof that a user's
+                    // selected star belongs to another Hero.
+                    DariusLog.DebugInfo("CONSTELLATION-PROFILE",
+                        "Preserving unresolved star during migration name=" + item.name +
+                        " error=" + e.GetType().Name);
+                    clear = false;
+                }
             }
             if (!clear) continue;
             stars[i] = default(LoadoutStarItem);

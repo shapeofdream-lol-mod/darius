@@ -22,6 +22,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
 
     private static int _activeModInstanceId;
     private bool _bootstrapped;
+    private bool _resourceBridgeReady;
     private bool _applicationQuitting;
     private bool _shutdownCompleted;
     private int _instanceId;
@@ -47,7 +48,20 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusTravelerRegistry.BindOwner(transform);
         DariusFormalRegistry.BindOwner(transform);
 
-        TravelerBasicAttackVfxReplication.Initialize();
+        try
+        {
+            DariusRuntimeResourceCompatibility.Install(harmony);
+            _resourceBridgeReady = true;
+        }
+        catch (Exception e)
+        {
+            // Runtime-only Hero/Skin/Skill resources must never enter Dew's maps before the three
+            // required lookup endpoints are bridged. Start() gets one clean retry; no registration
+            // is allowed from this Awake generation until that succeeds.
+            DariusLog.Exception("PATCH", e, "Required runtime resource bridge failed in Awake; early Darius bootstrap is blocked");
+            return;
+        }
+
         try
         {
             if (DewResources.database != null && !string.IsNullOrEmpty(DariusModEnvironment.Root))
@@ -74,6 +88,22 @@ public sealed class DariusPrototypeMod : ModBehaviour
         _diagnostics.Initialize();
         DariusLog.Info("BOOT", "Initial snapshot: " + DariusDiagnostics.Snapshot());
 
+        if (!_resourceBridgeReady)
+        {
+            try
+            {
+                DariusRuntimeResourceCompatibility.Install(harmony);
+                _resourceBridgeReady = true;
+            }
+            catch (Exception e)
+            {
+                DariusLog.Exception("PATCH", e, "Required runtime resource bridge failed in Start; aborting this Darius runtime generation");
+                ShutdownRuntimeResources("required runtime resource bridge unavailable");
+                return;
+            }
+        }
+
+        TravelerBasicAttackVfxReplication.Initialize();
         instance.isAlteringGameplay = true;
         if (!_bootstrapped)
         {
@@ -90,14 +120,6 @@ public sealed class DariusPrototypeMod : ModBehaviour
                 DariusLog.Exception("PATCH", e, "Harmony PatchAll reported a failure; continuing critical Darius boot so the Traveler can still register");
             }
 
-            try
-            {
-                DariusRuntimeResourceCompatibility.Install(harmony);
-            }
-            catch (Exception e)
-            {
-                DariusLog.Exception("PATCH", e, "Runtime resource compatibility install failed; continuing boot for diagnostics");
-            }
 
             try
             {
@@ -171,12 +193,17 @@ public sealed class DariusPrototypeMod : ModBehaviour
 
     private void ResetSharedRuntimeForReplacement()
     {
+        TravelerBasicAttackVfxReplication.Shutdown();
         DariusRInputGuard.Uninstall();
         try { harmony.UnpatchAll(harmony.Id); } catch { }
         DariusRuntimeResourceCompatibility.ResetInstallState();
         DariusDejaVuRegistry.ResetPatchInstallState();
         DariusTravelerRegistry.ShutdownRuntimeResources();
         DariusFormalRegistry.ShutdownRuntimeResources();
+        DariusLolVfxRuntime.Unload();
+        DariusMedia.Unload();
+        DariusPrototypeIcons.Unload();
+        _resourceBridgeReady = false;
     }
 
     private void ShutdownRuntimeResources(string reason)
@@ -184,12 +211,17 @@ public sealed class DariusPrototypeMod : ModBehaviour
         if (_shutdownCompleted) return;
         _shutdownCompleted = true;
         DariusLog.Info("BOOT", "Cleaning Darius runtime resources: " + reason);
+        TravelerBasicAttackVfxReplication.Shutdown();
         DariusRInputGuard.Uninstall();
         try { harmony.UnpatchAll(harmony.Id); } catch { }
         DariusRuntimeResourceCompatibility.ResetInstallState();
         DariusDejaVuRegistry.ResetPatchInstallState();
         DariusTravelerRegistry.ShutdownRuntimeResources();
         DariusFormalRegistry.ShutdownRuntimeResources();
+        DariusLolVfxRuntime.Unload();
+        DariusMedia.Unload();
+        DariusPrototypeIcons.Unload();
+        _resourceBridgeReady = false;
         _bootstrapped = false;
         DariusLog.Flush();
         if (_applicationQuitting || !Application.isPlaying) DariusLog.Shutdown();
