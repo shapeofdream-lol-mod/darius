@@ -71,9 +71,7 @@ public static partial class DariusPrototypeIcons
 
     private static void EnsureRootOwnership()
     {
-        string currentRoot = DariusMedia.Root;
-        if (string.IsNullOrEmpty(currentRoot))
-            currentRoot = DariusModEnvironment.Root;
+        string currentRoot = DariusModEnvironment.Root;
 
         if (Cache.Count > 0 &&
             !string.Equals(_cacheRoot, currentRoot, StringComparison.OrdinalIgnoreCase))
