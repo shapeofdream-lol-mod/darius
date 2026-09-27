@@ -95,14 +95,17 @@ public sealed class St_Darius_Apprehend : SkillTrigger
             if (result != null)
             {
                 DariusLog.Info("E-TRIGGER", "Native AbilityInstance spawned=" + result.name +
-                    " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(info.caster));
+                    " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(info.caster) +
+                    " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
                 return result;
             }
-            DariusLog.Warn("E-TRIGGER", "Native completion returned no AbilityInstance; using compatibility fallback execution.");
+            DariusLog.Warn("E-TRIGGER", "Native completion returned no AbilityInstance; using compatibility fallback execution. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         }
         catch (Exception e)
         {
-            DariusLog.Exception("E-TRIGGER", e, "Native AbilityInstance pipeline failed; using one-shot compatibility fallback");
+            DariusLog.Exception("E-TRIGGER", e, "Native AbilityInstance pipeline failed; using one-shot compatibility fallback. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         }
 
         // Compatibility safety net only. Normal gameplay must use the stock Trigger -> Instance ->
