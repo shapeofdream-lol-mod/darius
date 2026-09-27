@@ -254,14 +254,10 @@ public sealed class DariusPrototypeMod : ModBehaviour
             DariusLog.Exception("TRAVELER-EARLY", e, "Synchronous Workshop Hero/Skin bootstrap failed; coroutine fallback remains active");
         }
 
-        // Media loading comes after ModItem.path has been resolved and after the resource lookup guard
-        // is installed. This prevents numeric Workshop folders from falling back to local Mods paths.
-        try
-        {
-            DariusMedia.PreloadAll();
-            StartCoroutine(DariusMedia.PreloadCompressedAudio());
-        }
-        catch (Exception e) { DariusLog.Exception("MEDIA", e, "PreloadAll/compressed-audio preload failed"); }
+        // Media uses the same generation/barrier rule as runtime prefab templates. A replacement
+        // may have scheduled old Texture/AudioClip destruction this frame; do not create the next
+        // generation's media objects until Unity has crossed that frame boundary.
+        StartCoroutine(PreloadMediaWhenReady(_generationId, _instanceId));
 
         // Always start the critical registration coroutine even when an optional Harmony/UI patch
         // failed. This is the authoritative path that creates Hero_Darius/Skin_Darius_Default.
@@ -270,6 +266,34 @@ public sealed class DariusPrototypeMod : ModBehaviour
             " owner=" + _instanceId +
             ". Target=independent Hero_Darius, native Hero/Skin/Loadout/Profile/Mirror paths.");
         DariusRuntimeAudit.LogSnapshot("Start registration coroutine scheduled generation=" + _generationId, true);
+    }
+
+    private IEnumerator PreloadMediaWhenReady(int generationId, int ownerId)
+    {
+        while (IsBootstrapBlockedThisFrame)
+        {
+            if (!IsActiveGeneration(generationId, ownerId)) yield break;
+            yield return null;
+        }
+        if (!IsActiveGeneration(generationId, ownerId)) yield break;
+
+        try
+        {
+            DariusMedia.PreloadAll();
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("MEDIA", e, "PreloadAll failed generation=" + generationId);
+        }
+
+        if (!IsActiveGeneration(generationId, ownerId)) yield break;
+        IEnumerator compressed = null;
+        try { compressed = DariusMedia.PreloadCompressedAudio(); }
+        catch (Exception e)
+        {
+            DariusLog.Exception("MEDIA", e, "Compressed-audio preload creation failed generation=" + generationId);
+        }
+        if (compressed != null) yield return compressed;
     }
 
     private void OnEnable()
