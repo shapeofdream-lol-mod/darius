@@ -115,6 +115,7 @@ public static partial class DariusTravelerRegistry
             RegisterTypes();
             RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
             EnsureProfiles();
+            ValidateProfileRegistration();
             RepairHeroCosmeticContract(HeroPrefab);
             DariusLog.Info("TRAVELER", "Late profile/content registration completed reason=" + reason +
                 " state=" + DiagnosticState());
