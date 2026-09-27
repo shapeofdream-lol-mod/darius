@@ -14,6 +14,8 @@ public static partial class DariusRuntimeResourceCompatibility
 {
     private static bool _installed;
 
+    internal static bool IsInstalled { get { return _installed; } }
+
     public static void ResetInstallState()
     {
         _installed = false;
