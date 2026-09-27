@@ -50,8 +50,17 @@ public static partial class DariusMedia
     {
         get
         {
-            if (!string.IsNullOrEmpty(_root)) return _root;
-            _root = ResolveModRoot();
+            string resolved = ResolveModRoot();
+            if (!string.IsNullOrEmpty(resolved) &&
+                !string.Equals(_root, resolved, StringComparison.OrdinalIgnoreCase))
+            {
+                string previous = _root;
+                _root = resolved;
+                _loggedRoot = false;
+                if (!string.IsNullOrEmpty(previous))
+                    DariusLog.Info("MEDIA", "Mod media root authority changed old=" + previous + " new=" + resolved + ".");
+            }
+
             if (!_loggedRoot)
             {
                 _loggedRoot = true;
