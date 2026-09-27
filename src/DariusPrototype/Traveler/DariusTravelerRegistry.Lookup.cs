@@ -40,12 +40,10 @@ public static partial class DariusTravelerRegistry
                 try
                 {
                     AttackTrigger preset = ea.attackAbilityPreset.asset;
-                    if (preset == null || preset.GetType() != typeof(At_DariusAxe))
-                    {
-                        DariusNativeAttackBinder binder = go.GetComponent<DariusNativeAttackBinder>();
-                        if (binder != null) binder.EnsureBound("ValidateRegistration deferred AssetRef resolution");
-                        DariusLog.Warn("TRAVELER-ASSERT", "attackAbilityPreset AssetRef is not resolvable yet; deferring until runtime resource hooks are installed.");
-                    }
+                    if (preset == null)
+                        errors.Add("attackAbilityPreset unresolved");
+                    else if (preset.GetType() != typeof(At_DariusAxe))
+                        errors.Add("attackAbilityPreset resolved to " + preset.GetType().Name + " instead of At_DariusAxe");
                 }
                 catch (Exception e) { errors.Add("attackAbilityPreset resolve threw " + e.GetType().Name); }
             }
@@ -94,9 +92,17 @@ public static partial class DariusTravelerRegistry
         {
             string message = string.Join("; ", errors.ToArray());
             DariusLog.Error("TRAVELER-ASSERT", "Startup assertions FAILED: " + message);
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
+                "core-validator-failed",
+                "errors=[" + message + "] state={" + PipelineCoreState() + "}");
             throw new InvalidOperationException(message);
         }
         DariusLog.Info("TRAVELER-ASSERT", "Core startup assertions passed for Hero/Skin/native-attack/Loadout/resource contract.");
+        DariusRuntimeAudit.LogPipelineCheckpoint(
+            "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
+            "core-validator-output",
+            "state={" + PipelineCoreState() + "}");
     }
 
     private static void ValidateProfileRegistration()
@@ -125,11 +131,19 @@ public static partial class DariusTravelerRegistry
         {
             string message = string.Join("; ", errors.ToArray());
             DariusLog.Error("TRAVELER-PROFILE-ASSERT", "Late profile assertions FAILED: " + message);
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
+                "profile-validator-failed",
+                "errors=[" + message + "] state={" + PipelineProfileState() + "}");
             throw new InvalidOperationException(message);
         }
 
         DariusLog.Info("TRAVELER-PROFILE-ASSERT",
             "Late profile assertions passed for Hero_Darius unlock/loadout/skin/stats state.");
+        DariusRuntimeAudit.LogPipelineCheckpoint(
+            "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
+            "profile-validator-output",
+            "state={" + PipelineProfileState() + "}");
     }
 
     public static bool TryLoad(string key, out UnityEngine.Object obj)
