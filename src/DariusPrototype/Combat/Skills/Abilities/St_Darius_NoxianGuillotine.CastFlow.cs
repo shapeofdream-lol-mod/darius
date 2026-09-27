@@ -12,10 +12,6 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
         Hero caster = info.caster as Hero;
         if (caster == null) return null;
 
-        // Reaching this method proves the ControlManager/native input path did not eat the press.
-        // Cancel any input-layer watchdog that was waiting to diagnose a pre-OnCastComplete stall.
-        _lastOnCastCompleteAt = Time.unscaledTime;
-        _controlAttemptToken++;
 
         // A second press during the 0.42 s execute animation is an intent for the next reset cast,
         // not a second parallel cast. Preserve the latest intent and consume it after the execute.
