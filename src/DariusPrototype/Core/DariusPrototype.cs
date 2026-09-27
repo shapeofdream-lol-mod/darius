@@ -23,12 +23,43 @@ public sealed class DariusPrototypeMod : ModBehaviour
     private static int _activeModInstanceId;
     private static int _activeGenerationId;
     private static int _generationSerial;
+    private static int _bootstrapBlockedFrame = -1;
 
     internal static int ActiveModInstanceId { get { return _activeModInstanceId; } }
     internal static int ActiveGenerationId { get { return _activeGenerationId; } }
 
+    internal static bool IsBootstrapBlockedThisFrame
+    {
+        get
+        {
+            try { return _bootstrapBlockedFrame == Time.frameCount; }
+            catch { return false; }
+        }
+    }
+
+    internal static bool IsActiveGeneration(int generationId, int ownerId)
+    {
+        return generationId > 0 && ownerId != 0 &&
+               _activeGenerationId == generationId &&
+               _activeModInstanceId == ownerId;
+    }
+
+    internal static void BlockBootstrapForCurrentFrame(string reason)
+    {
+        int frame;
+        try { frame = Time.frameCount; }
+        catch { frame = -1; }
+        if (frame < 0) return;
+
+        if (_bootstrapBlockedFrame != frame)
+            DariusLog.Info("BOOT-BARRIER", "Blocked runtime resource rebuild for teardown frame=" + frame +
+                " reason=" + (reason ?? "<unknown>") + ".");
+        _bootstrapBlockedFrame = frame;
+    }
+
     private bool _bootstrapped;
     private bool _resourceBridgeReady;
+    private bool _criticalGameplayPatchReady;
     private bool _applicationQuitting;
     private bool _shutdownCompleted;
     private int _instanceId;
@@ -52,6 +83,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
                 " owner=" + _instanceId + " superseded generation=" + _activeGenerationId +
                 " owner=" + _activeModInstanceId + "; cleaning the previous runtime generation before bootstrap.");
             DariusRuntimeAudit.LogSnapshot("before replacement cleanup newGeneration=" + _generationId, true);
+            BlockBootstrapForCurrentFrame("ModBehaviour replacement cleanup");
             ResetSharedRuntimeForReplacement();
             DariusRuntimeAudit.LogSnapshot("after replacement cleanup newGeneration=" + _generationId, true);
         }
@@ -59,8 +91,8 @@ public sealed class DariusPrototypeMod : ModBehaviour
         _activeGenerationId = _generationId;
         DariusLog.Info("BOOT", "Activated ModBehaviour generation=" + _generationId + " owner=" + _instanceId +
             " gameObject=" + gameObject.name + " scene=" + gameObject.scene.name + ".");
-        DariusTravelerRegistry.BindOwner(transform);
-        DariusFormalRegistry.BindOwner(transform);
+        DariusTravelerRegistry.BindOwner(transform, _generationId);
+        DariusFormalRegistry.BindOwner(transform, _generationId);
 
         try
         {
@@ -78,8 +110,23 @@ public sealed class DariusPrototypeMod : ModBehaviour
 
         try
         {
-            if (DewResources.database != null && !string.IsNullOrEmpty(DariusModEnvironment.Root))
-                DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap("Mod Awake synchronous Workshop bootstrap");
+            DariusDirectionalBasicAttackSectorPatch.InstallRequired(harmony);
+            _criticalGameplayPatchReady = true;
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("PATCH-CRITICAL", e,
+                "Critical Darius gameplay patch failed in Awake; core registration is blocked until Start retries it");
+            return;
+        }
+
+        try
+        {
+            if (!IsBootstrapBlockedThisFrame &&
+                DewResources.database != null &&
+                !string.IsNullOrEmpty(DariusModEnvironment.Root))
+                DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap(
+                    "Mod Awake synchronous Workshop bootstrap", _generationId, _instanceId);
         }
         catch (Exception e)
         {
@@ -113,6 +160,22 @@ public sealed class DariusPrototypeMod : ModBehaviour
             {
                 DariusLog.Exception("PATCH", e, "Required runtime resource bridge failed in Start; aborting this Darius runtime generation");
                 ShutdownRuntimeResources("required runtime resource bridge unavailable");
+                return;
+            }
+        }
+
+        if (!_criticalGameplayPatchReady)
+        {
+            try
+            {
+                DariusDirectionalBasicAttackSectorPatch.InstallRequired(harmony);
+                _criticalGameplayPatchReady = true;
+            }
+            catch (Exception e)
+            {
+                DariusLog.Exception("PATCH-CRITICAL", e,
+                    "Critical directional basic-attack patch is unavailable; aborting this Darius runtime generation");
+                ShutdownRuntimeResources("critical gameplay patch unavailable");
                 return;
             }
         }
@@ -170,8 +233,11 @@ public sealed class DariusPrototypeMod : ModBehaviour
         // If it is not ready yet, InitializeWhenReady below performs the same operation as soon as it is.
         try
         {
-            if (DewResources.database != null)
-                DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap("Mod Start synchronous Workshop bootstrap");
+            if (!IsBootstrapBlockedThisFrame &&
+                DewResources.database != null &&
+                !string.IsNullOrEmpty(DariusModEnvironment.Root))
+                DariusTravelerRegistry.EnsureCoreRegisteredForBootstrap(
+                    "Mod Start synchronous Workshop bootstrap", _generationId, _instanceId);
         }
         catch (Exception e)
         {
@@ -189,8 +255,10 @@ public sealed class DariusPrototypeMod : ModBehaviour
 
         // Always start the critical registration coroutine even when an optional Harmony/UI patch
         // failed. This is the authoritative path that creates Hero_Darius/Skin_Darius_Default.
-        StartCoroutine(DariusTravelerRegistry.InitializeWhenReady());
-        DariusLog.Info("BOOT", "Registration coroutine started. Target=independent Hero_Darius, native Hero/Skin/Loadout/Profile/Mirror paths.");
+        StartCoroutine(DariusTravelerRegistry.InitializeWhenReady(_generationId, _instanceId));
+        DariusLog.Info("BOOT", "Registration coroutine started generation=" + _generationId +
+            " owner=" + _instanceId +
+            ". Target=independent Hero_Darius, native Hero/Skin/Loadout/Profile/Mirror paths.");
         DariusRuntimeAudit.LogSnapshot("Start registration coroutine scheduled generation=" + _generationId, true);
     }
 
@@ -251,12 +319,14 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusMedia.Unload();
         DariusPrototypeIcons.Unload();
         _resourceBridgeReady = false;
+        _criticalGameplayPatchReady = false;
     }
 
     private void ShutdownRuntimeResources(string reason)
     {
         if (_shutdownCompleted) return;
         _shutdownCompleted = true;
+        BlockBootstrapForCurrentFrame(reason);
         DariusLog.Info("BOOT", "Cleaning Darius runtime resources generation=" + _generationId +
             " owner=" + _instanceId + " reason=" + reason);
         DariusRuntimeAudit.LogSnapshot("before shutdown generation=" + _generationId + " reason=" + reason, true);
@@ -271,7 +341,10 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusLolVfxRuntime.Unload();
         DariusMedia.Unload();
         DariusPrototypeIcons.Unload();
+        if (_applicationQuitting || !Application.isPlaying)
+            DariusNativeModelAssets.Unload();
         _resourceBridgeReady = false;
+        _criticalGameplayPatchReady = false;
         _bootstrapped = false;
         DariusRuntimeAudit.LogSnapshot("after shutdown generation=" + _generationId + " reason=" + reason, true);
         DariusLog.Flush();
