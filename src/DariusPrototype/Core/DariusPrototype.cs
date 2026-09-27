@@ -194,6 +194,23 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusRuntimeAudit.LogSnapshot("Start registration coroutine scheduled generation=" + _generationId, true);
     }
 
+    private void OnEnable()
+    {
+        if (_instanceId != 0)
+            DariusLog.Info("BOOT-LIFECYCLE", "ModBehaviour OnEnable generation=" + _generationId +
+                " owner=" + _instanceId + " scene=" + gameObject.scene.name +
+                " activeHierarchy=" + gameObject.activeInHierarchy + ".");
+    }
+
+    private void OnDisable()
+    {
+        if (_instanceId != 0)
+            DariusLog.Info("BOOT-LIFECYCLE", "ModBehaviour OnDisable generation=" + _generationId +
+                " owner=" + _instanceId + " scene=" + gameObject.scene.name +
+                " activeHierarchy=" + gameObject.activeInHierarchy +
+                " quitting=" + _applicationQuitting + " shutdownCompleted=" + _shutdownCompleted + ".");
+    }
+
     private void OnApplicationQuit()
     {
         _applicationQuitting = true;
