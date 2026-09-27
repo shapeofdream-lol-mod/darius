@@ -35,7 +35,10 @@ internal static partial class DariusNativeModelAssets
         string assetName = DariusNativeAssetContract.PrefabAssetPath(variantKey);
         GameObject prefab = DariusUnityAssetBundleApi.LoadGameObject(_bundle, assetName);
         if (prefab == null)
+        {
             DariusLog.Error("NATIVE-MODEL", "AssetBundle prefab load returned null asset=" + assetName);
+            return null;
+        }
         Prefabs[variantKey] = prefab;
         return prefab;
     }
