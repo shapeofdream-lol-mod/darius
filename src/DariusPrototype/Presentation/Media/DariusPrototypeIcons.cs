@@ -9,6 +9,7 @@ using UnityEngine;
 public static partial class DariusPrototypeIcons
 {
     private static readonly Dictionary<string, Sprite> Cache = new Dictionary<string, Sprite>();
+    private static string _cacheRoot;
 
     private static readonly Dictionary<string, string> FileNames = new Dictionary<string, string>
     {
@@ -65,10 +66,29 @@ public static partial class DariusPrototypeIcons
         foreach (Texture texture in textures)
             if (texture != null) UnityEngine.Object.Destroy(texture);
         Cache.Clear();
+        _cacheRoot = null;
+    }
+
+    private static void EnsureRootOwnership()
+    {
+        string currentRoot = DariusMedia.Root;
+        if (string.IsNullOrEmpty(currentRoot))
+            currentRoot = DariusModEnvironment.Root;
+
+        if (Cache.Count > 0 &&
+            !string.Equals(_cacheRoot, currentRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            DariusLog.Info("ICON", "Icon cache root changed old=" + (_cacheRoot ?? "<null>") +
+                " new=" + (currentRoot ?? "<null>") + "; discarding cached sprites.");
+            Unload();
+        }
+
+        _cacheRoot = currentRoot;
     }
 
     public static Sprite Get(string key)
     {
+        EnsureRootOwnership();
         Sprite sprite;
         if (Cache.TryGetValue(key, out sprite) && sprite != null) return sprite;
 
