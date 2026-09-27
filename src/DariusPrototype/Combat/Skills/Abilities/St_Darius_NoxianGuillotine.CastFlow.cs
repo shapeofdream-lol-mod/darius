@@ -61,14 +61,17 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
                 StartCoroutine(ExecutionWatchdog(executionToken, caster));
                 DariusLog.Info("R-TRIGGER", "Native R AbilityInstance spawned=" + instance.name +
                     " charge=" + chargeBefore + "->" + GetCurrentChargeSafe() +
-                    " recharge=" + CurrentRechargeTimeSafe().ToString("0.###"));
+                    " recharge=" + CurrentRechargeTimeSafe().ToString("0.###") +
+                    " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
                 return instance;
             }
-            DariusLog.Warn("R-TRIGGER", "Native R completion returned no AbilityInstance; using compatibility fallback execution.");
+            DariusLog.Warn("R-TRIGGER", "Native R completion returned no AbilityInstance; using compatibility fallback execution. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         }
         catch (Exception e)
         {
-            DariusLog.Exception("R-TRIGGER", e, "Native R AbilityInstance pipeline failed; using compatibility fallback");
+            DariusLog.Exception("R-TRIGGER", e, "Native R AbilityInstance pipeline failed; using compatibility fallback. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         }
 
         // Safety net for a future game build that rejects runtime AbilityInstance prefabs. The normal
