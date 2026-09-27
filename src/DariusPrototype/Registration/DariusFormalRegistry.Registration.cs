@@ -33,6 +33,8 @@ public static partial class DariusFormalRegistry
             if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(
                     database, record.assetId, record.guid))
                 return false;
+            if (!DariusMirrorRuntimeHealth.IsHandlerPairHealthy(record.assetId))
+                return false;
         }
 
         return true;
