@@ -525,6 +525,8 @@ public static partial class DariusTravelerRegistry
             CreateLifecycleBridge();
             DariusRuntimeAudit.LogPipelineCheckpoint(
                 correlation, "core-generation-commit", "state={" + PipelineCoreState() + "}");
+            DariusRuntimeAudit.LogPublicLookupCheckpoint(
+                correlation, "core-public-lookup-output");
 
             DariusLog.Info("TRAVELER", "Hero_Darius registration READY. heroGuid=" + HeroGuid + " heroAssetId=" + HeroAssetId +
                 " skins=" + string.Join(",", Array.ConvertAll(SkinSpecs, s => s.name)) + " Q=" + DariusFormalRegistry.Decimate.name + " R=" + DariusFormalRegistry.NoxianGuillotine.name +
