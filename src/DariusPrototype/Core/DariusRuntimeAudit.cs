@@ -22,6 +22,7 @@ internal static class DariusRuntimeAudit
     private static Type _characterModelDisplayType;
     private static FieldInfo _characterModelDisplaySkinTypeField;
     private static readonly Dictionary<int, string> LastObservedDisplaySkinTypes = new Dictionary<int, string>();
+    private static bool _titleOriginMutationCaptured;
 
     private sealed class DisplaySetupOriginState
     {
@@ -48,6 +49,7 @@ internal static class DariusRuntimeAudit
         _characterModelDisplayType = null;
         _characterModelDisplaySkinTypeField = null;
         LastObservedDisplaySkinTypes.Clear();
+        _titleOriginMutationCaptured = false;
     }
 
     internal static void InstallHooks(Harmony harmony)
@@ -1008,6 +1010,7 @@ internal static class DariusRuntimeAudit
         out TitleMethodOriginState __state)
     {
         __state = null;
+        if (_titleOriginMutationCaptured) return;
         Component title = __instance as Component;
         if (title == null) return;
 
@@ -1050,6 +1053,7 @@ internal static class DariusRuntimeAudit
 
             if (changes.Count == 0) return;
 
+            _titleOriginMutationCaptured = true;
             DariusLog.Warn("TITLE-ORIGIN",
                 "method=" + (__originalMethod != null ? __originalMethod.Name : "<unknown>") +
                 " title=" + DescribeUnityObject(title) +
