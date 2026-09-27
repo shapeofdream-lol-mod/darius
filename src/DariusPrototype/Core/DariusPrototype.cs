@@ -272,7 +272,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
 
     private IEnumerator PreloadMediaWhenReady(int generationId, int ownerId)
     {
-        while (IsBootstrapBlockedThisFrame)
+        while (IsBootstrapBlockedThisFrame || string.IsNullOrEmpty(DariusMedia.Root))
         {
             if (!IsActiveGeneration(generationId, ownerId)) yield break;
             yield return null;
