@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Text;
 using HarmonyLib;
@@ -23,6 +24,7 @@ internal static class DariusRuntimeAudit
     private static FieldInfo _characterModelDisplaySkinTypeField;
     private static readonly Dictionary<int, string> LastObservedDisplaySkinTypes = new Dictionary<int, string>();
     private static bool _titleOriginMutationCaptured;
+    private static readonly Dictionary<short, OpCode> IlOpcodes = BuildIlOpcodeTable();
 
     private sealed class DisplaySetupOriginState
     {
@@ -91,6 +93,9 @@ internal static class DariusRuntimeAudit
                     if (method == null || method.IsSpecialName || method.IsGenericMethod ||
                         method.ReturnType != typeof(void))
                         continue;
+
+                    if (string.Equals(method.Name, "LogicUpdate", StringComparison.Ordinal))
+                        DumpMethodReferences(method, "Title_LastGameCharacters.LogicUpdate");
 
                     patched += PatchOptional(
                         harmony,
@@ -231,6 +236,177 @@ internal static class DariusRuntimeAudit
             " result=" + DescribeUnityObject(result) +
             " caller=" + caller,
             0.75);
+    }
+
+    private static Dictionary<short, OpCode> BuildIlOpcodeTable()
+    {
+        Dictionary<short, OpCode> result = new Dictionary<short, OpCode>();
+        try
+        {
+            FieldInfo[] fields = typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static);
+            for (int i = 0; i < fields.Length; i++)
+            {
+                if (fields[i].FieldType != typeof(OpCode)) continue;
+                OpCode opcode = (OpCode)fields[i].GetValue(null);
+                result[opcode.Value] = opcode;
+            }
+        }
+        catch { }
+        return result;
+    }
+
+    private static void DumpMethodReferences(MethodInfo method, string label)
+    {
+        if (method == null) return;
+        try
+        {
+            MethodBody body = method.GetMethodBody();
+            byte[] il = body != null ? body.GetILAsByteArray() : null;
+            if (il == null || il.Length == 0)
+            {
+                DariusLog.Info("TITLE-IL", "method=" + label + " il=<empty>");
+                return;
+            }
+
+            List<string> refs = new List<string>();
+            HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
+            Module module = method.Module;
+            Type[] typeArgs = method.DeclaringType != null && method.DeclaringType.IsGenericType
+                ? method.DeclaringType.GetGenericArguments()
+                : Type.EmptyTypes;
+            Type[] methodArgs = method.IsGenericMethod ? method.GetGenericArguments() : Type.EmptyTypes;
+
+            int offset = 0;
+            while (offset < il.Length && refs.Count < 96)
+            {
+                int instructionOffset = offset;
+                short value = il[offset++];
+                if ((byte)value == 0xFE && offset < il.Length)
+                    value = (short)(0xFE00 | il[offset++]);
+
+                OpCode opcode;
+                if (!IlOpcodes.TryGetValue(value, out opcode))
+                {
+                    refs.Add("IL_" + instructionOffset.ToString("X4") + ":<unknown 0x" +
+                        ((ushort)value).ToString("X4") + ">");
+                    break;
+                }
+
+                int operandSize = OperandSize(opcode.OperandType, il, offset);
+                if (operandSize < 0 || offset + operandSize > il.Length) break;
+
+                if (operandSize == 4 &&
+                    (opcode.OperandType == OperandType.InlineField ||
+                     opcode.OperandType == OperandType.InlineMethod ||
+                     opcode.OperandType == OperandType.InlineType ||
+                     opcode.OperandType == OperandType.InlineTok ||
+                     opcode.OperandType == OperandType.InlineString ||
+                     opcode.OperandType == OperandType.InlineSig))
+                {
+                    int token = BitConverter.ToInt32(il, offset);
+                    string resolved = ResolveIlToken(module, token, opcode.OperandType, typeArgs, methodArgs);
+                    if (!string.IsNullOrEmpty(resolved))
+                    {
+                        string item = "IL_" + instructionOffset.ToString("X4") + ":" + opcode.Name + " " + resolved;
+                        if (seen.Add(item)) refs.Add(item);
+                    }
+                }
+
+                offset += operandSize;
+                if (opcode.OperandType == OperandType.InlineSwitch)
+                {
+                    int count = BitConverter.ToInt32(il, offset - operandSize);
+                    // OperandSize already accounts for count + all branch targets.
+                    if (count < 0) break;
+                }
+            }
+
+            DariusLog.Info("TITLE-IL",
+                "method=" + label +
+                " declaring=" + (method.DeclaringType != null ? method.DeclaringType.FullName : "<null>") +
+                " ilBytes=" + il.Length +
+                " refs=[" + string.Join(" | ", refs.ToArray()) + "]");
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("TITLE-IL", e, "Failed decoding method references for " + label);
+        }
+    }
+
+    private static int OperandSize(OperandType operandType, byte[] il, int offset)
+    {
+        switch (operandType)
+        {
+            case OperandType.InlineNone: return 0;
+            case OperandType.ShortInlineBrTarget:
+            case OperandType.ShortInlineI:
+            case OperandType.ShortInlineVar: return 1;
+            case OperandType.InlineVar: return 2;
+            case OperandType.InlineBrTarget:
+            case OperandType.InlineField:
+            case OperandType.InlineI:
+            case OperandType.InlineMethod:
+            case OperandType.InlineSig:
+            case OperandType.InlineString:
+            case OperandType.InlineTok:
+            case OperandType.InlineType:
+            case OperandType.ShortInlineR: return 4;
+            case OperandType.InlineI8:
+            case OperandType.InlineR: return 8;
+            case OperandType.InlineSwitch:
+                if (offset + 4 > il.Length) return -1;
+                int count = BitConverter.ToInt32(il, offset);
+                return count < 0 ? -1 : 4 + count * 4;
+            default: return -1;
+        }
+    }
+
+    private static string ResolveIlToken(
+        Module module,
+        int token,
+        OperandType operandType,
+        Type[] typeArgs,
+        Type[] methodArgs)
+    {
+        try
+        {
+            if (operandType == OperandType.InlineString)
+                return "\"" + module.ResolveString(token) + "\"";
+            if (operandType == OperandType.InlineField)
+            {
+                FieldInfo field = module.ResolveField(token, typeArgs, methodArgs);
+                return DescribeMember(field);
+            }
+            if (operandType == OperandType.InlineMethod)
+            {
+                MethodBase resolved = module.ResolveMethod(token, typeArgs, methodArgs);
+                return DescribeMember(resolved);
+            }
+            if (operandType == OperandType.InlineType)
+            {
+                Type type = module.ResolveType(token, typeArgs, methodArgs);
+                return type != null ? type.FullName : "<null-type>";
+            }
+            if (operandType == OperandType.InlineTok)
+            {
+                MemberInfo member = module.ResolveMember(token, typeArgs, methodArgs);
+                return DescribeMember(member);
+            }
+            if (operandType == OperandType.InlineSig)
+                return "sig:0x" + token.ToString("X8");
+        }
+        catch (Exception e)
+        {
+            return "token:0x" + token.ToString("X8") + "(" + e.GetType().Name + ")";
+        }
+        return null;
+    }
+
+    private static string DescribeMember(MemberInfo member)
+    {
+        if (member == null) return "<null-member>";
+        Type declaring = member.DeclaringType;
+        return (declaring != null ? declaring.FullName + "::" : string.Empty) + member.Name;
     }
 
     private static string CompactExternalStack()
