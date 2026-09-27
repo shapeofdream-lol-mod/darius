@@ -85,6 +85,12 @@ public static partial class DariusFormalRegistry
             DariusLog.Warn("REG", "DewResources database is not ready; formal resources were not registered yet.");
             return;
         }
+        if (string.IsNullOrEmpty(DariusModEnvironment.Root))
+        {
+            DariusLog.DebugInfoThrottled("REG-LIFECYCLE", "root-not-ready",
+                "Formal registration deferred because the Mod root is not ready.", 1.0);
+            return;
+        }
 
         try
         {
