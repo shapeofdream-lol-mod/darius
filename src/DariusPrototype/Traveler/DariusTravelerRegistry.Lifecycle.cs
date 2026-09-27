@@ -167,8 +167,16 @@ public static partial class DariusTravelerRegistry
 
     public static IEnumerator InitializeWhenReady(int generationId, int ownerId)
     {
+        string correlation = "g" + generationId + "-o" + ownerId;
         DariusLog.Info("TRAVELER", "Bootstrap coroutine entered generation=" + generationId +
             " owner=" + ownerId + "; waiting for resource database + Mod root.");
+        DariusRuntimeAudit.LogPipelineCheckpoint(
+            correlation,
+            "bootstrap-input",
+            "dbReady=" + (DewResources.database != null) +
+            " modRoot=" + (DariusModEnvironment.Root ?? "<null>") +
+            " barrier=" + DariusPrototypeMod.IsBootstrapBlockedThisFrame +
+            " profile={" + PipelineProfileState() + "}");
 
         while (IsExpectedGenerationActive(generationId, ownerId) &&
                (DewResources.database == null ||
@@ -183,6 +191,13 @@ public static partial class DariusTravelerRegistry
                 generationId + " owner=" + ownerId + ".");
             yield break;
         }
+
+        DariusRuntimeAudit.LogPipelineCheckpoint(
+            correlation,
+            "bootstrap-services-ready",
+            "db=" + (DewResources.database != null ? DewResources.database.GetHashCode().ToString() : "<null>") +
+            " modRoot=" + (DariusModEnvironment.Root ?? "<null>") +
+            " barrier=" + DariusPrototypeMod.IsBootstrapBlockedThisFrame);
 
         string missingTemplate;
         float templateDeadline = Time.unscaledTime + 5f;
@@ -202,6 +217,11 @@ public static partial class DariusTravelerRegistry
             yield return null;
         }
         if (!IsExpectedGenerationActive(generationId, ownerId)) yield break;
+
+        DariusRuntimeAudit.LogPipelineCheckpoint(
+            correlation,
+            "stock-template-output",
+            "ready=true state={" + PipelineCoreState() + "}");
 
         bool coreReady = false;
         for (int attempt = 1; attempt <= CoreRegistrationRetryLimit; attempt++)
@@ -266,6 +286,12 @@ public static partial class DariusTravelerRegistry
 
     public static bool EnsureCoreRegisteredForBootstrap(string reason, int generationId, int ownerId)
     {
+        string correlation = "g" + generationId + "-o" + ownerId;
+        DariusRuntimeAudit.LogPipelineCheckpoint(
+            correlation,
+            "core-attempt-input",
+            "source=" + (reason ?? "<unknown>") + " state={" + PipelineCoreState() + "}");
+
         if (!IsExpectedGenerationActive(generationId, ownerId))
         {
             DariusLog.DebugInfo("TRAVELER-LIFECYCLE", "Rejected stale core bootstrap request generation=" +
@@ -281,6 +307,10 @@ public static partial class DariusTravelerRegistry
         if (IsCoreRegistrationHealthy())
         {
             RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation,
+                "core-reuse-output",
+                "source=" + (reason ?? "<unknown>") + " state={" + PipelineCoreState() + "}");
             return true;
         }
 
@@ -294,6 +324,12 @@ public static partial class DariusTravelerRegistry
                                 ResourcesByGuid.Count > 0 || NetworkPrefabs.Count > 0;
         if (hasTravelerState)
         {
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation,
+                "core-unhealthy-input",
+                "source=" + (reason ?? "<unknown>") +
+                " rootChanged=" + rootChanged +
+                " state={" + PipelineCoreState() + "}");
             DariusLog.Warn("TRAVELER-BOOTSTRAP",
                 "Discarding unhealthy/partial Traveler generation before next-frame recreation reason=" +
                 (reason ?? "<unknown>") + " rootChanged=" + rootChanged +
@@ -323,10 +359,21 @@ public static partial class DariusTravelerRegistry
         try
         {
             DariusFormalRegistry.Register();
-            if (!DariusFormalRegistry.IsRegistrationHealthyForBootstrap())
+            bool formalHealthy = DariusFormalRegistry.IsRegistrationHealthyForBootstrap();
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation,
+                "formal-output",
+                "source=" + (reason ?? "<unknown>") +
+                " healthy=" + formalHealthy +
+                " state={" + DariusFormalRegistry.DiagnosticState() + "}");
+            if (!formalHealthy)
                 return false;
 
             Register();
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation,
+                "traveler-register-output",
+                "source=" + (reason ?? "<unknown>") + " state={" + PipelineCoreState() + "}");
             bool ok = IsCoreRegistrationHealthy();
             if (ok)
             {
@@ -334,6 +381,12 @@ public static partial class DariusTravelerRegistry
                 DariusLog.DebugInfoThrottled("TRAVELER-EARLY", reason ?? "bootstrap",
                     "Core Hero_Darius generation is healthy and mapped in Dew/Mirror runtime indexes.", 2.0);
             }
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation,
+                "core-attempt-output",
+                "source=" + (reason ?? "<unknown>") +
+                " healthy=" + ok +
+                " state={" + PipelineCoreState() + "}");
             return ok;
         }
         catch (Exception e)
@@ -346,7 +399,14 @@ public static partial class DariusTravelerRegistry
 
     private static bool CompleteProfileRegistration(string reason, int generationId, int ownerId)
     {
+        string correlation = "g" + generationId + "-o" + ownerId;
         if (!IsExpectedGenerationActive(generationId, ownerId)) return false;
+
+        DariusRuntimeAudit.LogPipelineCheckpoint(
+            correlation,
+            "profile-attempt-input",
+            "source=" + (reason ?? "<unknown>") +
+            " core={" + PipelineCoreState() + "} profile={" + PipelineProfileState() + "}");
 
         if (!IsCoreRegistrationHealthy())
         {
@@ -357,22 +417,49 @@ public static partial class DariusTravelerRegistry
 
         if (!IsExpectedGenerationActive(generationId, ownerId)) return false;
 
+        string pipelineStage = "profile-types-content";
         try
         {
             RegisterTypes();
             RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation,
+                "profile-content-output",
+                "state={" + PipelineProfileState() + "}");
+
+            pipelineStage = "profile-unlock-loadout";
             EnsureProfiles();
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation,
+                "profile-unlock-output",
+                "state={" + PipelineProfileState() + "}");
+
+            pipelineStage = "profile-validator";
             ValidateProfileRegistration();
+
+            pipelineStage = "profile-cosmetic";
             RepairHeroCosmeticContract(HeroPrefab);
             DariusLog.Info("TRAVELER", "Late profile/content registration completed generation=" +
                 generationId + " owner=" + ownerId + " reason=" + reason +
                 " state=" + DiagnosticState());
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation,
+                "profile-attempt-output",
+                "source=" + (reason ?? "<unknown>") +
+                " success=true state={" + PipelineProfileState() + "}");
             DariusRuntimeAudit.LogSnapshot(
                 "Traveler profile/content registration completed: " + reason, false);
             return true;
         }
         catch (Exception e)
         {
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation,
+                "profile-attempt-failed",
+                "source=" + (reason ?? "<unknown>") +
+                " responsibleStage=" + pipelineStage +
+                " error=" + e.GetType().Name + ":" + e.Message +
+                " state={" + PipelineProfileState() + "}");
             DariusLog.Exception("TRAVELER", e,
                 "Late profile/content registration failed generation=" + generationId +
                 " owner=" + ownerId + " reason=" + reason + "; retry remains bounded to this generation");
@@ -394,28 +481,64 @@ public static partial class DariusTravelerRegistry
             throw new InvalidOperationException("Darius skill resources must be registered before Hero_Darius.");
 
         _registering = true;
+        string correlation = "g" + _modOwnerGenerationId + "-o" + _modOwnerInstanceId;
+        string pipelineStage = "resource-root";
         try
         {
             CreateResourceRoot();
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation, "core-resource-root-output", "state={" + PipelineCoreState() + "}");
+
+            pipelineStage = "skill-ownership";
             ConfigureDariusSkillOwnership();
+
+            pipelineStage = "basic-attack";
             CreateAndRegisterNativeBasicAttack();
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation, "core-attack-output", "state={" + PipelineCoreState() + "}");
+
+            pipelineStage = "skin";
             CreateAndRegisterSkin();
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation, "core-skin-output", "state={" + PipelineCoreState() + "}");
+
+            pipelineStage = "hero";
             CreateAndRegisterHero();
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation, "core-hero-output", "state={" + PipelineCoreState() + "}");
+
+            pipelineStage = "type-cache";
             RegisterTypes();
+
+            pipelineStage = "content";
             RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation, "core-type-content-output", "state={" + PipelineCoreState() + "}");
+
+            pipelineStage = "validator";
             ValidateRegistration();
+
+            pipelineStage = "generation-commit";
             _registeredDatabase = DewResources.database;
             _registeredModRoot = DariusModEnvironment.Root;
             _registered = true;
             CreateLifecycleBridge();
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation, "core-generation-commit", "state={" + PipelineCoreState() + "}");
 
             DariusLog.Info("TRAVELER", "Hero_Darius registration READY. heroGuid=" + HeroGuid + " heroAssetId=" + HeroAssetId +
                 " skins=" + string.Join(",", Array.ConvertAll(SkinSpecs, s => s.name)) + " Q=" + DariusFormalRegistry.Decimate.name + " R=" + DariusFormalRegistry.NoxianGuillotine.name +
                 " Identity=" + DariusFormalRegistry.Hemorrhage.name + " state=" + DiagnosticState());
             DariusRuntimeAudit.LogSnapshot("Traveler registration READY", true);
         }
-        catch
+        catch (Exception e)
         {
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                correlation,
+                "core-register-failed",
+                "responsibleStage=" + pipelineStage +
+                " error=" + e.GetType().Name + ":" + e.Message +
+                " state={" + PipelineCoreState() + "}");
             // Awake may race the final initialization of stock native templates on Workshop boot.
             // Never keep a half-created runtime graph; a clean Start/coroutine retry is safer.
             try { UnregisterRuntimeOnly(); } catch { }
