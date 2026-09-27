@@ -917,7 +917,7 @@ public static partial class DariusFormalRegistry
     {
         bool healthy = false;
         string healthError = null;
-        try { healthy = IsRegistrationHealthy(); }
+        try { healthy = IsRegistrationHealthyForBootstrap(); }
         catch (Exception e) { healthError = e.GetType().Name + ":" + e.Message; }
 
         StringBuilder sb = new StringBuilder();
