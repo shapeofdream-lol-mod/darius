@@ -30,6 +30,10 @@ public static partial class DariusLolVfxRuntime
 
     public static void Unload()
     {
+        DariusLog.Info("LOL-VFX", "Unload requested loadAttempted=" + _loadAttempted +
+            " systems=" + (_systems != null ? _systems.Count : 0) +
+            " textures=" + Textures.Count + " meshes=" + Meshes.Count +
+            " materials=" + Materials.Count + " quad=" + (_quad != null) + ".");
         foreach (Material material in Materials.Values)
             if (material != null) UnityEngine.Object.Destroy(material);
         Materials.Clear();
