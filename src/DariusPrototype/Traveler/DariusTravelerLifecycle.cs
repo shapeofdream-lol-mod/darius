@@ -10,12 +10,18 @@ public sealed class DariusTravelerLifecycleBridge : MonoBehaviour
     {
         SceneManager.sceneLoaded += OnSceneLoaded;
         SceneManager.activeSceneChanged += OnActiveSceneChanged;
+        DariusLog.Info("TRAVELER-LIFECYCLE", "Lifecycle bridge OnEnable id=" + GetInstanceID() +
+            " scene=" + gameObject.scene.name +
+            " parent=" + (transform.parent != null ? transform.parent.name + "#" + transform.parent.GetInstanceID() : "<root>") + ".");
     }
 
     private void OnDisable()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
         SceneManager.activeSceneChanged -= OnActiveSceneChanged;
+        DariusLog.Info("TRAVELER-LIFECYCLE", "Lifecycle bridge OnDisable id=" + GetInstanceID() +
+            " scene=" + gameObject.scene.name +
+            " parent=" + (transform.parent != null ? transform.parent.name + "#" + transform.parent.GetInstanceID() : "<root>") + ".");
     }
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
