@@ -19,6 +19,7 @@ public static partial class DariusTravelerRegistry
     private static int _modOwnerInstanceId;
     private static int _modOwnerGenerationId;
     private static object _registeredDatabase;
+    private static string _registeredModRoot;
 
     public static void BindOwner(Transform owner, int generationId)
     {
@@ -55,10 +56,13 @@ public static partial class DariusTravelerRegistry
     private static bool IsCoreRegistrationHealthy()
     {
         object database = DewResources.database;
+        string currentRoot = DariusModEnvironment.Root;
         if (!_registered ||
             !IsExpectedGenerationActive(_modOwnerGenerationId, _modOwnerInstanceId) ||
             database == null ||
             !ReferenceEquals(database, _registeredDatabase) ||
+            string.IsNullOrEmpty(currentRoot) ||
+            !string.Equals(currentRoot, _registeredModRoot, StringComparison.OrdinalIgnoreCase) ||
             HeroPrefab == null ||
             !AreSkinResourcesReady() ||
             AttackPrefab == null ||
@@ -307,6 +311,7 @@ public static partial class DariusTravelerRegistry
             RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
             ValidateRegistration();
             _registeredDatabase = DewResources.database;
+            _registeredModRoot = DariusModEnvironment.Root;
             _registered = true;
             CreateLifecycleBridge();
 
