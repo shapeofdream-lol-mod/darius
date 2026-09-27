@@ -154,7 +154,14 @@ public static partial class DariusTravelerRegistry
     public static void RegisterContent(DewGameContentSettings content)
     {
         if (content == null) return;
-        if (_contentOwner != null && !ReferenceEquals(_contentOwner, content))
+
+        bool ownerChanged = _contentOwner != null && !ReferenceEquals(_contentOwner, content);
+        bool heroSerializedBefore = content._availableHeroes != null &&
+                                    Array.IndexOf(content._availableHeroes, HeroName) >= 0;
+        bool heroRuntimeBefore = content.availableHeroes != null &&
+                                 content.availableHeroes.Contains(HeroName);
+
+        if (ownerChanged)
             UnregisterContent();
         _contentOwner = content;
 
@@ -181,6 +188,31 @@ public static partial class DariusTravelerRegistry
 
         // DewGameContentSettings has no skin list in the documented runtime contract. Skin unlock
         // and selection are handled through DewProfile and the custom resource identity bridge.
+        bool heroSerializedAfter = content._availableHeroes != null &&
+                                   Array.IndexOf(content._availableHeroes, HeroName) >= 0;
+        bool heroRuntimeAfter = content.availableHeroes != null &&
+                                content.availableHeroes.Contains(HeroName);
+        if (ownerChanged ||
+            heroSerializedBefore != heroSerializedAfter ||
+            heroRuntimeBefore != heroRuntimeAfter)
+        {
+            int serializedIndex = content._availableHeroes != null
+                ? Array.IndexOf(content._availableHeroes, HeroName)
+                : -1;
+            int runtimeIndex = content.availableHeroes != null
+                ? content.availableHeroes.IndexOf(HeroName)
+                : -1;
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
+                "content-list-output",
+                "ownerChanged=" + ownerChanged +
+                " heroBefore=" + heroSerializedBefore + "/" + heroRuntimeBefore +
+                " heroAfter=" + heroSerializedAfter + "/" + heroRuntimeAfter +
+                " heroIndex=" + serializedIndex + "/" + runtimeIndex +
+                " serializedCount=" + (content._availableHeroes != null ? content._availableHeroes.Length : -1) +
+                " runtimeCount=" + (content.availableHeroes != null ? content.availableHeroes.Count : -1));
+        }
+
         DariusLog.DebugInfoThrottled("TRAVELER-CONTENT", "content",
             "Content includes Hero_Darius and seven Darius skill resources including Flash/Ghost movement choices.", 20.0);
     }
