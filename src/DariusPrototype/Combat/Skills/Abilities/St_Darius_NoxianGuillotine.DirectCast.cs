@@ -60,7 +60,8 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
         DariusLog.Info("R-DIRECT", "ControlManager R interception source=" + source +
             " target=" + DariusLog.EntityLabel(target) + " started=" + started +
             " charge=" + charge + "->" + GetCurrentChargeSafe() +
-            " recharge=" + CurrentRechargeTimeSafe().ToString("0.###"));
+            " recharge=" + CurrentRechargeTimeSafe().ToString("0.###") +
+            " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         return started;
     }
 
