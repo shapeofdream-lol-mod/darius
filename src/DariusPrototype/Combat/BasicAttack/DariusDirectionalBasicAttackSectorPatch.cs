@@ -7,9 +7,33 @@ using UnityEngine;
 // The stock MeleeAttackInstance remains responsible for native damage/crit/on-hit event semantics,
 // but every generated hit must lie in the directional sector. Because the stock melee instance is
 // an overlap/AOE actor, all enemies inside the sector can pass this filter during the same swing.
-[HarmonyPatch]
 public static class DariusDirectionalBasicAttackSectorPatch
 {
+    // Gameplay-critical patch: install explicitly before Hero_Darius core registration. Keeping
+    // this outside PatchAll prevents an unrelated optional UI patch failure from silently leaving
+    // Darius basic attacks with stock overlap/AOE hit semantics.
+    public static void InstallRequired(Harmony harmony)
+    {
+        if (harmony == null) throw new ArgumentNullException(nameof(harmony));
+
+        MethodInfo prefixMethod = AccessTools.Method(typeof(DariusDirectionalBasicAttackSectorPatch), nameof(Prefix));
+        if (prefixMethod == null)
+            throw new MissingMethodException(typeof(DariusDirectionalBasicAttackSectorPatch).FullName, nameof(Prefix));
+
+        int patched = 0;
+        foreach (MethodBase target in TargetMethods())
+        {
+            if (target == null) continue;
+            harmony.Patch(target, prefix: new HarmonyMethod(prefixMethod));
+            patched++;
+        }
+
+        if (patched == 0)
+            throw new MissingMethodException(typeof(Actor).FullName, "DoBasicAttackHit(Entity...)");
+
+        DariusLog.Info("PATCH-CRITICAL", "Installed directional basic-attack sector patch targets=" + patched + ".");
+    }
+
     private static IEnumerable<MethodBase> TargetMethods()
     {
         MethodInfo[] methods = typeof(Actor).GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
