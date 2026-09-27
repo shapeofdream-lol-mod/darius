@@ -22,6 +22,13 @@ public static partial class DariusTravelerRegistry
 
     public static void UnregisterRuntimeOnly()
     {
+        bool hadRuntimeState = _registered || _registering || _resourceRoot != null ||
+                               HeroPrefab != null || AttackPrefab != null ||
+                               OwnedObjects.Count > 0 || ResourcesByGuid.Count > 0 ||
+                               NetworkPrefabs.Count > 0;
+        if (hadRuntimeState)
+            DariusPrototypeMod.BlockBootstrapForCurrentFrame("Traveler runtime teardown");
+
         DariusLog.Info("TRAVELER-TEARDOWN", "UnregisterRuntimeOnly begin state=" + DiagnosticState());
         _registered = false;
         _registering = false;
@@ -98,6 +105,7 @@ public static partial class DariusTravelerRegistry
         AttackPrefab = null;
         AttackInstancePrefab = null;
         AttackCritInstancePrefab = null;
+        _registeredDatabase = null;
         if (_resourceRoot != null) UnityEngine.Object.Destroy(_resourceRoot);
         _resourceRoot = null;
         DariusLog.Info("TRAVELER", "Runtime Hero_Darius resources unregistered; persistent profile data left untouched. state=" + DiagnosticState());
@@ -107,8 +115,13 @@ public static partial class DariusTravelerRegistry
     {
         UnregisterRuntimeOnly();
         DestroyLifecycleBridge();
-        DariusNativeModelAssets.Unload();
+
+        // Native model bundle assets are process/mod-lifetime resources. Runtime skins are clones
+        // owned by this Traveler generation, but unloading/reloading the bundle with Unload(false)
+        // on every ModBehaviour replacement duplicates native assets across generations.
         _modOwner = null;
         _modOwnerInstanceId = 0;
+        _modOwnerGenerationId = 0;
+        _registeredDatabase = null;
     }
 }
