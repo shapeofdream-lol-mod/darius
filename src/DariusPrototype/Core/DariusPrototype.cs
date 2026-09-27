@@ -21,11 +21,18 @@ public sealed class DariusPrototypeMod : ModBehaviour
     }
 
     private static int _activeModInstanceId;
+    private static int _activeGenerationId;
+    private static int _generationSerial;
+
+    internal static int ActiveModInstanceId { get { return _activeModInstanceId; } }
+    internal static int ActiveGenerationId { get { return _activeGenerationId; } }
+
     private bool _bootstrapped;
     private bool _resourceBridgeReady;
     private bool _applicationQuitting;
     private bool _shutdownCompleted;
     private int _instanceId;
+    private int _generationId;
     private DariusDiagnostics _diagnostics;
 
     private void Awake()
@@ -38,13 +45,20 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusLog.Initialize();
 
         _instanceId = GetInstanceID();
+        _generationId = unchecked(++_generationSerial);
         if (_activeModInstanceId != 0 && _activeModInstanceId != _instanceId)
         {
-            DariusLog.Info("BOOT", "New ModBehaviour instance superseded owner=" + _activeModInstanceId +
-                " with owner=" + _instanceId + "; cleaning the previous runtime generation before bootstrap.");
+            DariusLog.Info("BOOT", "New ModBehaviour generation=" + _generationId +
+                " owner=" + _instanceId + " superseded generation=" + _activeGenerationId +
+                " owner=" + _activeModInstanceId + "; cleaning the previous runtime generation before bootstrap.");
+            DariusRuntimeAudit.LogSnapshot("before replacement cleanup newGeneration=" + _generationId, true);
             ResetSharedRuntimeForReplacement();
+            DariusRuntimeAudit.LogSnapshot("after replacement cleanup newGeneration=" + _generationId, true);
         }
         _activeModInstanceId = _instanceId;
+        _activeGenerationId = _generationId;
+        DariusLog.Info("BOOT", "Activated ModBehaviour generation=" + _generationId + " owner=" + _instanceId +
+            " gameObject=" + gameObject.name + " scene=" + gameObject.scene.name + ".");
         DariusTravelerRegistry.BindOwner(transform);
         DariusFormalRegistry.BindOwner(transform);
 
@@ -139,6 +153,15 @@ public sealed class DariusPrototypeMod : ModBehaviour
                 DariusLog.Exception("PATCH", e, "R input guard install failed; continuing boot");
             }
 
+            try
+            {
+                DariusRuntimeAudit.InstallHooks(harmony);
+            }
+            catch (Exception e)
+            {
+                DariusLog.Exception("AUDIT-HOOK", e, "Read-only runtime audit hook install failed; continuing boot");
+            }
+
             _bootstrapped = true;
         }
 
@@ -168,6 +191,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         // failed. This is the authoritative path that creates Hero_Darius/Skin_Darius_Default.
         StartCoroutine(DariusTravelerRegistry.InitializeWhenReady());
         DariusLog.Info("BOOT", "Registration coroutine started. Target=independent Hero_Darius, native Hero/Skin/Loadout/Profile/Mirror paths.");
+        DariusRuntimeAudit.LogSnapshot("Start registration coroutine scheduled generation=" + _generationId, true);
     }
 
     private void OnApplicationQuit()
@@ -182,13 +206,18 @@ public sealed class DariusPrototypeMod : ModBehaviour
 
         if (_instanceId != 0 && _activeModInstanceId != 0 && _activeModInstanceId != _instanceId)
         {
-            DariusLog.Info("BOOT", "Superseded ModBehaviour destroyed owner=" + _instanceId +
+            DariusLog.Info("BOOT", "Superseded ModBehaviour destroyed generation=" + _generationId +
+                " owner=" + _instanceId + " activeGeneration=" + _activeGenerationId +
                 " activeOwner=" + _activeModInstanceId + "; shared runtime belongs to the newer instance.");
             return;
         }
 
         ShutdownRuntimeResources(_applicationQuitting ? "application quit" : "ModBehaviour destroyed");
-        if (_activeModInstanceId == _instanceId) _activeModInstanceId = 0;
+        if (_activeModInstanceId == _instanceId)
+        {
+            _activeModInstanceId = 0;
+            _activeGenerationId = 0;
+        }
     }
 
     private void ResetSharedRuntimeForReplacement()
@@ -196,6 +225,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         TravelerBasicAttackVfxReplication.Shutdown();
         DariusRInputGuard.Uninstall();
         try { harmony.UnpatchAll(harmony.Id); } catch { }
+        DariusRuntimeAudit.ResetHooks();
         DariusRuntimeResourceCompatibility.ResetInstallState();
         DariusDejaVuRegistry.ResetPatchInstallState();
         DariusTravelerRegistry.ShutdownRuntimeResources();
@@ -210,10 +240,13 @@ public sealed class DariusPrototypeMod : ModBehaviour
     {
         if (_shutdownCompleted) return;
         _shutdownCompleted = true;
-        DariusLog.Info("BOOT", "Cleaning Darius runtime resources: " + reason);
+        DariusLog.Info("BOOT", "Cleaning Darius runtime resources generation=" + _generationId +
+            " owner=" + _instanceId + " reason=" + reason);
+        DariusRuntimeAudit.LogSnapshot("before shutdown generation=" + _generationId + " reason=" + reason, true);
         TravelerBasicAttackVfxReplication.Shutdown();
         DariusRInputGuard.Uninstall();
         try { harmony.UnpatchAll(harmony.Id); } catch { }
+        DariusRuntimeAudit.ResetHooks();
         DariusRuntimeResourceCompatibility.ResetInstallState();
         DariusDejaVuRegistry.ResetPatchInstallState();
         DariusTravelerRegistry.ShutdownRuntimeResources();
@@ -223,6 +256,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         DariusPrototypeIcons.Unload();
         _resourceBridgeReady = false;
         _bootstrapped = false;
+        DariusRuntimeAudit.LogSnapshot("after shutdown generation=" + _generationId + " reason=" + reason, true);
         DariusLog.Flush();
         if (_applicationQuitting || !Application.isPlaying) DariusLog.Shutdown();
     }
