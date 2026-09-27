@@ -14,7 +14,10 @@ public static class DariusModEnvironment
 
     public static string Root
     {
-        get { return ResolveRoot(); }
+        // Configure()/ResolveRoot() validate filesystem identity before publishing the root.
+        // Once resolved, the mod directory is immutable for this loaded assembly generation; hot
+        // readers must not repeat Directory.Exists/File.Exists probes on every property access.
+        get { return !string.IsNullOrEmpty(_configuredRoot) ? _configuredRoot : ResolveRoot(); }
     }
 
     public static string SourceLabel
@@ -73,7 +76,7 @@ public static class DariusModEnvironment
 
     public static string ResolveRoot()
     {
-        if (IsModRoot(_configuredRoot)) return _configuredRoot;
+        if (!string.IsNullOrEmpty(_configuredRoot)) return _configuredRoot;
 
         // Prefer the directory that physically contains the executing Workshop/local assembly. This
         // prevents a disabled/stale local Mods/DariusPrototype folder from stealing assets when the
