@@ -107,12 +107,11 @@ public static partial class DariusFormalRegistry
 
     private const string GuidAiR = DariusResourceIds.AbilityR;
 
-    public static void BindOwner(Transform owner, int generationId)
+    public static void BindOwner(Transform owner, int generationId, int ownerId)
     {
         if (owner == null) throw new ArgumentNullException(nameof(owner));
         if (generationId <= 0) throw new ArgumentOutOfRangeException(nameof(generationId));
-
-        int ownerId = owner.gameObject.GetInstanceID();
+        if (ownerId == 0) throw new ArgumentOutOfRangeException(nameof(ownerId));
         if (_modOwnerInstanceId == ownerId && _modOwnerGenerationId == generationId)
         {
             _modOwner = owner;
@@ -126,7 +125,8 @@ public static partial class DariusFormalRegistry
         _modOwnerInstanceId = ownerId;
         _modOwnerGenerationId = generationId;
         DariusLog.Info("REG-LIFECYCLE", "Bound Formal runtime resource ownership generation=" + generationId +
-            " owner=" + ownerId + ".");
+            " modBehaviourOwner=" + ownerId +
+            " gameObjectOwner=" + owner.gameObject.GetInstanceID() + ".");
     }
 
     internal static bool IsOwnedByActiveGeneration
