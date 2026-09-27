@@ -18,6 +18,8 @@ public static partial class DariusRuntimeResourceCompatibility
         if (!travelerFound && !DariusFormalRegistry.TryLoad(__0, out obj)) return true;
         Component component = obj as Component;
         __result = component != null ? (UnityEngine.Object)component.gameObject : obj;
+        if (travelerFound)
+            DariusRuntimeAudit.LogRuntimeConsumerLookup(__0, __result);
         if (string.IsNullOrEmpty(__0) || __0.IndexOf("-star-", StringComparison.Ordinal) < 0)
             DariusLog.DebugInfoThrottled("RES-LOAD", __0, "Runtime Load intercepted key=" + __0 + " result=" + (__result != null ? __result.name : "<null>"), 1.25);
         return false;
