@@ -36,7 +36,7 @@ internal static class DariusRuntimeAudit
                     m => m.Name == "Setup" && m.GetParameters().Length >= 1 &&
                          m.GetParameters()[0].ParameterType == typeof(string))
                 : null;
-            patched += PatchOptional(harmony, displaySetup, null, nameof(CharacterModelDisplaySetupPostfix),
+            patched += PatchOptional(harmony, displaySetup, nameof(CharacterModelDisplaySetupPrefix), nameof(CharacterModelDisplaySetupPostfix),
                 "CharacterModelDisplay.Setup");
 
             MethodInfo[] spawnMethods = typeof(NetworkServer).GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
@@ -115,6 +115,68 @@ internal static class DariusRuntimeAudit
             DariusLog.Exception("AUDIT-HOOK", e, "Optional diagnostic patch failed: " + label);
             return 0;
         }
+    }
+
+    internal static void LogPipelineCheckpoint(string correlation, string stage, string detail)
+    {
+        try
+        {
+            Scene scene = SceneManager.GetActiveScene();
+            DariusLog.Info("PIPELINE",
+                "corr=" + (string.IsNullOrEmpty(correlation) ? "<none>" : correlation) +
+                " stage=" + (string.IsNullOrEmpty(stage) ? "<unknown>" : stage) +
+                " generation=" + DariusPrototypeMod.ActiveGenerationId +
+                " owner=" + DariusPrototypeMod.ActiveModInstanceId +
+                " frame=" + Time.frameCount +
+                " scene=" + (scene.IsValid() ? scene.name + "#" + scene.handle : "<invalid>") +
+                (string.IsNullOrEmpty(detail) ? string.Empty : " " + detail));
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("PIPELINE", e, "Pipeline checkpoint failed stage=" + (stage ?? "<unknown>"));
+        }
+    }
+
+    internal static void LogRuntimeConsumerLookup(string key, UnityEngine.Object result)
+    {
+        if (string.IsNullOrEmpty(key) || !DariusTravelerRegistry.IsRuntimeKey(key)) return;
+
+        string sceneName = string.Empty;
+        try { sceneName = SceneManager.GetActiveScene().name ?? string.Empty; } catch { }
+        if (sceneName.IndexOf("Lobby", StringComparison.OrdinalIgnoreCase) < 0 &&
+            sceneName.IndexOf("Title", StringComparison.OrdinalIgnoreCase) < 0)
+            return;
+
+        string throttleKey = sceneName + ":" + key;
+        DariusLog.DebugInfoThrottled(
+            "PIPELINE-CONSUMER",
+            throttleKey,
+            "corr=g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId +
+            " stage=runtime-load key=" + key +
+            " result=" + DescribeUnityObject(result) +
+            " caller=" + CompactExternalStack(),
+            0.75);
+    }
+
+    private static string CompactExternalStack()
+    {
+        try
+        {
+            string[] lines = Environment.StackTrace.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            List<string> kept = new List<string>();
+            for (int i = 0; i < lines.Length && kept.Count < 6; i++)
+            {
+                string line = lines[i].Trim();
+                if (line.Length == 0) continue;
+                if (line.IndexOf("DariusRuntimeAudit", StringComparison.Ordinal) >= 0 ||
+                    line.IndexOf("DariusRuntimeResourceCompatibility", StringComparison.Ordinal) >= 0 ||
+                    line.IndexOf("System.Environment", StringComparison.Ordinal) >= 0)
+                    continue;
+                kept.Add(line);
+            }
+            return string.Join(" <- ", kept.ToArray());
+        }
+        catch { return "<stack-unavailable>"; }
     }
 
     internal static void LogSnapshot(string reason, bool includeObjectCensus)
@@ -208,11 +270,21 @@ internal static class DariusRuntimeAudit
           .Append(" content=").Append(Identity(content));
         if (content != null)
         {
+            int serializedDariusIndex = content._availableHeroes != null
+                ? Array.IndexOf(content._availableHeroes, DariusTravelerRegistry.HeroName)
+                : -1;
+            int runtimeDariusIndex = content.availableHeroes != null
+                ? content.availableHeroes.IndexOf(DariusTravelerRegistry.HeroName)
+                : -1;
+
             sb.Append(" serializedHeroes=").Append(content._availableHeroes != null ? content._availableHeroes.Length : -1)
               .Append(" runtimeHeroes=").Append(content.availableHeroes != null ? content.availableHeroes.Count : -1)
               .Append(" dariusHero(serialized/runtime)=")
               .Append(Contains(content._availableHeroes, DariusTravelerRegistry.HeroName)).Append("/")
               .Append(content.availableHeroes != null && content.availableHeroes.Contains(DariusTravelerRegistry.HeroName))
+              .Append(" dariusIndex(serialized/runtime)=").Append(serializedDariusIndex).Append("/").Append(runtimeDariusIndex)
+              .Append(" heroNames(serialized)=").Append(JoinNames(content._availableHeroes))
+              .Append(" heroNames(runtime)=").Append(JoinNames(content.availableHeroes))
               .Append(" dariusSkills(serialized/runtime)=")
               .Append(CountPrefix(content._availableSkills, "St_Darius_", "St_D_Darius_")).Append("/")
               .Append(CountPrefix(content.availableSkills, "St_Darius_", "St_D_Darius_"))
@@ -432,6 +504,43 @@ internal static class DariusRuntimeAudit
         }
     }
 
+    private static void CharacterModelDisplaySetupPrefix(object __instance, string __0)
+    {
+        if (__instance == null || string.IsNullOrEmpty(__0) ||
+            !DariusTravelerRegistry.IsRuntimeSkinKey(__0))
+            return;
+
+        try
+        {
+            Component component = __instance as Component;
+            Skin registrySkin;
+            bool registryHasSkin = DariusTravelerRegistry.TryResolveRuntimeSkin(__0, out registrySkin);
+            bool dewMap = false;
+            if (string.Equals(__0, DariusTravelerRegistry.DefaultSkinName, StringComparison.Ordinal))
+            {
+                dewMap = DariusUnsupportedResourceBridge.IsNamedResourceIdentityMapped(
+                    DewResources.database,
+                    DariusTravelerRegistry.DefaultSkinName,
+                    DariusTravelerRegistry.SkinGuid);
+            }
+
+            LogPipelineCheckpoint(
+                "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
+                "lobby-display-input",
+                "skin=" + __0 +
+                " display=" + DescribeUnityObject(component) +
+                " registryHasSkin=" + registryHasSkin +
+                " registrySkin=" + DescribeUnityObject(registrySkin) +
+                " dewNamedMap=" + dewMap +
+                " core={" + DariusTravelerRegistry.PipelineCoreState() + "}" +
+                " caller=" + CompactExternalStack());
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("PIPELINE", e, "CharacterModelDisplay.Setup input checkpoint failed skin=" + __0);
+        }
+    }
+
     private static void CharacterModelDisplaySetupPostfix(object __instance, string __0)
     {
         if (__instance == null) return;
@@ -474,6 +583,15 @@ internal static class DariusRuntimeAudit
                     "@activeSelf=" + child.gameObject.activeSelf +
                     "@activeHierarchy=" + child.gameObject.activeInHierarchy);
             }
+
+            LogPipelineCheckpoint(
+                "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
+                "lobby-display-output",
+                "skin=" + __0 +
+                " display=" + DescribeUnityObject(component) +
+                " descendants=" + Math.Max(0, all.Length - 1) +
+                " worldPos=" + DariusLog.Vec(root.position) +
+                " localScale=" + DariusLog.Vec(root.localScale));
 
             DariusLog.Info("AUDIT-DISPLAY",
                 "CharacterModelDisplay.Setup skin=" + __0 +
@@ -767,6 +885,22 @@ internal static class DariusRuntimeAudit
         return count;
     }
 
+    private static string JoinNames(IEnumerable<string> values)
+    {
+        if (values == null) return "<null>";
+        try
+        {
+            List<string> names = new List<string>();
+            foreach (string value in values)
+            {
+                if (names.Count >= 32) { names.Add("..."); break; }
+                names.Add(value ?? "<null>");
+            }
+            return "[" + string.Join(",", names.ToArray()) + "]";
+        }
+        catch { return "<error>"; }
+    }
+
     private static bool Contains(string[] values, string target)
     {
         if (values == null || string.IsNullOrEmpty(target)) return false;
@@ -881,9 +1015,7 @@ public static partial class DariusTravelerRegistry
           .Append(" ownedObjects=").Append(OwnedObjects.Count)
           .Append(" contentOwner=").Append(_contentOwner != null ? RuntimeHelpers.GetHashCode(_contentOwner) : 0)
           .Append(" registeredDb=").Append(_registeredDatabase != null ? RuntimeHelpers.GetHashCode(_registeredDatabase) : 0)
-          .Append(" currentDb=").Append(DewResources.database != null ? RuntimeHelpers.GetHashCode(DewResources.database) : 0)
-          .Append(" registeredModRoot=").Append(_registeredModRoot ?? "<null>")
-          .Append(" currentModRoot=").Append(DariusModEnvironment.Root ?? "<null>");
+          .Append(" currentDb=").Append(DewResources.database != null ? RuntimeHelpers.GetHashCode(DewResources.database) : 0);
 
         object database = DewResources.database;
         if (database != null)
@@ -895,6 +1027,79 @@ public static partial class DariusTravelerRegistry
               .Append(DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackCritInstanceAssetId, AttackCritInstanceGuid));
         }
         return sb.ToString();
+    }
+
+    internal static string PipelineCoreState()
+    {
+        object database = DewResources.database;
+        DewGameContentSettings content = null;
+        try { content = DewBuildProfile.current != null ? DewBuildProfile.current.content : null; } catch { }
+
+        bool contentSerialized = content != null && content._availableHeroes != null &&
+                                 Array.IndexOf(content._availableHeroes, HeroName) >= 0;
+        bool contentRuntime = content != null && content.availableHeroes != null &&
+                              content.availableHeroes.Contains(HeroName);
+
+        bool heroType = false;
+        try { heroType = Dew.allHeroes.Contains(typeof(Hero_Darius)); } catch { }
+
+        return "registered=" + _registered +
+               " registering=" + _registering +
+               " db=" + (database != null ? RuntimeHelpers.GetHashCode(database).ToString() : "<null>") +
+               " dbMatchesRegistered=" + (_registeredDatabase != null && ReferenceEquals(database, _registeredDatabase)) +
+               " rootMatchesRegistered=" + (!string.IsNullOrEmpty(_registeredModRoot) &&
+                   string.Equals(_registeredModRoot, DariusModEnvironment.Root, StringComparison.OrdinalIgnoreCase)) +
+               " hero=" + (HeroPrefab != null ? HeroPrefab.GetInstanceID().ToString() : "<null>") +
+               " skin=" + (DefaultSkin != null ? DefaultSkin.GetInstanceID().ToString() : "<null>") +
+               " attack=" + (AttackPrefab != null ? AttackPrefab.GetInstanceID().ToString() : "<null>") +
+               " resGuid=" + ResourcesByGuid.Count +
+               " heroMap=" + DariusUnsupportedResourceBridge.IsTypedResourceIdentityMapped(database, typeof(Hero_Darius), HeroName, HeroGuid) +
+               " skinMap=" + DariusUnsupportedResourceBridge.IsNamedResourceIdentityMapped(database, DefaultSkinName, SkinGuid) +
+               " attackMap=" + DariusUnsupportedResourceBridge.IsTypedResourceIdentityMapped(database, typeof(At_DariusAxe), AttackName, AttackGuid) +
+               " netMap=" + DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, HeroAssetId, HeroGuid) + "/" +
+                              DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackAssetId, AttackGuid) + "/" +
+                              DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackInstanceAssetId, AttackInstanceGuid) + "/" +
+                              DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackCritInstanceAssetId, AttackCritInstanceGuid) +
+               " mirror=" + DariusMirrorRuntimeHealth.IsHandlerPairHealthy(HeroAssetId) + "/" +
+                             DariusMirrorRuntimeHealth.IsHandlerPairHealthy(AttackAssetId) + "/" +
+                             DariusMirrorRuntimeHealth.IsHandlerPairHealthy(AttackInstanceAssetId) + "/" +
+                             DariusMirrorRuntimeHealth.IsHandlerPairHealthy(AttackCritInstanceAssetId) +
+               " heroType=" + heroType +
+               " contentHero=" + contentSerialized + "/" + contentRuntime;
+    }
+
+    internal static string PipelineProfileState()
+    {
+        DewProfile profile = null;
+        DewProfileStats stats = null;
+        DewGameContentSettings content = null;
+        try { profile = DewSave.profileMain; } catch { }
+        try { stats = DewSave.profileStats; } catch { }
+        try { content = DewBuildProfile.current != null ? DewBuildProfile.current.content : null; } catch { }
+
+        string selectedSkin = null;
+        int loadoutPages = -1;
+        bool heroEntry = false;
+        if (profile != null)
+        {
+            heroEntry = profile.heroes != null && profile.heroes.ContainsKey(HeroName);
+            if (profile.heroSelectedSkins != null)
+                profile.heroSelectedSkins.TryGetValue(HeroName, out selectedSkin);
+            if (profile.heroLoadouts != null)
+            {
+                List<HeroLoadoutData> pages;
+                if (profile.heroLoadouts.TryGetValue(HeroName, out pages) && pages != null)
+                    loadoutPages = pages.Count;
+            }
+        }
+
+        return "profile=" + (profile != null ? RuntimeHelpers.GetHashCode(profile).ToString() : "<null>") +
+               " stats=" + (stats != null ? RuntimeHelpers.GetHashCode(stats).ToString() : "<null>") +
+               " heroEntry=" + heroEntry +
+               " selectedSkin=" + (selectedSkin ?? "<null>") +
+               " loadoutPages=" + loadoutPages +
+               " statsHero=" + (stats != null && stats.heroes != null && stats.heroes.ContainsKey(HeroName)) +
+               " contentHero=" + (content != null && content.availableHeroes != null && content.availableHeroes.Contains(HeroName));
     }
 
     internal static bool TryGetRuntimeNetworkTemplateLabel(UnityEngine.Object candidate, out string label)
