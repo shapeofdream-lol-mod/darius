@@ -30,8 +30,6 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
 
     public const float ExecutionWatchdogDelay = 1.20f;
 
-    public const float ControlAttemptWatchdogDelay = 0.20f;
-
     private bool _bufferActive;
 
     private int _bufferToken;
@@ -55,14 +53,6 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
     private float _queuedUntil;
 
     private int _readyWatchdogToken;
-
-    private int _controlAttemptToken;
-
-    private int _lastControlAttemptFrame = -1;
-
-    private int _lastControlRejectFrame = -1;
-
-    private float _lastOnCastCompleteAt = -999f;
 
     private string _lastHardResetRoomToken;
 
