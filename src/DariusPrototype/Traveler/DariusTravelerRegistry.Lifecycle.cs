@@ -14,7 +14,6 @@ public static partial class DariusTravelerRegistry
     private const int CoreRegistrationRetryLimit = 6;
     private const int ProfileRegistrationRetryLimit = 8;
 
-    private static GameObject _lifecycleBridgeObject;
     private static Transform _modOwner;
     private static int _modOwnerInstanceId;
     private static int _modOwnerGenerationId;
@@ -32,7 +31,7 @@ public static partial class DariusTravelerRegistry
             return;
         }
 
-        if (_resourceRoot != null || _lifecycleBridgeObject != null || _registered)
+        if (_resourceRoot != null || _registered)
             throw new InvalidOperationException("Traveler runtime generation must be cleaned before binding a new ModBehaviour owner.");
 
         _modOwner = owner;
@@ -551,7 +550,6 @@ public static partial class DariusTravelerRegistry
             _registeredDatabase = DewResources.database;
             _registeredModRoot = DariusModEnvironment.Root;
             _registered = true;
-            CreateLifecycleBridge();
             DariusRuntimeAudit.LogPipelineCheckpoint(
                 correlation, "core-generation-commit", "state={" + PipelineCoreState() + "}");
             DariusRuntimeAudit.LogPublicLookupCheckpoint(
@@ -609,37 +607,6 @@ public static partial class DariusTravelerRegistry
         _resourceRoot.hideFlags = HideFlags.HideAndDontSave;
         _resourceRoot.transform.SetParent(_modOwner, false);
         _resourceRoot.SetActive(false);
-    }
-
-    private static void CreateLifecycleBridge()
-    {
-        if (_lifecycleBridgeObject != null) return;
-        if (_modOwner == null)
-            throw new InvalidOperationException("DariusTravelerRegistry has no ModBehaviour owner.");
-
-        _lifecycleBridgeObject = new GameObject("DariusTraveler_Lifecycle");
-        _lifecycleBridgeObject.hideFlags = HideFlags.HideAndDontSave;
-        _lifecycleBridgeObject.transform.SetParent(_modOwner, false);
-        _lifecycleBridgeObject.AddComponent<DariusTravelerLifecycleBridge>();
-        DariusLog.Info("TRAVELER-LIFECYCLE", "Scene lifecycle bridge attached to the current ModBehaviour owner.");
-    }
-
-    private static void DestroyLifecycleBridge()
-    {
-        if (_lifecycleBridgeObject == null) return;
-
-        // Destroy is end-of-frame, but SceneManager callbacks are live until OnDisable. Disable the
-        // bridge synchronously so a superseded generation cannot observe a later scene event in the
-        // teardown frame and mutate R room state after ownership has moved on.
-        try
-        {
-            if (_lifecycleBridgeObject.activeSelf)
-                _lifecycleBridgeObject.SetActive(false);
-        }
-        catch { }
-
-        UnityEngine.Object.Destroy(_lifecycleBridgeObject);
-        _lifecycleBridgeObject = null;
     }
 
     private static void ConfigureDariusSkillOwnership()
