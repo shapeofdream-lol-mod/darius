@@ -572,7 +572,21 @@ public static partial class DariusTravelerRegistry
                 " state={" + PipelineCoreState() + "}");
             // Awake may race the final initialization of stock native templates on Workshop boot.
             // Never keep a half-created runtime graph; a clean Start/coroutine retry is safer.
-            try { UnregisterRuntimeOnly(); } catch { }
+            try
+            {
+                UnregisterRuntimeOnly();
+            }
+            catch (Exception rollbackError)
+            {
+                DariusRuntimeAudit.LogPipelineCheckpoint(
+                    correlation,
+                    "core-rollback-failed",
+                    "failedStage=" + pipelineStage +
+                    " error=" + rollbackError.GetType().Name + ":" + rollbackError.Message +
+                    " state={" + PipelineCoreState() + "}");
+                DariusLog.Exception("TRAVELER-ROLLBACK", rollbackError,
+                    "Traveler registration rollback failed after stage=" + pipelineStage);
+            }
             throw;
         }
         finally
