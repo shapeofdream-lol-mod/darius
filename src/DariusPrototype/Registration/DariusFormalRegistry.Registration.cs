@@ -10,9 +10,10 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusFormalRegistry
 {
-    private static bool IsRegistrationHealthy()
+    internal static bool IsRegistrationHealthyForBootstrap()
     {
-        if (!_registered || DewResources.database == null || RegistrationsByGuid.Count == 0) return false;
+        if (!_registered || !IsOwnedByActiveGeneration ||
+            DewResources.database == null || RegistrationsByGuid.Count == 0) return false;
 
         foreach (RuntimeRegistration record in RegistrationsByGuid.Values)
         {
@@ -39,16 +40,31 @@ public static partial class DariusFormalRegistry
 
     public static void Register()
     {
+        if (!IsOwnedByActiveGeneration)
+        {
+            DariusLog.Warn("REG", "Formal registration skipped because its bound ModBehaviour generation is no longer active.");
+            return;
+        }
+
         if (_registered)
         {
-            if (IsRegistrationHealthy()) return;
-            DariusLog.Warn("REG", "Formal registry reported registered but its runtime generation is incomplete; rebuilding one clean generation. state=" + DiagnosticState());
+            if (IsRegistrationHealthyForBootstrap()) return;
+            DariusLog.Warn("REG", "Formal registry reported registered but its runtime generation is incomplete; discarding it before a next-frame rebuild. state=" + DiagnosticState());
             Unregister();
+            return;
         }
-        else if (RegistrationsByGuid.Count > 0 || ResourcesByGuid.Count > 0 || NetworkPrefabs.Count > 0 || OwnedPrefabs.Count > 0)
+        if (RegistrationsByGuid.Count > 0 || ResourcesByGuid.Count > 0 || NetworkPrefabs.Count > 0 || OwnedPrefabs.Count > 0)
         {
-            DariusLog.Warn("REG", "Discarding partial Formal registry state before a clean registration attempt. state=" + DiagnosticState());
+            DariusLog.Warn("REG", "Discarding partial Formal registry state before a next-frame registration attempt. state=" + DiagnosticState());
             Unregister();
+            return;
+        }
+
+        if (DariusPrototypeMod.IsBootstrapBlockedThisFrame)
+        {
+            DariusLog.DebugInfoThrottled("REG-LIFECYCLE", "frame-barrier",
+                "Formal registration deferred until the frame after runtime teardown.", 0.5);
+            return;
         }
 
         if (DewResources.database == null)
