@@ -92,8 +92,11 @@ public sealed class At_DariusAxe : AttackTrigger
         if (configured != null)
         {
             try { AbilityInstance native = base.OnCastComplete(resolvedConfig, info); if (native != null) return native; }
-            catch (Exception e) { DariusLog.Exception("ATK-COMPLETE", e, "Native basic-attack instance path failed; using registered runtime prefab"); }
+            catch (Exception e) { DariusLog.Exception("ATK-COMPLETE", e, "Native basic-attack instance path failed; using registered runtime prefab. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, resolvedConfig) + "}"); }
         }
+        DariusLog.Warn("ATK-COMPLETE", "Native basic-attack completion returned no instance; entering direct runtime fallback. state={" +
+            DariusRuntimeAudit.DescribeAbilityState(this, resolvedConfig) + "}");
         return SpawnDirectRuntimeAttack(hero, resolvedConfig, info);
     }
 
