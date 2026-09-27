@@ -22,6 +22,7 @@ public static partial class DariusTravelerRegistry
 
     public static void UnregisterRuntimeOnly()
     {
+        DariusLog.Info("TRAVELER-TEARDOWN", "UnregisterRuntimeOnly begin state=" + DiagnosticState());
         _registered = false;
         _registering = false;
         // Spawn-handler ownership is tracked separately from prefab lookup. Never unregister a
@@ -99,7 +100,7 @@ public static partial class DariusTravelerRegistry
         AttackCritInstancePrefab = null;
         if (_resourceRoot != null) UnityEngine.Object.Destroy(_resourceRoot);
         _resourceRoot = null;
-        DariusLog.Info("TRAVELER", "Runtime Hero_Darius resources unregistered; persistent profile data left untouched.");
+        DariusLog.Info("TRAVELER", "Runtime Hero_Darius resources unregistered; persistent profile data left untouched. state=" + DiagnosticState());
     }
 
     public static void ShutdownRuntimeResources()
