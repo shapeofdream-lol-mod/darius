@@ -15,10 +15,12 @@ using UnityEngine.SceneManagement;
 internal static class DariusRuntimeAudit
 {
     private static bool _hooksInstalled;
+    private static readonly HashSet<int> DariusDisplayIds = new HashSet<int>();
 
     internal static void ResetHooks()
     {
         _hooksInstalled = false;
+        DariusDisplayIds.Clear();
     }
 
     internal static void InstallHooks(Harmony harmony)
@@ -36,6 +38,20 @@ internal static class DariusRuntimeAudit
                 : null;
             patched += PatchOptional(harmony, displaySetup, null, nameof(CharacterModelDisplaySetupPostfix),
                 "CharacterModelDisplay.Setup");
+
+            if (displayType != null)
+            {
+                string[] lifecycleNames = { "OnEnable", "OnDisable", "OnDestroy" };
+                for (int i = 0; i < lifecycleNames.Length; i++)
+                {
+                    string lifecycleName = lifecycleNames[i];
+                    MethodInfo lifecycle = Array.Find(
+                        displayType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic),
+                        m => m.Name == lifecycleName && m.GetParameters().Length == 0);
+                    patched += PatchOptional(harmony, lifecycle, nameof(CharacterModelDisplayLifecyclePrefix), null,
+                        "CharacterModelDisplay." + lifecycleName);
+                }
+            }
 
             MethodInfo[] spawnMethods = typeof(NetworkServer).GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             for (int i = 0; i < spawnMethods.Length; i++)
@@ -438,18 +454,31 @@ internal static class DariusRuntimeAudit
 
     private static void CharacterModelDisplaySetupPostfix(object __instance, string __0)
     {
-        if (__instance == null ||
-            !string.Equals(__0, DariusTravelerRegistry.DefaultSkinName, StringComparison.Ordinal))
-            return;
+        if (__instance == null) return;
 
         try
         {
             Component component = __instance as Component;
             if (component == null)
             {
-                DariusLog.Warn("AUDIT-DISPLAY", "Darius CharacterModelDisplay.Setup instance is not a Component.");
+                DariusLog.Warn("AUDIT-DISPLAY", "CharacterModelDisplay.Setup instance is not a Component. skin=" + (__0 ?? "<null>"));
                 return;
             }
+
+            int displayId = component.GetInstanceID();
+            bool isDarius = string.Equals(__0, DariusTravelerRegistry.DefaultSkinName, StringComparison.Ordinal);
+            bool wasDarius = DariusDisplayIds.Contains(displayId);
+            if (!isDarius)
+            {
+                if (wasDarius)
+                {
+                    DariusLog.Info("AUDIT-DISPLAY", "CharacterModelDisplay reused away from Darius display=" +
+                        DescribeUnityObject(component) + " newSkin=" + (__0 ?? "<null>"));
+                    DariusDisplayIds.Remove(displayId);
+                }
+                return;
+            }
+            DariusDisplayIds.Add(displayId);
 
             Transform root = component.transform;
             Transform[] all = root.GetComponentsInChildren<Transform>(true);
@@ -480,6 +509,22 @@ internal static class DariusRuntimeAudit
         {
             DariusLog.Exception("AUDIT-DISPLAY", e, "Failed inspecting Darius CharacterModelDisplay.Setup");
         }
+    }
+
+    private static void CharacterModelDisplayLifecyclePrefix(object __instance, MethodBase __originalMethod)
+    {
+        Component component = __instance as Component;
+        if (component == null) return;
+        int id;
+        try { id = component.GetInstanceID(); } catch { return; }
+        if (!DariusDisplayIds.Contains(id)) return;
+
+        string boundary = __originalMethod != null ? __originalMethod.Name : "lifecycle";
+        DariusLog.Info("AUDIT-DISPLAY", "Darius CharacterModelDisplay " + boundary +
+            " display=" + DescribeUnityObject(component) +
+            " stack=" + Environment.StackTrace);
+        if (string.Equals(boundary, "OnDestroy", StringComparison.Ordinal))
+            DariusDisplayIds.Remove(id);
     }
 
     private static void NetworkServerSpawnTemplatePrefix(GameObject __0)
