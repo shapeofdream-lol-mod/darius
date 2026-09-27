@@ -969,7 +969,7 @@ internal static class DariusRuntimeAudit
                 bool serverByRef = false;
                 try
                 {
-                    NetworkIdentity found;
+                    NetworkIdentity found = null;
                     serverByNetId = netId != 0 && NetworkServer.spawned.TryGetValue(netId, out found);
                     if (serverByNetId) serverByRef = ReferenceEquals(found, identity);
                 }
