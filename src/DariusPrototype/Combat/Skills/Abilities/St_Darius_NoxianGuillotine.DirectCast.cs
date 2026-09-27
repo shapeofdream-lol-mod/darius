@@ -7,64 +7,6 @@ using UnityEngine;
 
 public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
 {
-    private bool TryCastDirectResolved(string source, CastInfo inputInfo, Hero caster, Entity target)
-    {
-        if (caster == null || target == null) return false;
-        int configIndex = 0;
-        try
-        {
-            int max = configs != null ? configs.Length - 1 : 0;
-            configIndex = Mathf.Clamp(currentConfigIndex, 0, Mathf.Max(0, max));
-        }
-        catch { configIndex = 0; }
-
-        if (_executionActive)
-        {
-            _queuedDuringExecution = true;
-            _queuedConfigIndex = configIndex;
-            _queuedInfo = new CastInfo(caster, target);
-            _queuedUntil = Time.unscaledTime + QueuedIntentWindow;
-            DariusLog.DebugInfoThrottled("R-DIRECT", "queue:" + source,
-                "Direct R input arrived during Guillotine execution and was queued for the next ready state. source=" + source, 0.10);
-            return true;
-        }
-
-        int charge = GetCurrentChargeSafe();
-        float recharge = CurrentRechargeTimeSafe();
-        if (charge <= 0)
-        {
-            DariusLog.DebugInfoThrottled("R-DIRECT", "cooldown:" + source,
-                "Direct R input correctly rejected because no Guillotine charge is ready. recharge=" + recharge.ToString("0.###") +
-                " source=" + source, 0.20);
-            return false;
-        }
-
-        if (!SafeCanBeCast() && recharge <= 0.001f)
-        {
-            try
-            {
-                SetMinimumDelayAll(0f);
-                if (currentMinimumDelays != null)
-                    for (int i = 0; i < currentMinimumDelays.Length; i++) currentMinimumDelays[i] = 0f;
-            }
-            catch { }
-            DariusLog.Warn("R-DIRECT", "Guillotine had a ready charge but CanBeCast=false; cleared stale minimum-delay gate before direct execution. source=" + source);
-        }
-
-        _lastOnCastCompleteAt = Time.unscaledTime;
-        _controlAttemptToken++;
-        CancelBufferedCast("direct ControlManager interception");
-        int beforeToken = _executionToken;
-        AbilityInstance instance = CompleteResolvedCast(configIndex, inputInfo, caster, target, "direct-control:" + source);
-        bool started = instance != null || _executionActive || _executionToken != beforeToken;
-        DariusLog.Info("R-DIRECT", "ControlManager R interception source=" + source +
-            " target=" + DariusLog.EntityLabel(target) + " started=" + started +
-            " charge=" + charge + "->" + GetCurrentChargeSafe() +
-            " recharge=" + CurrentRechargeTimeSafe().ToString("0.###") +
-            " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
-        return started;
-    }
-
     // User-requested absolute safety net: entering a new gameplay room invalidates every
     // transient Guillotine state (input buffer, execute latch, watchdogs, native charge timers).
     // Skill level/upgrades and constellation progression are deliberately untouched.
@@ -81,10 +23,6 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
         _queuedDuringExecution = false;
         _queuedUntil = 0f;
         _readyWatchdogToken++;
-        _controlAttemptToken++;
-        _lastControlAttemptFrame = -1;
-        _lastControlRejectFrame = -1;
-        _lastOnCastCompleteAt = -999f;
         try { DariusTriggerConfigRuntimeEditor.AttachAll(this); } catch { }
         bool awooActive = caster != null && DariusEquipmentRuntime.Get(caster, false) != null &&
             DariusEquipmentRuntime.Get(caster, false).GetLevel(DariusEquipmentStarIds.Awoo) > 0;
@@ -162,21 +100,5 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
             DariusLog.Exception("R-ROOM-RESET", e, "Failed locating live Guillotine trigger(s) for room reset");
         }
         return count;
-    }
-
-    // Called at the ControlManager layer before the native cast helper runs. If one charge exists
-    // but CanBeCast() is false, the trigger is in a stale state and can be repaired before the same
-    // button press continues through the stock input path.
-    public void NotifyControlCastAttempt(string source)
-    {
-        if (!NetworkServer.active) return;
-        if (Time.frameCount == _lastControlAttemptFrame) return;
-        _lastControlAttemptFrame = Time.frameCount;
-
-        Hero caster = owner as Hero;
-        if (caster == null || caster.IsNullOrInactive()) return;
-        int token = ++_controlAttemptToken;
-        float attemptAt = Time.unscaledTime;
-        StartCoroutine(ControlAttemptWatchdog(token, attemptAt, source));
     }
 }
