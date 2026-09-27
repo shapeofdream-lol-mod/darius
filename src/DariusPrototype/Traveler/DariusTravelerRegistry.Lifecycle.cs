@@ -459,6 +459,17 @@ public static partial class DariusTravelerRegistry
     private static void DestroyLifecycleBridge()
     {
         if (_lifecycleBridgeObject == null) return;
+
+        // Destroy is end-of-frame, but SceneManager callbacks are live until OnDisable. Disable the
+        // bridge synchronously so a superseded generation cannot observe a later scene event in the
+        // teardown frame and mutate R room state after ownership has moved on.
+        try
+        {
+            if (_lifecycleBridgeObject.activeSelf)
+                _lifecycleBridgeObject.SetActive(false);
+        }
+        catch { }
+
         UnityEngine.Object.Destroy(_lifecycleBridgeObject);
         _lifecycleBridgeObject = null;
     }
