@@ -69,7 +69,7 @@ public static partial class DariusPrototypeIcons
         _cacheRoot = null;
     }
 
-    private static void EnsureRootOwnership()
+    internal static void RefreshRootOwnership()
     {
         string currentRoot = DariusModEnvironment.Root;
 
@@ -86,7 +86,8 @@ public static partial class DariusPrototypeIcons
 
     public static Sprite Get(string key)
     {
-        EnsureRootOwnership();
+        if (string.IsNullOrEmpty(_cacheRoot))
+            RefreshRootOwnership();
         Sprite sprite;
         if (Cache.TryGetValue(key, out sprite) && sprite != null) return sprite;
 
