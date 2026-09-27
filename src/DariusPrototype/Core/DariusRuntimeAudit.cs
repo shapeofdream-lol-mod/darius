@@ -61,6 +61,12 @@ internal static class DariusRuntimeAudit
             patched += PatchOptional(harmony, shutdown, nameof(NetworkServerShutdownPrefix), null,
                 "NetworkServer.Shutdown");
 
+            MethodInfo clientShutdown = Array.Find(
+                typeof(NetworkClient).GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic),
+                m => m.Name == "Shutdown" && m.GetParameters().Length == 0);
+            patched += PatchOptional(harmony, clientShutdown, nameof(NetworkClientShutdownPrefix), nameof(NetworkClientShutdownPostfix),
+                "NetworkClient.Shutdown");
+
             MethodInfo[] destroyMethods = typeof(NetworkServer).GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             for (int i = 0; i < destroyMethods.Length; i++)
             {
@@ -881,7 +887,18 @@ internal static class DariusRuntimeAudit
 
     private static void NetworkServerShutdownPrefix()
     {
+        LogMirrorTemplateMembership("NetworkServer.Shutdown prefix");
         LogSnapshot("NetworkServer.Shutdown prefix", true);
+    }
+
+    private static void NetworkClientShutdownPrefix()
+    {
+        LogMirrorTemplateMembership("NetworkClient.Shutdown prefix");
+    }
+
+    private static void NetworkClientShutdownPostfix()
+    {
+        LogMirrorTemplateMembership("NetworkClient.Shutdown postfix");
     }
 
     private static void NetworkServerDestroyTemplatePrefix(GameObject __0)
@@ -897,6 +914,99 @@ internal static class DariusRuntimeAudit
     private static void NetworkIdentityOnDestroyTemplatePrefix(NetworkIdentity __instance)
     {
         LogTemplateDestroy(__instance, "NetworkIdentity.OnDestroy");
+    }
+
+    private static readonly FieldInfo ClientSpawnedField =
+        typeof(NetworkClient).GetField("spawned", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+
+    private static void LogMirrorTemplateMembership(string boundary)
+    {
+        try
+        {
+            UnityEngine.Object[] templates =
+            {
+                DariusTravelerRegistry.HeroPrefab,
+                DariusTravelerRegistry.AttackPrefab,
+                DariusTravelerRegistry.AttackInstancePrefab,
+                DariusTravelerRegistry.AttackCritInstancePrefab
+            };
+            string[] labels =
+            {
+                DariusTravelerRegistry.HeroName,
+                DariusTravelerRegistry.AttackName,
+                DariusTravelerRegistry.AttackInstanceName,
+                DariusTravelerRegistry.AttackCritInstanceName
+            };
+
+            IDictionary clientSpawned = null;
+            try { clientSpawned = ClientSpawnedField != null ? ClientSpawnedField.GetValue(null) as IDictionary : null; } catch { }
+
+            List<string> entries = new List<string>();
+            for (int i = 0; i < templates.Length; i++)
+            {
+                UnityEngine.Object obj = templates[i];
+                Component component = obj as Component;
+                NetworkIdentity identity = null;
+                try { if (!ReferenceEquals(component, null)) identity = component.GetComponent<NetworkIdentity>(); } catch { }
+
+                uint netId = 0;
+                bool isServer = false;
+                bool isClient = false;
+                uint assetId = 0;
+                try
+                {
+                    if (!ReferenceEquals(identity, null))
+                    {
+                        netId = identity.netId;
+                        isServer = identity.isServer;
+                        isClient = identity.isClient;
+                        assetId = identity.assetId;
+                    }
+                }
+                catch { }
+
+                bool serverByNetId = false;
+                bool serverByRef = false;
+                try
+                {
+                    NetworkIdentity found;
+                    serverByNetId = netId != 0 && NetworkServer.spawned.TryGetValue(netId, out found);
+                    if (serverByNetId) serverByRef = ReferenceEquals(found, identity);
+                }
+                catch { }
+
+                bool clientByNetId = false;
+                bool clientByRef = false;
+                try
+                {
+                    if (clientSpawned != null && netId != 0 && clientSpawned.Contains(netId))
+                    {
+                        clientByNetId = true;
+                        clientByRef = ReferenceEquals(clientSpawned[netId], identity);
+                    }
+                }
+                catch { }
+
+                entries.Add(labels[i] +
+                    "{obj=" + DescribeUnityObject(obj) +
+                    ",assetId=" + assetId +
+                    ",netId=" + netId +
+                    ",serverSpawned=" + serverByNetId + "/" + serverByRef +
+                    ",clientSpawned=" + clientByNetId + "/" + clientByRef +
+                    ",isServer=" + isServer +
+                    ",isClient=" + isClient + "}");
+            }
+
+            DariusLog.Info("AUDIT-MIRROR",
+                "boundary=" + boundary +
+                " serverSpawnedCount=" + NetworkServer.spawned.Count +
+                " clientSpawnedCount=" + (clientSpawned != null ? clientSpawned.Count : -1) +
+                " templates=[" + string.Join(" | ", entries.ToArray()) + "]");
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("AUDIT-MIRROR", e, "Mirror template membership inspection failed boundary=" + boundary);
+        }
     }
 
     private static void LogTemplateDestroy(UnityEngine.Object candidate, string boundary)
@@ -1420,10 +1530,10 @@ public static partial class DariusTravelerRegistry
 
         try
         {
-            if (HeroPrefab != null && ReferenceEquals(go, HeroPrefab.gameObject)) { label = HeroName; return true; }
-            if (AttackPrefab != null && ReferenceEquals(go, AttackPrefab.gameObject)) { label = AttackName; return true; }
-            if (AttackInstancePrefab != null && ReferenceEquals(go, AttackInstancePrefab.gameObject)) { label = AttackInstanceName; return true; }
-            if (AttackCritInstancePrefab != null && ReferenceEquals(go, AttackCritInstancePrefab.gameObject)) { label = AttackCritInstanceName; return true; }
+            if (!ReferenceEquals(HeroPrefab, null) && ReferenceEquals(go, HeroPrefab.gameObject)) { label = HeroName; return true; }
+            if (!ReferenceEquals(AttackPrefab, null) && ReferenceEquals(go, AttackPrefab.gameObject)) { label = AttackName; return true; }
+            if (!ReferenceEquals(AttackInstancePrefab, null) && ReferenceEquals(go, AttackInstancePrefab.gameObject)) { label = AttackInstanceName; return true; }
+            if (!ReferenceEquals(AttackCritInstancePrefab, null) && ReferenceEquals(go, AttackCritInstancePrefab.gameObject)) { label = AttackCritInstanceName; return true; }
         }
         catch { }
         return false;
