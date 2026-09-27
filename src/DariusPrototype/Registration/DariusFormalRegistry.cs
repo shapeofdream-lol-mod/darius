@@ -44,6 +44,7 @@ public static partial class DariusFormalRegistry
     private static GameObject _runtimeActorRoot;
     private static Transform _modOwner;
     private static int _modOwnerInstanceId;
+    private static int _modOwnerGenerationId;
 
     private static bool _registered;
 
@@ -105,11 +106,13 @@ public static partial class DariusFormalRegistry
 
     private const string GuidAiR = DariusResourceIds.AbilityR;
 
-    public static void BindOwner(Transform owner)
+    public static void BindOwner(Transform owner, int generationId)
     {
         if (owner == null) throw new ArgumentNullException(nameof(owner));
+        if (generationId <= 0) throw new ArgumentOutOfRangeException(nameof(generationId));
+
         int ownerId = owner.gameObject.GetInstanceID();
-        if (_modOwnerInstanceId == ownerId)
+        if (_modOwnerInstanceId == ownerId && _modOwnerGenerationId == generationId)
         {
             _modOwner = owner;
             return;
@@ -120,7 +123,20 @@ public static partial class DariusFormalRegistry
 
         _modOwner = owner;
         _modOwnerInstanceId = ownerId;
-        DariusLog.Info("REG-LIFECYCLE", "Bound Formal runtime resource ownership to ModBehaviour owner=" + ownerId + ".");
+        _modOwnerGenerationId = generationId;
+        DariusLog.Info("REG-LIFECYCLE", "Bound Formal runtime resource ownership generation=" + generationId +
+            " owner=" + ownerId + ".");
+    }
+
+    internal static bool IsOwnedByActiveGeneration
+    {
+        get
+        {
+            return _modOwner != null &&
+                   _modOwnerGenerationId > 0 &&
+                   _modOwnerInstanceId != 0 &&
+                   DariusPrototypeMod.IsActiveGeneration(_modOwnerGenerationId, _modOwnerInstanceId);
+        }
     }
 
     public static void ShutdownRuntimeResources()
@@ -128,20 +144,27 @@ public static partial class DariusFormalRegistry
         Unregister();
         _modOwner = null;
         _modOwnerInstanceId = 0;
+        _modOwnerGenerationId = 0;
     }
 
     public static IEnumerator InitializeAndDropWhenReady()
     {
-        DariusLog.Info("REG", "InitializeAndDropWhenReady started; waiting for DewResources.database.");
+        // Legacy diagnostic entry point. Runtime bootstrap authority belongs to
+        // DariusTravelerRegistry.InitializeWhenReady(generation, owner); never let this routine
+        // create resources for a stale or unbound ModBehaviour generation.
+        DariusLog.Info("REG", "InitializeAndDropWhenReady started; waiting for active Formal owner and DewResources.database.");
         while (DewResources.database == null)
+        {
+            if (!IsOwnedByActiveGeneration) yield break;
             yield return null;
+        }
+        if (!IsOwnedByActiveGeneration) yield break;
 
-        DariusLog.Info("REG", "DewResources.database ready; registering formal resources.");
+        DariusLog.Info("REG", "DewResources.database ready; registering formal resources for active owner.");
         Register();
+        if (!IsRegistrationHealthyForBootstrap()) yield break;
 
-        // Primary test path from v0.9.6 onward: native Deja Vu start selection.
         DariusDejaVuRegistry.RegisterAll();
         DariusLog.Info("DEJAVU", "Darius memory resources registered in the native Deja Vu/content pipeline.");
-        yield break;
     }
 }
