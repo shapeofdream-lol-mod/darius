@@ -104,7 +104,13 @@ public sealed partial class DariusHemorrhageRuntime : MonoBehaviour
         DariusLog.Info("HEM", "Runtime OnDestroy owner=" + DariusLog.EntityLabel(_owner));
         UnsubscribeAttack();
         foreach (KeyValuePair<Entity, BleedState> pair in _states)
-            DestroyHemorrhageStatus(pair.Value);
+        {
+            BleedState state = pair.Value;
+            if (state == null) continue;
+            DestroyHemorrhageStatus(state);
+            if (state.stackVfx != null) try { UnityEngine.Object.Destroy(state.stackVfx); } catch { }
+            if (state.fiveStackVfx != null) try { UnityEngine.Object.Destroy(state.fiveStackVfx); } catch { }
+        }
         _states.Clear();
         RemoveNoxianMight();
     }
