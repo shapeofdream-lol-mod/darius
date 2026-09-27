@@ -1215,7 +1215,19 @@ public static partial class DariusTravelerRegistry
                               content.availableHeroes.Contains(HeroName);
 
         bool heroType = false;
-        try { heroType = Dew.allHeroes.Contains(typeof(Hero_Darius)); } catch { }
+        try
+        {
+            IReadOnlyList<Type> heroTypes = Dew.allHeroes;
+            for (int i = 0; i < heroTypes.Count; i++)
+            {
+                if (heroTypes[i] == typeof(Hero_Darius))
+                {
+                    heroType = true;
+                    break;
+                }
+            }
+        }
+        catch { }
 
         return "registered=" + _registered +
                " registering=" + _registering +
