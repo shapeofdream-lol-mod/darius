@@ -538,7 +538,7 @@ internal static class DariusRuntimeAudit
             int loggedObjects = 0;
             List<string> typeSummary = new List<string>();
 
-            for (int ti = 0; ti < candidates.Length && loggedObjects < 24; ti++)
+            for (int ti = 0; ti < candidates.Length && loggedObjects < 16; ti++)
             {
                 Type type = candidates[ti];
                 UnityEngine.Object[] objects = null;
@@ -547,7 +547,7 @@ internal static class DariusRuntimeAudit
                 if (count == 0) continue;
 
                 typeSummary.Add(type.FullName + "=" + count);
-                for (int oi = 0; oi < count && loggedObjects < 24; oi++)
+                for (int oi = 0; oi < count && loggedObjects < 16; oi++)
                 {
                     UnityEngine.Object obj = objects[oi];
                     Component component = obj as Component;
@@ -596,8 +596,13 @@ internal static class DariusRuntimeAudit
         if (_lobbyConsumerTypes != null) return _lobbyConsumerTypes;
 
         List<Type> result = new List<Type>();
-        Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
-        for (int ai = 0; ai < assemblies.Length; ai++)
+        List<Assembly> assemblies = new List<Assembly>();
+        AddAssemblyOnce(assemblies, typeof(DewPlayer).Assembly);
+        AddAssemblyOnce(assemblies, typeof(DewGameContentSettings).Assembly);
+        Type displayType = AccessTools.TypeByName("CharacterModelDisplay");
+        if (displayType != null) AddAssemblyOnce(assemblies, displayType.Assembly);
+
+        for (int ai = 0; ai < assemblies.Count; ai++)
         {
             Type[] types = null;
             try { types = assemblies[ai].GetTypes(); }
@@ -605,7 +610,7 @@ internal static class DariusRuntimeAudit
             catch { }
             if (types == null) continue;
 
-            for (int ti = 0; ti < types.Length && result.Count < 64; ti++)
+            for (int ti = 0; ti < types.Length && result.Count < 32; ti++)
             {
                 Type type = types[ti];
                 if (type == null || !typeof(Component).IsAssignableFrom(type)) continue;
@@ -625,6 +630,14 @@ internal static class DariusRuntimeAudit
             "Discovered read-only Lobby consumer types count=" + _lobbyConsumerTypes.Length +
             " types=[" + string.Join(";", Array.ConvertAll(_lobbyConsumerTypes, t => t.FullName ?? t.Name)) + "]");
         return _lobbyConsumerTypes;
+    }
+
+    private static void AddAssemblyOnce(List<Assembly> assemblies, Assembly assembly)
+    {
+        if (assembly == null) return;
+        for (int i = 0; i < assemblies.Count; i++)
+            if (ReferenceEquals(assemblies[i], assembly)) return;
+        assemblies.Add(assembly);
     }
 
     private static bool HasInterestingHeroField(Type type)
