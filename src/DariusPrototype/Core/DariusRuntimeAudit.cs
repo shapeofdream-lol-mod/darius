@@ -95,7 +95,10 @@ internal static class DariusRuntimeAudit
                         continue;
 
                     if (string.Equals(method.Name, "LogicUpdate", StringComparison.Ordinal))
+                    {
                         DumpMethodReferences(method, "Title_LastGameCharacters.LogicUpdate");
+                        DariusLog.Info("TITLE-SOURCE", DescribeTitleCharacterSourceState());
+                    }
 
                     patched += PatchOptional(
                         harmony,
@@ -236,6 +239,95 @@ internal static class DariusRuntimeAudit
             " result=" + DescribeUnityObject(result) +
             " caller=" + caller,
             0.75);
+    }
+
+    private static string DescribeTitleCharacterSourceState()
+    {
+        try
+        {
+            object profile = DewSave.profileMain;
+            if (profile == null) return "profileMain=<null>";
+
+            Type profileType = profile.GetType();
+            FieldInfo lastResultsField = profileType.GetField(
+                "lastGameResults",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            IList results = lastResultsField != null ? lastResultsField.GetValue(profile) as IList : null;
+
+            List<string> recentResults = new List<string>();
+            if (results != null)
+            {
+                int start = Math.Max(0, results.Count - 3);
+                for (int ri = start; ri < results.Count; ri++)
+                {
+                    object result = results[ri];
+                    IList players = null;
+                    if (result != null)
+                    {
+                        FieldInfo playersField = result.GetType().GetField(
+                            "players",
+                            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                        if (playersField != null) players = playersField.GetValue(result) as IList;
+                    }
+
+                    List<string> heroes = new List<string>();
+                    if (players != null)
+                    {
+                        for (int pi = 0; pi < players.Count && pi < 8; pi++)
+                        {
+                            object player = players[pi];
+                            string heroType = "<null>";
+                            if (player != null)
+                            {
+                                FieldInfo heroField = player.GetType().GetField(
+                                    "heroType",
+                                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                                object value = heroField != null ? heroField.GetValue(player) : null;
+                                heroType = value != null ? value.ToString() : "<null>";
+                            }
+                            heroes.Add(heroType);
+                        }
+                    }
+                    recentResults.Add("#" + ri + "=[" + string.Join(",", heroes.ToArray()) + "]");
+                }
+            }
+
+            string preferredHero = "<unknown>";
+            try
+            {
+                MethodInfo preferredMethod = profileType.GetMethod(
+                    "GetPreferredGameSettings",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    Type.EmptyTypes,
+                    null);
+                object preferred = preferredMethod != null ? preferredMethod.Invoke(profile, null) : null;
+                if (preferred == null)
+                {
+                    preferredHero = "<null>";
+                }
+                else
+                {
+                    FieldInfo heroField = preferred.GetType().GetField(
+                        "hero",
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    object value = heroField != null ? heroField.GetValue(preferred) : null;
+                    preferredHero = value != null ? value.ToString() : "<null>";
+                }
+            }
+            catch (Exception e)
+            {
+                preferredHero = "<error:" + e.GetType().Name + ">";
+            }
+
+            return "lastGameResultsCount=" + (results != null ? results.Count : -1) +
+                   " recent=[" + string.Join(" | ", recentResults.ToArray()) + "]" +
+                   " preferredHero=" + preferredHero;
+        }
+        catch (Exception e)
+        {
+            return "source-inspection-failed=" + e.GetType().Name + ":" + e.Message;
+        }
     }
 
     private static Dictionary<short, OpCode> BuildIlOpcodeTable()
@@ -1230,6 +1322,7 @@ internal static class DariusRuntimeAudit
             if (changes.Count == 0) return;
 
             _titleOriginMutationCaptured = true;
+            DariusLog.Info("TITLE-SOURCE", DescribeTitleCharacterSourceState());
             DariusLog.Warn("TITLE-ORIGIN",
                 "method=" + (__originalMethod != null ? __originalMethod.Name : "<unknown>") +
                 " title=" + DescribeUnityObject(title) +
