@@ -75,15 +75,18 @@ public sealed class St_Darius_Decimate : SkillTrigger
             if (result != null)
             {
                 DariusLog.Info("Q-TRIGGER", "Native AbilityInstance spawned=" + result.name +
-                    " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(info.caster));
+                    " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(info.caster) +
+                    " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
                 StartCoroutine(LogRecoveryState());
                 return result;
             }
-            DariusLog.Warn("Q-TRIGGER", "Native completion returned no AbilityInstance; using compatibility fallback execution.");
+            DariusLog.Warn("Q-TRIGGER", "Native completion returned no AbilityInstance; using compatibility fallback execution. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         }
         catch (Exception e)
         {
-            DariusLog.Exception("Q-TRIGGER", e, "Native AbilityInstance pipeline failed; using one-shot compatibility fallback");
+            DariusLog.Exception("Q-TRIGGER", e, "Native AbilityInstance pipeline failed; using one-shot compatibility fallback. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         }
 
         // Compatibility safety net only. Normal gameplay must use the stock Trigger -> Instance ->
