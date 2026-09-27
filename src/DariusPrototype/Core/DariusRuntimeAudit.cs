@@ -145,8 +145,12 @@ internal static class DariusRuntimeAudit
 
     internal static void LogRuntimeConsumerLookup(string key, UnityEngine.Object result)
     {
-        if (_suppressConsumerLookupTrace) return;
-        if (string.IsNullOrEmpty(key) || !DariusTravelerRegistry.IsRuntimeKey(key)) return;
+        if (_suppressConsumerLookupTrace || string.IsNullOrEmpty(key)) return;
+        bool selectionKey =
+            string.Equals(key, DariusTravelerRegistry.HeroName, StringComparison.Ordinal) ||
+            string.Equals(key, DariusTravelerRegistry.HeroGuid, StringComparison.Ordinal) ||
+            DariusTravelerRegistry.IsRuntimeSkinKey(key);
+        if (!selectionKey) return;
 
         string sceneName = string.Empty;
         try { sceneName = SceneManager.GetActiveScene().name ?? string.Empty; } catch { }
@@ -668,10 +672,72 @@ internal static class DariusRuntimeAudit
             {
                 FieldInfo field = fields[i];
                 if (field == null || !InterestingName(field.Name)) continue;
-                try { values.Add(type.Name + "." + field.Name + "=" + SummarizeValue(field.GetValue(target))); } catch { }
+                try { values.Add(type.Name + "." + field.Name + "=" + SummarizeFieldValue(field.GetValue(target))); } catch { }
             }
         }
         return string.Join(",", values.ToArray());
+    }
+
+    private static string SummarizeFieldValue(object value)
+    {
+        if (value == null) return "<null>";
+
+        string text = value as string;
+        if (text != null) return text;
+
+        Type valueType = value as Type;
+        if (valueType != null) return valueType.Name;
+
+        UnityEngine.Object unity = value as UnityEngine.Object;
+        if (!ReferenceEquals(unity, null)) return DescribeUnityObject(unity);
+
+        IDictionary dictionary = value as IDictionary;
+        if (dictionary != null)
+        {
+            bool hasDarius = false;
+            try { hasDarius = dictionary.Contains(DariusTravelerRegistry.HeroName); } catch { }
+            return "Dictionary(count=" + dictionary.Count + ",hasHero_Darius=" + hasDarius + ")";
+        }
+
+        IList list = value as IList;
+        if (list != null)
+        {
+            List<string> sample = new List<string>();
+            int limit = Math.Min(list.Count, 16);
+            for (int i = 0; i < limit; i++)
+            {
+                object item = null;
+                try { item = list[i]; } catch { }
+                if (item == null) { sample.Add("<null>"); continue; }
+
+                string itemText = item as string;
+                if (itemText != null) { sample.Add(itemText); continue; }
+
+                Type itemType = item as Type;
+                if (itemType != null) { sample.Add(itemType.Name); continue; }
+
+                UnityEngine.Object itemObject = item as UnityEngine.Object;
+                if (!ReferenceEquals(itemObject, null))
+                {
+                    sample.Add(SafeName(itemObject));
+                    continue;
+                }
+
+                sample.Add(item.GetType().Name);
+            }
+            if (list.Count > limit) sample.Add("...");
+            return value.GetType().Name + "(count=" + list.Count + ",sample=[" +
+                   string.Join(",", sample.ToArray()) + "])";
+        }
+
+        ICollection collection = value as ICollection;
+        if (collection != null) return value.GetType().Name + "(count=" + collection.Count + ")";
+
+        Type type = value.GetType();
+        if (type.IsPrimitive || type.IsEnum || value is decimal)
+            return Convert.ToString(value);
+
+        return type.Name;
     }
 
     private static void LogCensus<T>(string label, Predicate<T> predicate, int limit, string reason)
@@ -802,22 +868,6 @@ internal static class DariusRuntimeAudit
         {
             DariusLog.Exception("AUDIT-DISPLAY", e, "Failed inspecting Darius CharacterModelDisplay.Setup");
         }
-    }
-
-    private static void CharacterModelDisplayLifecyclePrefix(object __instance, MethodBase __originalMethod)
-    {
-        Component component = __instance as Component;
-        if (component == null) return;
-        int id;
-        try { id = component.GetInstanceID(); } catch { return; }
-        if (!DariusDisplayIds.Contains(id)) return;
-
-        string boundary = __originalMethod != null ? __originalMethod.Name : "lifecycle";
-        DariusLog.Info("AUDIT-DISPLAY", "Darius CharacterModelDisplay " + boundary +
-            " display=" + DescribeUnityObject(component) +
-            " stack=" + Environment.StackTrace);
-        if (string.Equals(boundary, "OnDestroy", StringComparison.Ordinal))
-            DariusDisplayIds.Remove(id);
     }
 
     private static void NetworkServerSpawnTemplatePrefix(GameObject __0)
