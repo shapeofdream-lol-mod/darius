@@ -42,15 +42,24 @@ internal static partial class DariusNativeModelAssets
     private static bool EnsureBundle()
     {
         if (_bundle != null) return true;
-        if (_loadAttempted) return false;
-        _loadAttempted = true;
 
-        string path = string.IsNullOrEmpty(DariusMedia.Root)
-            ? null
-            : Path.Combine(DariusMedia.Root, "assets", "models", BundleFileName);
-        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+        // Loader readiness is not a load failure. Workshop ModItem.path can appear after Awake, so
+        // never poison this process-lifetime cache merely because the mod root is temporarily null.
+        string root = DariusMedia.Root;
+        if (string.IsNullOrEmpty(root))
         {
-            DariusLog.Warn("NATIVE-MODEL", "Native model bundle is missing: " + (path ?? "<null>"));
+            DariusLog.DebugInfoThrottled("NATIVE-MODEL", "root-not-ready",
+                "Native model bundle load deferred because the Mod root is not ready.", 1.0);
+            return false;
+        }
+
+        if (_loadAttempted) return false;
+
+        string path = Path.Combine(root, "assets", "models", BundleFileName);
+        _loadAttempted = true;
+        if (!File.Exists(path))
+        {
+            DariusLog.Error("NATIVE-MODEL", "Native model bundle is missing: " + path);
             return false;
         }
 
@@ -59,12 +68,16 @@ internal static partial class DariusNativeModelAssets
             _bundle = DariusUnityAssetBundleApi.LoadFromFile(path);
             if (_bundle == null)
                 throw new InvalidOperationException("AssetBundle.LoadFromFile returned null path=" + path);
-            DariusLog.Info("NATIVE-MODEL", "Loaded native Unity model bundle path=" + path);
+            DariusLog.Info("NATIVE-MODEL", "Loaded process-lifetime native Unity model bundle path=" + path);
             return true;
         }
         catch (Exception e)
         {
+            // A real LoadFromFile/reflection failure may still be transient during loader startup.
+            // The generation-owned bootstrap has a finite retry budget, so allow its next attempt
+            // instead of permanently caching one failed call.
             _bundle = null;
+            _loadAttempted = false;
             DariusUnityAssetBundleApi.Reset();
             DariusLog.Exception("NATIVE-MODEL", e, "Failed loading Unity model AssetBundle path=" + path);
             return false;
@@ -73,7 +86,7 @@ internal static partial class DariusNativeModelAssets
 
     public static void Unload()
     {
-        DariusLog.Info("NATIVE-MODEL", "Unload requested bundle=" + (_bundle != null) +
+        DariusLog.Info("NATIVE-MODEL", "Process-lifetime unload requested bundle=" + (_bundle != null) +
             " loadAttempted=" + _loadAttempted +
             " prefabs=" + Prefabs.Count +
             " overlayMeshes=" + OverlayMeshes.Count + " unloadAllLoadedObjects=false.");
