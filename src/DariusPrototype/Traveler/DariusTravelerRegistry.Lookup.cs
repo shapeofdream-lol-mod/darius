@@ -90,21 +90,46 @@ public static partial class DariusTravelerRegistry
             if (!Dew.allHeroes.Contains(typeof(Hero_Darius))) errors.Add("Dew.allHeroes missing Hero_Darius");
         }
         catch { errors.Add("Dew.allHeroes unavailable"); }
-        DewProfile p = DewSave.profileMain;
-        if (p != null)
-        {
-            if (p.heroes == null || !p.heroes.ContainsKey(HeroName)) errors.Add("profile.heroes missing Hero_Darius");
-            if (p.heroLoadouts == null || !p.heroLoadouts.ContainsKey(HeroName)) errors.Add("profile.heroLoadouts missing Hero_Darius");
-            if (p.heroSelectedSkins == null || !p.heroSelectedSkins.ContainsKey(HeroName)) errors.Add("profile.heroSelectedSkins missing Hero_Darius");
-        }
-
         if (errors.Count > 0)
         {
             string message = string.Join("; ", errors.ToArray());
             DariusLog.Error("TRAVELER-ASSERT", "Startup assertions FAILED: " + message);
             throw new InvalidOperationException(message);
         }
-        DariusLog.Info("TRAVELER-ASSERT", "Startup assertions passed for Hero/Skin/native-attack/Loadout/resource contract.");
+        DariusLog.Info("TRAVELER-ASSERT", "Core startup assertions passed for Hero/Skin/native-attack/Loadout/resource contract.");
+    }
+
+    private static void ValidateProfileRegistration()
+    {
+        List<string> errors = new List<string>();
+        DewProfile profile = DewSave.profileMain;
+        DewProfileStats stats = DewSave.profileStats;
+
+        if (profile == null) errors.Add("profileMain null");
+        if (stats == null) errors.Add("profileStats null");
+
+        if (profile != null)
+        {
+            if (profile.heroes == null || !profile.heroes.ContainsKey(HeroName))
+                errors.Add("profile.heroes missing Hero_Darius");
+            if (profile.heroLoadouts == null || !profile.heroLoadouts.ContainsKey(HeroName))
+                errors.Add("profile.heroLoadouts missing Hero_Darius");
+            if (profile.heroSelectedSkins == null || !profile.heroSelectedSkins.ContainsKey(HeroName))
+                errors.Add("profile.heroSelectedSkins missing Hero_Darius");
+        }
+
+        if (stats != null && (stats.heroes == null || !stats.heroes.ContainsKey(HeroName)))
+            errors.Add("profileStats.heroes missing Hero_Darius");
+
+        if (errors.Count > 0)
+        {
+            string message = string.Join("; ", errors.ToArray());
+            DariusLog.Error("TRAVELER-PROFILE-ASSERT", "Late profile assertions FAILED: " + message);
+            throw new InvalidOperationException(message);
+        }
+
+        DariusLog.Info("TRAVELER-PROFILE-ASSERT",
+            "Late profile assertions passed for Hero_Darius unlock/loadout/skin/stats state.");
     }
 
     public static bool TryLoad(string key, out UnityEngine.Object obj)
