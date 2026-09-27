@@ -19,6 +19,24 @@ internal static class DariusRuntimeAudit
     private static readonly HashSet<string> RuntimeConsumerStackKeys = new HashSet<string>(StringComparer.Ordinal);
     private static Type[] _lobbyConsumerTypes;
     private static bool _suppressConsumerLookupTrace;
+    private static Type _characterModelDisplayType;
+    private static FieldInfo _characterModelDisplaySkinTypeField;
+    private static readonly Dictionary<int, string> LastObservedDisplaySkinTypes = new Dictionary<int, string>();
+
+    private sealed class DisplaySetupOriginState
+    {
+        public HashSet<int> descendantIds;
+        public string previousObservedSkin;
+        public string skinTypeBefore;
+        public string parentPath;
+        public string titleFields;
+        public string titleObject;
+    }
+
+    private sealed class TitleMethodOriginState
+    {
+        public Dictionary<int, string> displaySkinTypes;
+    }
 
     internal static void ResetHooks()
     {
@@ -27,6 +45,9 @@ internal static class DariusRuntimeAudit
         RuntimeConsumerStackKeys.Clear();
         _lobbyConsumerTypes = null;
         _suppressConsumerLookupTrace = false;
+        _characterModelDisplayType = null;
+        _characterModelDisplaySkinTypeField = null;
+        LastObservedDisplaySkinTypes.Clear();
     }
 
     internal static void InstallHooks(Harmony harmony)
@@ -42,8 +63,41 @@ internal static class DariusRuntimeAudit
                     m => m.Name == "Setup" && m.GetParameters().Length >= 1 &&
                          m.GetParameters()[0].ParameterType == typeof(string))
                 : null;
+            _characterModelDisplayType = displayType;
+            _characterModelDisplaySkinTypeField = displayType != null
+                ? displayType.GetField("skinType", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                : null;
+
             patched += PatchOptional(harmony, displaySetup, nameof(CharacterModelDisplaySetupPrefix), nameof(CharacterModelDisplaySetupPostfix),
                 "CharacterModelDisplay.Setup");
+
+            MethodInfo displayLogicUpdate = displayType != null
+                ? Array.Find(displayType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic),
+                    m => m.Name == "LogicUpdate" && m.ReturnType == typeof(void))
+                : null;
+            patched += PatchOptional(harmony, displayLogicUpdate, nameof(CharacterModelDisplayLogicUpdatePrefix), null,
+                "CharacterModelDisplay.LogicUpdate");
+
+            Type titleLastGameType = AccessTools.TypeByName("Title_LastGameCharacters");
+            if (titleLastGameType != null)
+            {
+                MethodInfo[] titleMethods = titleLastGameType.GetMethods(
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                for (int i = 0; i < titleMethods.Length; i++)
+                {
+                    MethodInfo method = titleMethods[i];
+                    if (method == null || method.IsSpecialName || method.IsGenericMethod ||
+                        method.ReturnType != typeof(void))
+                        continue;
+
+                    patched += PatchOptional(
+                        harmony,
+                        method,
+                        nameof(TitleLastGameCharactersMethodPrefix),
+                        nameof(TitleLastGameCharactersMethodPostfix),
+                        "Title_LastGameCharacters." + method.Name);
+                }
+            }
 
             MethodInfo[] spawnMethods = typeof(NetworkServer).GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             for (int i = 0; i < spawnMethods.Length; i++)
@@ -771,8 +825,9 @@ internal static class DariusRuntimeAudit
         }
     }
 
-    private static void CharacterModelDisplaySetupPrefix(object __instance, string __0)
+    private static void CharacterModelDisplaySetupPrefix(object __instance, string __0, out DisplaySetupOriginState __state)
     {
+        __state = null;
         if (__instance == null || string.IsNullOrEmpty(__0) ||
             !DariusTravelerRegistry.IsRuntimeSkinKey(__0))
             return;
@@ -780,6 +835,19 @@ internal static class DariusRuntimeAudit
         try
         {
             Component component = __instance as Component;
+            if (component == null) return;
+
+            DisplaySetupOriginState state = new DisplaySetupOriginState();
+            state.descendantIds = CaptureDescendantIds(component.transform);
+            state.previousObservedSkin = GetLastObservedDisplaySkin(component);
+            state.skinTypeBefore = ReadDisplaySkinType(component);
+            state.parentPath = DescribeTransformPath(component.transform);
+
+            Component title = FindAncestorComponent(component, AccessTools.TypeByName("Title_LastGameCharacters"));
+            state.titleObject = DescribeUnityObject(title);
+            state.titleFields = title != null ? DescribeAllFields(title, 48) : "<none>";
+            __state = state;
+
             Skin registrySkin;
             bool registryHasSkin = DariusTravelerRegistry.TryResolveRuntimeSkin(__0, out registrySkin);
             bool dewMap = false;
@@ -790,6 +858,22 @@ internal static class DariusRuntimeAudit
                     DariusTravelerRegistry.DefaultSkinName,
                     DariusTravelerRegistry.SkinGuid);
             }
+
+            DariusLog.Info("MODEL-ORIGIN",
+                "phase=setup-input skinArg=" + __0 +
+                " display=" + DescribeUnityObject(component) +
+                " observedPreviousSkin=" + (state.previousObservedSkin ?? "<unseen>") +
+                " skinTypeBefore=" + (state.skinTypeBefore ?? "<null>") +
+                " parentPath=" + state.parentPath +
+                " title=" + state.titleObject +
+                " titleFields={" + state.titleFields + "}" +
+                " template=" + DescribeUnityObject(registrySkin) +
+                " registryHasSkin=" + registryHasSkin +
+                " dewNamedMap=" + dewMap +
+                " core={" + DariusTravelerRegistry.PipelineCoreState() + "}" +
+                " caller=" + CompactExternalStack());
+
+            LastObservedDisplaySkinTypes[component.GetInstanceID()] = __0;
 
             LogPipelineCheckpoint(
                 "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
@@ -808,7 +892,7 @@ internal static class DariusRuntimeAudit
         }
     }
 
-    private static void CharacterModelDisplaySetupPostfix(object __instance, string __0)
+    private static void CharacterModelDisplaySetupPostfix(object __instance, string __0, DisplaySetupOriginState __state)
     {
         if (__instance == null) return;
 
@@ -851,6 +935,20 @@ internal static class DariusRuntimeAudit
                     "@activeHierarchy=" + child.gameObject.activeInHierarchy);
             }
 
+            if (__state != null)
+            {
+                List<string> created = DescribeNewDescendants(root, __state.descendantIds, 24);
+                DariusLog.Info("MODEL-ORIGIN",
+                    "phase=setup-output skinArg=" + (__0 ?? "<null>") +
+                    " display=" + DescribeUnityObject(component) +
+                    " skinTypeAfter=" + (ReadDisplaySkinType(component) ?? "<null>") +
+                    " created=[" + string.Join(" | ", created.ToArray()) + "]" +
+                    " title=" + __state.titleObject +
+                    " titleFieldsBefore={" + __state.titleFields + "}" +
+                    " titleFieldsAfter={" + DescribeAllFields(
+                        FindAncestorComponent(component, AccessTools.TypeByName("Title_LastGameCharacters")), 48) + "}");
+            }
+
             LogPipelineCheckpoint(
                 "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
                 "lobby-display-output",
@@ -874,6 +972,253 @@ internal static class DariusRuntimeAudit
         {
             DariusLog.Exception("AUDIT-DISPLAY", e, "Failed inspecting Darius CharacterModelDisplay.Setup");
         }
+    }
+
+    private static void CharacterModelDisplayLogicUpdatePrefix(object __instance)
+    {
+        Component component = __instance as Component;
+        if (component == null) return;
+
+        string current = ReadDisplaySkinType(component);
+        int id = component.GetInstanceID();
+        string previous;
+        bool hadPrevious = LastObservedDisplaySkinTypes.TryGetValue(id, out previous);
+        LastObservedDisplaySkinTypes[id] = current;
+
+        bool touchesDarius =
+            string.Equals(current, DariusTravelerRegistry.DefaultSkinName, StringComparison.Ordinal) ||
+            string.Equals(previous, DariusTravelerRegistry.DefaultSkinName, StringComparison.Ordinal);
+        if (!touchesDarius || (hadPrevious && string.Equals(previous, current, StringComparison.Ordinal)))
+            return;
+
+        Component title = FindAncestorComponent(component, AccessTools.TypeByName("Title_LastGameCharacters"));
+        DariusLog.Info("MODEL-REQUEST",
+            "display=" + DescribeUnityObject(component) +
+            " skinType=" + (hadPrevious ? (previous ?? "<null>") : "<unseen>") +
+            "->" + (current ?? "<null>") +
+            " parentPath=" + DescribeTransformPath(component.transform) +
+            " title=" + DescribeUnityObject(title) +
+            " titleFields={" + (title != null ? DescribeAllFields(title, 48) : "<none>") + "}" +
+            " caller=" + CompactExternalStack());
+    }
+
+    private static void TitleLastGameCharactersMethodPrefix(
+        object __instance,
+        MethodBase __originalMethod,
+        out TitleMethodOriginState __state)
+    {
+        __state = null;
+        Component title = __instance as Component;
+        if (title == null) return;
+
+        try
+        {
+            TitleMethodOriginState state = new TitleMethodOriginState();
+            state.displaySkinTypes = CaptureDescendantDisplaySkinTypes(title);
+            __state = state;
+        }
+        catch { }
+    }
+
+    private static void TitleLastGameCharactersMethodPostfix(
+        object __instance,
+        MethodBase __originalMethod,
+        TitleMethodOriginState __state)
+    {
+        Component title = __instance as Component;
+        if (title == null || __state == null || __state.displaySkinTypes == null) return;
+
+        try
+        {
+            Dictionary<int, string> after = CaptureDescendantDisplaySkinTypes(title);
+            List<string> changes = new List<string>();
+
+            foreach (KeyValuePair<int, string> pair in after)
+            {
+                string before;
+                __state.displaySkinTypes.TryGetValue(pair.Key, out before);
+                if (string.Equals(before, pair.Value, StringComparison.Ordinal)) continue;
+
+                bool touchesDarius =
+                    string.Equals(before, DariusTravelerRegistry.DefaultSkinName, StringComparison.Ordinal) ||
+                    string.Equals(pair.Value, DariusTravelerRegistry.DefaultSkinName, StringComparison.Ordinal);
+                if (!touchesDarius) continue;
+
+                changes.Add("display#" + pair.Key +
+                    ":" + (before ?? "<null>") + "->" + (pair.Value ?? "<null>"));
+            }
+
+            if (changes.Count == 0) return;
+
+            DariusLog.Warn("TITLE-ORIGIN",
+                "method=" + (__originalMethod != null ? __originalMethod.Name : "<unknown>") +
+                " title=" + DescribeUnityObject(title) +
+                " changes=[" + string.Join(",", changes.ToArray()) + "]" +
+                " fields={" + DescribeAllFields(title, 48) + "}" +
+                " caller=" + CompactExternalStack());
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("TITLE-ORIGIN", e, "Failed tracing Title_LastGameCharacters display mutation");
+        }
+    }
+
+    private static Dictionary<int, string> CaptureDescendantDisplaySkinTypes(Component owner)
+    {
+        Dictionary<int, string> result = new Dictionary<int, string>();
+        if (owner == null || _characterModelDisplayType == null) return result;
+
+        Component[] displays = null;
+        try { displays = owner.GetComponentsInChildren(_characterModelDisplayType, true); } catch { }
+        if (displays == null) return result;
+
+        for (int i = 0; i < displays.Length; i++)
+        {
+            Component display = displays[i];
+            if (display == null) continue;
+            result[display.GetInstanceID()] = ReadDisplaySkinType(display);
+        }
+        return result;
+    }
+
+    private static string ReadDisplaySkinType(Component display)
+    {
+        if (display == null) return null;
+        try
+        {
+            if (_characterModelDisplaySkinTypeField != null)
+                return _characterModelDisplaySkinTypeField.GetValue(display) as string;
+
+            FieldInfo field = display.GetType().GetField(
+                "skinType",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            return field != null ? field.GetValue(display) as string : null;
+        }
+        catch { return null; }
+    }
+
+    private static string GetLastObservedDisplaySkin(Component display)
+    {
+        if (display == null) return null;
+        string value;
+        return LastObservedDisplaySkinTypes.TryGetValue(display.GetInstanceID(), out value) ? value : null;
+    }
+
+    private static HashSet<int> CaptureDescendantIds(Transform root)
+    {
+        HashSet<int> ids = new HashSet<int>();
+        if (root == null) return ids;
+        try
+        {
+            Transform[] all = root.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < all.Length; i++)
+                if (all[i] != null) ids.Add(all[i].GetInstanceID());
+        }
+        catch { }
+        return ids;
+    }
+
+    private static List<string> DescribeNewDescendants(Transform root, HashSet<int> before, int limit)
+    {
+        List<string> result = new List<string>();
+        if (root == null) return result;
+        try
+        {
+            Transform[] all = root.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < all.Length && result.Count < limit; i++)
+            {
+                Transform child = all[i];
+                if (child == null || child == root) continue;
+                if (before != null && before.Contains(child.GetInstanceID())) continue;
+
+                string components = DescribeComponentTypes(child.gameObject, 16);
+                result.Add(DescribeUnityObject(child.gameObject) +
+                    " localPos=" + DariusLog.Vec(child.localPosition) +
+                    " localScale=" + DariusLog.Vec(child.localScale) +
+                    " components=[" + components + "]");
+            }
+        }
+        catch { }
+        return result;
+    }
+
+    private static string DescribeComponentTypes(GameObject go, int limit)
+    {
+        if (go == null) return "<null>";
+        try
+        {
+            Component[] components = go.GetComponents<Component>();
+            List<string> names = new List<string>();
+            for (int i = 0; i < components.Length && names.Count < limit; i++)
+            {
+                Component component = components[i];
+                names.Add(component != null ? component.GetType().Name : "<missing>");
+            }
+            if (components.Length > names.Count) names.Add("...");
+            return string.Join(",", names.ToArray());
+        }
+        catch { return "<error>"; }
+    }
+
+    private static Component FindAncestorComponent(Component start, Type desiredType)
+    {
+        if (start == null || desiredType == null) return null;
+        try
+        {
+            Transform current = start.transform;
+            while (current != null)
+            {
+                Component found = current.gameObject.GetComponent(desiredType);
+                if (found != null) return found;
+                current = current.parent;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static string DescribeTransformPath(Transform transform)
+    {
+        if (transform == null) return "<null>";
+        try
+        {
+            List<string> parts = new List<string>();
+            Transform current = transform;
+            while (current != null && parts.Count < 12)
+            {
+                parts.Add(current.name + "#" + current.GetInstanceID());
+                current = current.parent;
+            }
+            parts.Reverse();
+            return string.Join("/", parts.ToArray());
+        }
+        catch { return "<error>"; }
+    }
+
+    private static string DescribeAllFields(object target, int limit)
+    {
+        if (target == null) return "<null>";
+        List<string> values = new List<string>();
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        for (Type type = target.GetType(); type != null && values.Count < limit; type = type.BaseType)
+        {
+            FieldInfo[] fields = null;
+            try { fields = type.GetFields(flags); } catch { }
+            if (fields == null) continue;
+
+            for (int i = 0; i < fields.Length && values.Count < limit; i++)
+            {
+                FieldInfo field = fields[i];
+                if (field == null || field.IsStatic) continue;
+                try
+                {
+                    values.Add(type.Name + "." + field.Name + "=" +
+                        SummarizeFieldValue(field.GetValue(target)));
+                }
+                catch { }
+            }
+        }
+        return string.Join(",", values.ToArray());
     }
 
     private static void NetworkServerSpawnTemplatePrefix(GameObject __0)
