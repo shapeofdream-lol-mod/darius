@@ -54,6 +54,7 @@ public static partial class DariusPrototypeIcons
 
     public static void Unload()
     {
+        DariusLog.Info("ICON", "Unload requested sprites=" + Cache.Count + ".");
         HashSet<Texture> textures = new HashSet<Texture>();
         foreach (Sprite sprite in Cache.Values)
         {
