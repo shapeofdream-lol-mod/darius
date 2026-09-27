@@ -87,6 +87,12 @@ public static partial class DariusTravelerRegistry
             !DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackCritInstanceAssetId, AttackCritInstanceGuid))
             return false;
 
+        if (!DariusMirrorRuntimeHealth.IsHandlerPairHealthy(HeroAssetId) ||
+            !DariusMirrorRuntimeHealth.IsHandlerPairHealthy(AttackAssetId) ||
+            !DariusMirrorRuntimeHealth.IsHandlerPairHealthy(AttackInstanceAssetId) ||
+            !DariusMirrorRuntimeHealth.IsHandlerPairHealthy(AttackCritInstanceAssetId))
+            return false;
+
         for (int i = 0; i < SkinSpecs.Length; i++)
             if (!DariusUnsupportedResourceBridge.IsNamedResourceIdentityMapped(
                     database, SkinSpecs[i].name, SkinSpecs[i].guid))
