@@ -114,6 +114,57 @@ public static partial class DariusTravelerRegistry
         return true;
     }
 
+    private static bool AreStockConstructionTemplatesReady(out string missing)
+    {
+        missing = null;
+        try
+        {
+            Hero hero = DewResources.GetByShortTypeName<Hero>("Hero_Vesper");
+            if (hero == null) { missing = "Hero_Vesper"; return false; }
+
+            Skin skin = DewResources.GetByName<Skin>("Skin_Vesper_Default");
+            if (skin == null) { missing = "Skin_Vesper_Default"; return false; }
+
+            Type attackType = AccessTools.TypeByName("At_Atk_VesperMace");
+            AttackTrigger attack = attackType != null
+                ? DewResources.GetByType<AttackTrigger>(attackType)
+                : null;
+            if (attack == null) { missing = "At_Atk_VesperMace"; return false; }
+
+            MeleeAttackInstance normal = null;
+            if (attack.configs != null)
+            {
+                for (int i = 0; i < attack.configs.Length; i++)
+                {
+                    TriggerConfig config = attack.configs[i];
+                    MeleeAttackInstance instance = config != null
+                        ? config.spawnedInstance as MeleeAttackInstance
+                        : null;
+                    if (instance == null) continue;
+                    if (instance.GetType().Name.IndexOf("Crit", StringComparison.OrdinalIgnoreCase) < 0)
+                    {
+                        normal = instance;
+                        break;
+                    }
+                }
+            }
+            if (normal == null)
+            {
+                Type normalType = AccessTools.TypeByName("Ai_Atk_VesperMace");
+                if (normalType != null)
+                    normal = DewResources.GetByType<MeleeAttackInstance>(normalType);
+            }
+            if (normal == null) { missing = "Ai_Atk_VesperMace"; return false; }
+
+            return true;
+        }
+        catch (Exception e)
+        {
+            missing = e.GetType().Name + ":" + e.Message;
+            return false;
+        }
+    }
+
     public static IEnumerator InitializeWhenReady(int generationId, int ownerId)
     {
         DariusLog.Info("TRAVELER", "Bootstrap coroutine entered generation=" + generationId +
@@ -132,6 +183,25 @@ public static partial class DariusTravelerRegistry
                 generationId + " owner=" + ownerId + ".");
             yield break;
         }
+
+        string missingTemplate;
+        float templateDeadline = Time.unscaledTime + 5f;
+        while (IsExpectedGenerationActive(generationId, ownerId) &&
+               !AreStockConstructionTemplatesReady(out missingTemplate))
+        {
+            if (Time.unscaledTime >= templateDeadline)
+            {
+                DariusLog.Error("TRAVELER",
+                    "Stock construction templates did not become ready within 5s generation=" +
+                    generationId + " owner=" + ownerId + " missing=" + (missingTemplate ?? "<unknown>") + ".");
+                yield break;
+            }
+
+            DariusLog.DebugInfoThrottled("TRAVELER-READY", "stock-templates",
+                "Waiting for stock construction templates; missing=" + (missingTemplate ?? "<unknown>"), 1.0);
+            yield return null;
+        }
+        if (!IsExpectedGenerationActive(generationId, ownerId)) yield break;
 
         bool coreReady = false;
         for (int attempt = 1; attempt <= CoreRegistrationRetryLimit; attempt++)
