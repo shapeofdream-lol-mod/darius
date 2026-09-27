@@ -210,6 +210,9 @@ public static partial class DariusTravelerRegistry
 
         if (_registering) return false;
 
+        bool rootChanged = _registered &&
+                           !string.IsNullOrEmpty(_registeredModRoot) &&
+                           !string.Equals(_registeredModRoot, DariusModEnvironment.Root, StringComparison.OrdinalIgnoreCase);
         bool hasTravelerState = _registered || _resourceRoot != null || HeroPrefab != null ||
                                 AttackPrefab != null || OwnedObjects.Count > 0 ||
                                 ResourcesByGuid.Count > 0 || NetworkPrefabs.Count > 0;
@@ -217,10 +220,25 @@ public static partial class DariusTravelerRegistry
         {
             DariusLog.Warn("TRAVELER-BOOTSTRAP",
                 "Discarding unhealthy/partial Traveler generation before next-frame recreation reason=" +
-                (reason ?? "<unknown>") + " state=" + DiagnosticState());
+                (reason ?? "<unknown>") + " rootChanged=" + rootChanged +
+                " state=" + DiagnosticState());
             DariusRuntimeAudit.LogSnapshot(
                 "before unhealthy Traveler generation discard: " + (reason ?? "<unknown>"), true);
             UnregisterRuntimeOnly();
+
+            if (rootChanged)
+            {
+                // Icons/media/VFX and Formal prefab presentation may already point at the early
+                // fallback root. Invalidate those root-dependent objects as one transaction; the
+                // bootstrap barrier prevents their replacements from being created this frame.
+                DariusFormalRegistry.Unregister();
+                DariusLolVfxRuntime.Unload();
+                DariusMedia.Unload();
+                DariusPrototypeIcons.Unload();
+                DariusLog.Info("TRAVELER-BOOTSTRAP",
+                    "Authoritative Mod root changed; cleared Formal and presentation caches before rebuild.");
+            }
+
             DariusRuntimeAudit.LogSnapshot(
                 "after unhealthy Traveler generation discard: " + (reason ?? "<unknown>"), true);
             return false;
