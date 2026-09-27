@@ -856,6 +856,8 @@ public static partial class DariusTravelerRegistry
           .Append(" registering=").Append(_registering)
           .Append(" ownerGeneration=").Append(_modOwnerGenerationId)
           .Append(" ownerId=").Append(_modOwnerInstanceId)
+          .Append(" registeredModRoot=").Append(_registeredModRoot ?? "<null>")
+          .Append(" currentModRoot=").Append(DariusModEnvironment.Root ?? "<null>")
           .Append(" activeGeneration=").Append(DariusPrototypeMod.ActiveGenerationId)
           .Append(" activeOwner=").Append(DariusPrototypeMod.ActiveModInstanceId)
           .Append(" barrier=").Append(DariusPrototypeMod.IsBootstrapBlockedThisFrame)
@@ -872,6 +874,10 @@ public static partial class DariusTravelerRegistry
           .Append(" skins=").Append(SkinsByName.Count)
           .Append(" networkPrefabs=").Append(NetworkPrefabs.Count)
           .Append(" spawnHandlers=").Append(RegisteredSpawnHandlerIds.Count)
+          .Append(" mirrorHero={").Append(DariusMirrorRuntimeHealth.Describe(HeroAssetId)).Append("}")
+          .Append(" mirrorAttack={").Append(DariusMirrorRuntimeHealth.Describe(AttackAssetId)).Append("}")
+          .Append(" mirrorAttackAi={").Append(DariusMirrorRuntimeHealth.Describe(AttackInstanceAssetId)).Append("}")
+          .Append(" mirrorCritAi={").Append(DariusMirrorRuntimeHealth.Describe(AttackCritInstanceAssetId)).Append("}")
           .Append(" ownedObjects=").Append(OwnedObjects.Count)
           .Append(" contentOwner=").Append(_contentOwner != null ? RuntimeHelpers.GetHashCode(_contentOwner) : 0)
           .Append(" registeredDb=").Append(_registeredDatabase != null ? RuntimeHelpers.GetHashCode(_registeredDatabase) : 0)
@@ -958,9 +964,11 @@ public static partial class DariusFormalRegistry
                 GameObject prefab;
                 bool prefabOk = NetworkPrefabs.TryGetValue(record.assetId, out prefab) && prefab != null;
                 bool netOk = database != null && DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, record.assetId, record.guid);
-                if (!resourceOk || !typedOk || !record.networkHandlerRegistered || !prefabOk || !netOk)
+                bool mirrorOk = DariusMirrorRuntimeHealth.IsHandlerPairHealthy(record.assetId);
+                if (!resourceOk || !typedOk || !record.networkHandlerRegistered || !prefabOk || !netOk || !mirrorOk)
                     bad.Add(record.name + "(res=" + resourceOk + ",typed=" + typedOk + ",handler=" +
-                        record.networkHandlerRegistered + ",prefab=" + prefabOk + ",net=" + netOk + ")");
+                        record.networkHandlerRegistered + ",prefab=" + prefabOk + ",net=" + netOk +
+                        ",mirror=" + mirrorOk + ")");
             }
             if (bad.Count > 0) sb.Append(" bad=[").Append(string.Join(";", bad.ToArray())).Append("]");
         }
