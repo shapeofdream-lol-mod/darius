@@ -74,8 +74,20 @@ internal static partial class DariusNativeModelAssets
             DariusUnityAssetBundleApi.Reset();
         }
 
-        if (_loadAttempted) return false;
+        if (_loadAttempted)
+        {
+            if (string.Equals(_bundlePath, path, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            DariusLog.Info("NATIVE-MODEL", "Retrying native bundle because attempted path changed old=" +
+                (_bundlePath ?? "<null>") + " new=" + path + ".");
+            _loadAttempted = false;
+            _bundlePath = null;
+            DariusUnityAssetBundleApi.Reset();
+        }
+
         _loadAttempted = true;
+        _bundlePath = path;
         if (!File.Exists(path))
         {
             DariusLog.Error("NATIVE-MODEL", "Native model bundle is missing: " + path);
