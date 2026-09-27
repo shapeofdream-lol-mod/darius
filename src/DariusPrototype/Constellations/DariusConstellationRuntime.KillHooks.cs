@@ -107,12 +107,17 @@ public sealed partial class DariusConstellationRuntime : MonoBehaviour
         }
 
         const float radius = 10f;
+        long scanStartedTicks = DateTime.UtcNow.Ticks;
+        int colliderCount = 0;
+        int classifierCalls = 0;
         int rawCount = 0;
+        string strongestReason = "none";
         DariusEnemyClass strongest = DariusEnemyClass.Common;
         HashSet<Entity> seen = new HashSet<Entity>();
         try
         {
             Collider[] hits = Physics.OverlapSphere(_hero.transform.position, radius);
+            colliderCount = hits != null ? hits.Length : 0;
             for (int i = 0; i < hits.Length; i++)
             {
                 Collider hit = hits[i];
@@ -126,9 +131,19 @@ public sealed partial class DariusConstellationRuntime : MonoBehaviour
                 rawCount++;
                 if (strongest != DariusEnemyClass.Boss)
                 {
-                    DariusEnemyClass kind = DariusEnemyClassifier.Classify(enemy);
-                    if (kind == DariusEnemyClass.Boss) strongest = DariusEnemyClass.Boss;
-                    else if (kind == DariusEnemyClass.Elite && strongest == DariusEnemyClass.Common) strongest = DariusEnemyClass.Elite;
+                    string classifyReason;
+                    DariusEnemyClass kind = DariusEnemyClassifier.Classify(enemy, out classifyReason);
+                    classifierCalls++;
+                    if (kind == DariusEnemyClass.Boss)
+                    {
+                        strongest = DariusEnemyClass.Boss;
+                        strongestReason = classifyReason;
+                    }
+                    else if (kind == DariusEnemyClass.Elite && strongest == DariusEnemyClass.Common)
+                    {
+                        strongest = DariusEnemyClass.Elite;
+                        strongestReason = classifyReason;
+                    }
                 }
             }
         }
@@ -138,6 +153,16 @@ public sealed partial class DariusConstellationRuntime : MonoBehaviour
         }
 
         int count = Mathf.Clamp(rawCount, 0, 10);
+        double scanMs = TimeSpan.FromTicks(DateTime.UtcNow.Ticks - scanStartedTicks).TotalMilliseconds;
+        DariusLog.DebugInfoThrottled("PERF-NOXIAN-ARENA", "scan",
+            "scanMs=" + scanMs.ToString("0.000") +
+            " colliders=" + colliderCount +
+            " uniqueSeen=" + seen.Count +
+            " hostile=" + rawCount +
+            " classifierCalls=" + classifierCalls +
+            " strongest=" + strongest +
+            " strongestReason=" + strongestReason +
+            " hero=" + DariusLog.EntityLabel(_hero), 5.0);
         if (!force && count == _lastNoxianArenaCount && level == _lastNoxianArenaLevel && strongest == _lastNoxianArenaRank) return;
         _lastNoxianArenaCount = count;
         _lastNoxianArenaLevel = level;
