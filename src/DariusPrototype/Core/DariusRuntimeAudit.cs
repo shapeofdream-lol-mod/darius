@@ -161,18 +161,10 @@ internal static class DariusRuntimeAudit
                 s.name.StartsWith("Skin_Darius_", StringComparison.Ordinal), 12, token);
             LogCensus<DariusOfficialEntityModelMarker>("EntityModelMarker", null, 16, token);
             LogCensus<At_DariusAxe>("At_DariusAxe", null, 10, token);
-            LogCensus<Ai_DariusAxe>("Ai_DariusAxe", null, 10, token);
-            LogCensus<Ai_DariusAxe_Crit>("Ai_DariusAxe_Crit", null, 10, token);
-            LogCensus<St_Darius_Decimate>("QTrigger", null, 10, token);
-            LogCensus<St_Darius_CripplingStrike>("WTrigger", null, 10, token);
-            LogCensus<St_Darius_Apprehend>("ETrigger", null, 10, token);
             LogCensus<St_Darius_NoxianGuillotine>("RTrigger", null, 10, token);
-            LogCensus<DariusHemorrhageRuntime>("HemorrhageRuntime", null, 10, token);
-            LogCensus<DariusConstellationRuntime>("ConstellationRuntime", null, 10, token);
         }
 
         DariusLog.Info("AUDIT", "END reason=" + token);
-        DariusLog.Flush();
     }
 
     private static void LogSection(string category, string reason, Func<string> builder)
@@ -333,6 +325,8 @@ internal static class DariusRuntimeAudit
     private static string BuildLookupState()
     {
         if (DewResources.database == null) return "resourceDB=<null>";
+        if (!DariusRuntimeResourceCompatibility.IsInstalled)
+            return "bridgeInstalled=false; active lookup probes skipped to avoid Addressables side effects";
 
         StringBuilder sb = new StringBuilder();
         try
