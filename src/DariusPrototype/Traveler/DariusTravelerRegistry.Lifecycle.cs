@@ -225,8 +225,8 @@ public static partial class DariusTravelerRegistry
             " modRoot=" + (DariusModEnvironment.Root ?? "<null>") +
             " barrier=" + DariusPrototypeMod.IsBootstrapBlockedThisFrame);
 
-        string missingTemplate;
-        string stockTemplateShape;
+        string missingTemplate = null;
+        string stockTemplateShape = null;
         float templateDeadline = Time.unscaledTime + 5f;
         while (IsExpectedGenerationActive(generationId, ownerId) &&
                !AreStockConstructionTemplatesReady(out missingTemplate, out stockTemplateShape))
