@@ -45,6 +45,7 @@ public static partial class DariusFormalRegistry
     private static Transform _modOwner;
     private static int _modOwnerInstanceId;
     private static int _modOwnerGenerationId;
+    private static string _registeredModRoot;
 
     private static bool _registered;
 
@@ -145,6 +146,7 @@ public static partial class DariusFormalRegistry
         _modOwner = null;
         _modOwnerInstanceId = 0;
         _modOwnerGenerationId = 0;
+        _registeredModRoot = null;
     }
 
     public static IEnumerator InitializeAndDropWhenReady()
