@@ -109,4 +109,5 @@ public sealed class St_Darius_CripplingStrike : SkillTrigger
                 DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
             throw;
         }
-    }}
+    }
+}
