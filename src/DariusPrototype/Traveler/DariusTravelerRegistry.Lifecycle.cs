@@ -79,8 +79,10 @@ public static partial class DariusTravelerRegistry
             {
                 DariusLog.Info("TRAVELER-BOOTSTRAP",
                     "Discarding incomplete Traveler resource generation before bootstrap recreation reason=" +
-                    (reason ?? "<unknown>"));
+                    (reason ?? "<unknown>") + " state=" + DiagnosticState());
+                DariusRuntimeAudit.LogSnapshot("before incomplete Traveler generation discard: " + (reason ?? "<unknown>"), true);
                 UnregisterRuntimeOnly();
+                DariusRuntimeAudit.LogSnapshot("after incomplete Traveler generation discard: " + (reason ?? "<unknown>"), true);
             }
 
             // Skills must exist before the HeroSkill AssetRef arrays are built.
@@ -114,7 +116,9 @@ public static partial class DariusTravelerRegistry
             RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
             EnsureProfiles();
             RepairHeroCosmeticContract(HeroPrefab);
-            DariusLog.Info("TRAVELER", "Late profile/content registration completed reason=" + reason);
+            DariusLog.Info("TRAVELER", "Late profile/content registration completed reason=" + reason +
+                " state=" + DiagnosticState());
+            DariusRuntimeAudit.LogSnapshot("Traveler profile/content registration completed: " + reason, false);
         }
         catch (Exception e)
         {
@@ -145,7 +149,8 @@ public static partial class DariusTravelerRegistry
 
             DariusLog.Info("TRAVELER", "Hero_Darius registration READY. heroGuid=" + HeroGuid + " heroAssetId=" + HeroAssetId +
                 " skins=" + string.Join(",", Array.ConvertAll(SkinSpecs, s => s.name)) + " Q=" + DariusFormalRegistry.Decimate.name + " R=" + DariusFormalRegistry.NoxianGuillotine.name +
-                " Identity=" + DariusFormalRegistry.Hemorrhage.name);
+                " Identity=" + DariusFormalRegistry.Hemorrhage.name + " state=" + DiagnosticState());
+            DariusRuntimeAudit.LogSnapshot("Traveler registration READY", true);
         }
         catch
         {
