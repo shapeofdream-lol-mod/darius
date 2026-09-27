@@ -92,6 +92,8 @@ public static partial class DariusFormalRegistry
             return;
         }
 
+        DariusPrototypeIcons.RefreshRootOwnership();
+
         try
         {
         HemorrhageStatus = RegisterPrefab<Se_Darius_Hemorrhage>("Se_Darius_Hemorrhage", GuidHemorrhageStatus, status =>
