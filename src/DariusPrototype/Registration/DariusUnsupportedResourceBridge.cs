@@ -173,6 +173,20 @@ internal static class DariusUnsupportedResourceBridge
                guidToType != null && guidToType.Contains(guid) && Equals(guidToType[guid], type);
     }
 
+    internal static bool IsNamedResourceIdentityMapped(object database, string name, string guid)
+    {
+        if (database == null || string.IsNullOrEmpty(name) || string.IsNullOrEmpty(guid))
+            return false;
+
+        IDictionary nameToGuid = GetInstanceMap(database, "nameToGuid");
+        IDictionary guidToName = GetInstanceMap(database, "guidToName");
+        IList allGuids = GetInstanceList(database, "allGuids");
+
+        return nameToGuid != null && nameToGuid.Contains(name) && Equals(nameToGuid[name], guid) &&
+               guidToName != null && guidToName.Contains(guid) && Equals(guidToName[guid], name) &&
+               allGuids != null && allGuids.Contains(guid);
+    }
+
     internal static void RegisterNetworkGuid(object database, uint assetId, string guid)
     {
         IDictionary map = GetInstanceMap(database, "netObjectAssetIdToGuid");
