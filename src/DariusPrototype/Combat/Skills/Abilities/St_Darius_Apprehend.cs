@@ -115,4 +115,5 @@ public sealed class St_Darius_Apprehend : SkillTrigger
                 DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
             throw;
         }
-    }}
+    }
+}
