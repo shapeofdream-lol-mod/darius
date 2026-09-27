@@ -116,8 +116,17 @@ public static partial class DariusTravelerRegistry
 
         if (profile != null)
         {
-            if (profile.heroes == null || !profile.heroes.ContainsKey(HeroName))
+            DewProfile.UnlockData heroUnlock = null;
+            if (profile.heroes == null ||
+                !profile.heroes.TryGetValue(HeroName, out heroUnlock) ||
+                heroUnlock == null)
+            {
                 errors.Add("profile.heroes missing Hero_Darius");
+            }
+            else if (!heroUnlock.isAvailableInGame)
+            {
+                errors.Add("profile.heroes Hero_Darius unavailable status=" + heroUnlock.status);
+            }
             if (profile.heroLoadouts == null || !profile.heroLoadouts.ContainsKey(HeroName))
                 errors.Add("profile.heroLoadouts missing Hero_Darius");
             if (profile.heroSelectedSkins == null || !profile.heroSelectedSkins.ContainsKey(HeroName))
