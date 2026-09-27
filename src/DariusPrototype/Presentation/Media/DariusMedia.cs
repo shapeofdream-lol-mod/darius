@@ -63,7 +63,11 @@ public static partial class DariusMedia
 
     public static void Unload()
     {
+        int previousGeneration = _lifecycleGeneration;
         unchecked { _lifecycleGeneration++; }
+        DariusLog.Info("MEDIA", "Unload generation=" + previousGeneration + "->" + _lifecycleGeneration +
+            " textures=" + Textures.Count + " clips=" + Clips.Count +
+            " sfxSkins=" + Pass2SfxBySkin.Count + " voiceSkins=" + Pass2VoiceBySkin.Count + ".");
 
         HashSet<UnityEngine.Object> destroyed = new HashSet<UnityEngine.Object>();
         foreach (Texture2D texture in Textures.Values)
