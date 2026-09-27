@@ -95,8 +95,8 @@ public sealed class DariusPrototypeMod : ModBehaviour
         _activeGenerationId = _generationId;
         DariusLog.Info("BOOT", "Activated ModBehaviour generation=" + _generationId + " owner=" + _instanceId +
             " gameObject=" + gameObject.name + " scene=" + gameObject.scene.name + ".");
-        DariusTravelerRegistry.BindOwner(transform, _generationId);
-        DariusFormalRegistry.BindOwner(transform, _generationId);
+        DariusTravelerRegistry.BindOwner(transform, _generationId, _instanceId);
+        DariusFormalRegistry.BindOwner(transform, _generationId, _instanceId);
 
         try
         {
