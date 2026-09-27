@@ -1020,6 +1020,37 @@ internal static class DariusRuntimeAudit
                    (dariusValue != null ? ",Hero_Darius=" + dariusValue : "") + ")";
         }
 
+        IList list = value as IList;
+        if (list != null)
+        {
+            List<string> sample = new List<string>();
+            int limit = Math.Min(list.Count, 16);
+            for (int i = 0; i < limit; i++)
+            {
+                object item = null;
+                try { item = list[i]; } catch { }
+                if (item == null) { sample.Add("<null>"); continue; }
+
+                string itemText = item as string;
+                if (itemText != null) { sample.Add(itemText); continue; }
+
+                Type itemType = item as Type;
+                if (itemType != null) { sample.Add(itemType.Name); continue; }
+
+                UnityEngine.Object itemObject = item as UnityEngine.Object;
+                if (!ReferenceEquals(itemObject, null))
+                {
+                    sample.Add(SafeName(itemObject));
+                    continue;
+                }
+
+                sample.Add(item.GetType().Name);
+            }
+            if (list.Count > limit) sample.Add("...");
+            return value.GetType().Name + "(count=" + list.Count + ",sample=[" +
+                   string.Join(",", sample.ToArray()) + "])";
+        }
+
         ICollection collection = value as ICollection;
         if (collection != null) return value.GetType().Name + "(count=" + collection.Count + ")";
 
