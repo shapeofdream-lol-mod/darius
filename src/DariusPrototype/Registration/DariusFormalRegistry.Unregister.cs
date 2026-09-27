@@ -12,6 +12,12 @@ public static partial class DariusFormalRegistry
 {
     public static void Unregister()
     {
+        bool hadRuntimeState = _registered || _runtimeActorRoot != null ||
+                               ResourcesByGuid.Count > 0 || NetworkPrefabs.Count > 0 ||
+                               RegistrationsByGuid.Count > 0 || OwnedPrefabs.Count > 0;
+        if (hadRuntimeState)
+            DariusPrototypeMod.BlockBootstrapForCurrentFrame("Formal runtime teardown");
+
         DariusLog.Info("REG", "Unregister started. resources=" + ResourcesByGuid.Count + " networkPrefabs=" + NetworkPrefabs.Count);
         _registered = false;
         _lastDroppedHeroInstanceId = 0;
