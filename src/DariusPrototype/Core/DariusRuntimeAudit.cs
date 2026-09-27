@@ -221,7 +221,6 @@ internal static class DariusRuntimeAudit
                 LogLobbyConsumerState(token);
 
             LogCensus<DariusPrototypeMod>("ModBehaviour", null, 8, token);
-            LogCensus<DariusTravelerLifecycleBridge>("LifecycleBridge", null, 8, token);
             LogCensus<Hero_Darius>("Hero_Darius", null, 12, token);
             LogCensus<Skin>("DariusSkin", s => s != null && !string.IsNullOrEmpty(s.name) &&
                 s.name.StartsWith("Skin_Darius_", StringComparison.Ordinal), 12, token);
@@ -1273,7 +1272,6 @@ public static partial class DariusTravelerRegistry
           .Append(" barrier=").Append(DariusPrototypeMod.IsBootstrapBlockedThisFrame)
           .Append(" owner=").Append(DariusRuntimeAudit.DescribeUnityObject(_modOwner))
           .Append(" root=").Append(DariusRuntimeAudit.DescribeUnityObject(_resourceRoot))
-          .Append(" lifecycle=").Append(DariusRuntimeAudit.DescribeUnityObject(_lifecycleBridgeObject))
           .Append(" hero=").Append(DariusRuntimeAudit.DescribeUnityObject(HeroPrefab))
           .Append(" skin=").Append(DariusRuntimeAudit.DescribeUnityObject(DefaultSkin))
           .Append(" attack=").Append(DariusRuntimeAudit.DescribeUnityObject(AttackPrefab))
