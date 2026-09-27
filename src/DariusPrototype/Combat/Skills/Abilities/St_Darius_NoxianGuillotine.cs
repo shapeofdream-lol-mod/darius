@@ -54,8 +54,6 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
 
     private int _readyWatchdogToken;
 
-    private string _lastHardResetRoomToken;
-
     protected override void OnPrepare()
     {
         try
