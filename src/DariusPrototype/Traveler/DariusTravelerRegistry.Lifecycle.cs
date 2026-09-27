@@ -114,22 +114,35 @@ public static partial class DariusTravelerRegistry
         return true;
     }
 
-    private static bool AreStockConstructionTemplatesReady(out string missing)
+    private static bool AreStockConstructionTemplatesReady(out string missing, out string shape)
     {
         missing = null;
+        shape = string.Empty;
         try
         {
             Hero hero = DewResources.GetByShortTypeName<Hero>("Hero_Vesper");
-            if (hero == null) { missing = "Hero_Vesper"; return false; }
+            if (hero == null) { missing = "Hero_Vesper"; shape = "hero=<null>"; return false; }
 
             Skin skin = DewResources.GetByName<Skin>("Skin_Vesper_Default");
-            if (skin == null) { missing = "Skin_Vesper_Default"; return false; }
+            if (skin == null)
+            {
+                missing = "Skin_Vesper_Default";
+                shape = "hero=" + DariusRuntimeAudit.DescribeUnityObject(hero) + " skin=<null>";
+                return false;
+            }
 
             Type attackType = AccessTools.TypeByName("At_Atk_VesperMace");
             AttackTrigger attack = attackType != null
                 ? DewResources.GetByType<AttackTrigger>(attackType)
                 : null;
-            if (attack == null) { missing = "At_Atk_VesperMace"; return false; }
+            if (attack == null)
+            {
+                missing = "At_Atk_VesperMace";
+                shape = "hero=" + DariusRuntimeAudit.DescribeUnityObject(hero) +
+                        " skin=" + DariusRuntimeAudit.DescribeUnityObject(skin) +
+                        " attack=<null>";
+                return false;
+            }
 
             MeleeAttackInstance normal = null;
             if (attack.configs != null)
@@ -154,13 +167,26 @@ public static partial class DariusTravelerRegistry
                 if (normalType != null)
                     normal = DewResources.GetByType<MeleeAttackInstance>(normalType);
             }
-            if (normal == null) { missing = "Ai_Atk_VesperMace"; return false; }
+            if (normal == null)
+            {
+                missing = "Ai_Atk_VesperMace";
+                shape = "hero=" + DariusRuntimeAudit.DescribeUnityObject(hero) +
+                        " skin=" + DariusRuntimeAudit.DescribeUnityObject(skin) +
+                        " attack=" + DariusRuntimeAudit.DescribeUnityObject(attack) +
+                        " normal=<null>";
+                return false;
+            }
 
+            shape = "hero=" + DariusRuntimeAudit.DescribeUnityObject(hero) +
+                    " skin=" + DariusRuntimeAudit.DescribeUnityObject(skin) +
+                    " attack=" + DariusRuntimeAudit.DescribeUnityObject(attack) +
+                    " normal=" + DariusRuntimeAudit.DescribeUnityObject(normal);
             return true;
         }
         catch (Exception e)
         {
             missing = e.GetType().Name + ":" + e.Message;
+            shape = "exception=" + e.GetType().Name;
             return false;
         }
     }
@@ -200,20 +226,23 @@ public static partial class DariusTravelerRegistry
             " barrier=" + DariusPrototypeMod.IsBootstrapBlockedThisFrame);
 
         string missingTemplate;
+        string stockTemplateShape;
         float templateDeadline = Time.unscaledTime + 5f;
         while (IsExpectedGenerationActive(generationId, ownerId) &&
-               !AreStockConstructionTemplatesReady(out missingTemplate))
+               !AreStockConstructionTemplatesReady(out missingTemplate, out stockTemplateShape))
         {
             if (Time.unscaledTime >= templateDeadline)
             {
                 DariusLog.Error("TRAVELER",
                     "Stock construction templates did not become ready within 5s generation=" +
-                    generationId + " owner=" + ownerId + " missing=" + (missingTemplate ?? "<unknown>") + ".");
+                    generationId + " owner=" + ownerId + " missing=" + (missingTemplate ?? "<unknown>") +
+                    " shape={" + (stockTemplateShape ?? "<none>") + "}.");
                 yield break;
             }
 
             DariusLog.DebugInfoThrottled("TRAVELER-READY", "stock-templates",
-                "Waiting for stock construction templates; missing=" + (missingTemplate ?? "<unknown>"), 1.0);
+                "Waiting for stock construction templates; missing=" + (missingTemplate ?? "<unknown>") +
+                " shape={" + (stockTemplateShape ?? "<none>") + "}", 1.0);
             yield return null;
         }
         if (!IsExpectedGenerationActive(generationId, ownerId)) yield break;
@@ -221,7 +250,7 @@ public static partial class DariusTravelerRegistry
         DariusRuntimeAudit.LogPipelineCheckpoint(
             correlation,
             "stock-template-output",
-            "ready=true state={" + PipelineCoreState() + "}");
+            "ready=true shape={" + (stockTemplateShape ?? "<none>") + "} state={" + PipelineCoreState() + "}");
 
         bool coreReady = false;
         for (int attempt = 1; attempt <= CoreRegistrationRetryLimit; attempt++)
