@@ -21,12 +21,11 @@ public static partial class DariusTravelerRegistry
     private static object _registeredDatabase;
     private static string _registeredModRoot;
 
-    public static void BindOwner(Transform owner, int generationId)
+    public static void BindOwner(Transform owner, int generationId, int ownerId)
     {
         if (owner == null) throw new ArgumentNullException(nameof(owner));
         if (generationId <= 0) throw new ArgumentOutOfRangeException(nameof(generationId));
-
-        int ownerId = owner.gameObject.GetInstanceID();
+        if (ownerId == 0) throw new ArgumentOutOfRangeException(nameof(ownerId));
         if (_modOwnerInstanceId == ownerId && _modOwnerGenerationId == generationId)
         {
             _modOwner = owner;
@@ -40,7 +39,8 @@ public static partial class DariusTravelerRegistry
         _modOwnerInstanceId = ownerId;
         _modOwnerGenerationId = generationId;
         DariusLog.Info("TRAVELER-LIFECYCLE", "Bound runtime resource ownership generation=" + generationId +
-            " owner=" + ownerId + ".");
+            " modBehaviourOwner=" + ownerId +
+            " gameObjectOwner=" + owner.gameObject.GetInstanceID() + ".");
     }
 
     private static bool IsExpectedGenerationActive(int generationId, int ownerId)
