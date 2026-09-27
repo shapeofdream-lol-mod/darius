@@ -16,11 +16,15 @@ internal static class DariusRuntimeAudit
 {
     private static bool _hooksInstalled;
     private static readonly HashSet<int> DariusDisplayIds = new HashSet<int>();
+    private static readonly HashSet<string> RuntimeConsumerStackKeys = new HashSet<string>(StringComparer.Ordinal);
+    private static Type[] _lobbyConsumerTypes;
 
     internal static void ResetHooks()
     {
         _hooksInstalled = false;
         DariusDisplayIds.Clear();
+        RuntimeConsumerStackKeys.Clear();
+        _lobbyConsumerTypes = null;
     }
 
     internal static void InstallHooks(Harmony harmony)
@@ -148,13 +152,15 @@ internal static class DariusRuntimeAudit
             return;
 
         string throttleKey = sceneName + ":" + key;
+        bool captureCaller = RuntimeConsumerStackKeys.Add(throttleKey);
+        string caller = captureCaller ? CompactExternalStack() : "<captured-earlier>";
         DariusLog.DebugInfoThrottled(
             "PIPELINE-CONSUMER",
             throttleKey,
             "corr=g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId +
             " stage=runtime-load key=" + key +
             " result=" + DescribeUnityObject(result) +
-            " caller=" + CompactExternalStack(),
+            " caller=" + caller,
             0.75);
     }
 
@@ -202,6 +208,11 @@ internal static class DariusRuntimeAudit
 
         if (includeObjectCensus)
         {
+            Scene activeScene = SceneManager.GetActiveScene();
+            if (activeScene.IsValid() &&
+                activeScene.name.IndexOf("Lobby", StringComparison.OrdinalIgnoreCase) >= 0)
+                LogLobbyConsumerState(token);
+
             LogCensus<DariusPrototypeMod>("ModBehaviour", null, 8, token);
             LogCensus<DariusTravelerLifecycleBridge>("LifecycleBridge", null, 8, token);
             LogCensus<Hero_Darius>("Hero_Darius", null, 12, token);
@@ -477,6 +488,111 @@ internal static class DariusRuntimeAudit
         }
 
         return sb.ToString();
+    }
+
+    private static void LogLobbyConsumerState(string reason)
+    {
+        try
+        {
+            Type[] candidates = GetLobbyConsumerTypes();
+            int loggedObjects = 0;
+            List<string> typeSummary = new List<string>();
+
+            for (int ti = 0; ti < candidates.Length && loggedObjects < 24; ti++)
+            {
+                Type type = candidates[ti];
+                UnityEngine.Object[] objects = null;
+                try { objects = Resources.FindObjectsOfTypeAll(type); } catch { }
+                int count = objects != null ? objects.Length : 0;
+                if (count == 0) continue;
+
+                typeSummary.Add(type.FullName + "=" + count);
+                for (int oi = 0; oi < count && loggedObjects < 24; oi++)
+                {
+                    UnityEngine.Object obj = objects[oi];
+                    Component component = obj as Component;
+                    if (component == null) continue;
+
+                    string members = DescribeInterestingMembers(component);
+                    if (string.IsNullOrEmpty(members) &&
+                        type.Name.IndexOf("Hero", StringComparison.OrdinalIgnoreCase) < 0 &&
+                        type.Name.IndexOf("Character", StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
+
+                    DariusLog.Info(
+                        "PIPELINE-LOBBY",
+                        "reason=" + reason +
+                        " stage=lobby-consumer-state type=" + type.FullName +
+                        " object=" + DescribeUnityObject(component) +
+                        " members={" + (string.IsNullOrEmpty(members) ? "<none>" : members) + "}");
+                    loggedObjects++;
+                }
+            }
+
+            DariusLog.Info(
+                "PIPELINE-LOBBY",
+                "reason=" + reason +
+                " stage=lobby-consumer-types candidates=" + candidates.Length +
+                " objectsLogged=" + loggedObjects +
+                " types=[" + string.Join(";", typeSummary.ToArray()) + "]");
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("PIPELINE-LOBBY", e, "Lobby consumer-state inspection failed reason=" + reason);
+        }
+    }
+
+    private static Type[] GetLobbyConsumerTypes()
+    {
+        if (_lobbyConsumerTypes != null) return _lobbyConsumerTypes;
+
+        List<Type> result = new List<Type>();
+        Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
+        for (int ai = 0; ai < assemblies.Length; ai++)
+        {
+            Type[] types = null;
+            try { types = assemblies[ai].GetTypes(); }
+            catch (ReflectionTypeLoadException e) { types = e.Types; }
+            catch { }
+            if (types == null) continue;
+
+            for (int ti = 0; ti < types.Length && result.Count < 64; ti++)
+            {
+                Type type = types[ti];
+                if (type == null || !typeof(Component).IsAssignableFrom(type)) continue;
+                string fullName = type.FullName ?? type.Name;
+                if (fullName.IndexOf("Lobby", StringComparison.OrdinalIgnoreCase) < 0) continue;
+
+                bool relevant =
+                    fullName.IndexOf("Hero", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    fullName.IndexOf("Character", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    HasInterestingHeroMember(type);
+                if (relevant) result.Add(type);
+            }
+        }
+
+        _lobbyConsumerTypes = result.ToArray();
+        DariusLog.Info("PIPELINE-LOBBY",
+            "Discovered read-only Lobby consumer types count=" + _lobbyConsumerTypes.Length +
+            " types=[" + string.Join(";", Array.ConvertAll(_lobbyConsumerTypes, t => t.FullName ?? t.Name)) + "]");
+        return _lobbyConsumerTypes;
+    }
+
+    private static bool HasInterestingHeroMember(Type type)
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        try
+        {
+            FieldInfo[] fields = type.GetFields(flags);
+            for (int i = 0; i < fields.Length; i++)
+                if (InterestingName(fields[i].Name)) return true;
+
+            PropertyInfo[] properties = type.GetProperties(flags);
+            for (int i = 0; i < properties.Length; i++)
+                if (InterestingName(properties[i].Name)) return true;
+        }
+        catch { }
+        return false;
     }
 
     private static void LogCensus<T>(string label, Predicate<T> predicate, int limit, string reason)
