@@ -89,6 +89,7 @@ public static partial class DariusFormalRegistry
         CripplingStrikeAbility = null;
         ApprehendAbility = null;
         NoxianGuillotineAbility = null;
+        _registeredModRoot = null;
         DariusLog.Info("REG", "Unregister complete.");
     }
 
