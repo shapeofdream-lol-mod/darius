@@ -1368,9 +1368,19 @@ public static partial class DariusTravelerRegistry
         string selectedSkin = null;
         int loadoutPages = -1;
         bool heroEntry = false;
+        bool heroAvailable = false;
+        UnlockStatus heroStatus = default(UnlockStatus);
         if (profile != null)
         {
-            heroEntry = profile.heroes != null && profile.heroes.ContainsKey(HeroName);
+            DewProfile.UnlockData heroUnlock = null;
+            heroEntry = profile.heroes != null &&
+                        profile.heroes.TryGetValue(HeroName, out heroUnlock) &&
+                        heroUnlock != null;
+            if (heroEntry)
+            {
+                heroStatus = heroUnlock.status;
+                heroAvailable = heroUnlock.isAvailableInGame;
+            }
             if (profile.heroSelectedSkins != null)
                 profile.heroSelectedSkins.TryGetValue(HeroName, out selectedSkin);
             if (profile.heroLoadouts != null)
@@ -1384,6 +1394,8 @@ public static partial class DariusTravelerRegistry
         return "profile=" + (profile != null ? RuntimeHelpers.GetHashCode(profile).ToString() : "<null>") +
                " stats=" + (stats != null ? RuntimeHelpers.GetHashCode(stats).ToString() : "<null>") +
                " heroEntry=" + heroEntry +
+               " heroStatus=" + (heroEntry ? heroStatus.ToString() : "<missing>") +
+               " heroAvailable=" + heroAvailable +
                " selectedSkin=" + (selectedSkin ?? "<null>") +
                " loadoutPages=" + loadoutPages +
                " statsHero=" + (stats != null && stats.heroes != null && stats.heroes.ContainsKey(HeroName)) +
