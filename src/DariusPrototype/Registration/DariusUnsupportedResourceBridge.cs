@@ -307,6 +307,79 @@ internal static class DariusUnsupportedResourceBridge
         RemoveDewTypeCacheEntries("_allStarTypes", types, logTag);
     }
 
+    internal static string DiagnosticDatabaseState(object database)
+    {
+        if (database == null) return "database=<null>";
+
+        List<string> parts = new List<string>();
+        parts.Add("databaseType=" + database.GetType().FullName);
+        string[] maps =
+        {
+            "typeAssemblyQualifiedNameToGuid",
+            "typeToGuid",
+            "guidToType",
+            "typeNameToGuid",
+            "typeNameToType",
+            "nameToGuid",
+            "guidToName",
+            "objectToGuidFallback",
+            "netObjectAssetIdToGuid"
+        };
+        for (int i = 0; i < maps.Length; i++)
+        {
+            IDictionary map = GetInstanceMap(database, maps[i]);
+            parts.Add(maps[i] + "=" + (map != null ? map.Count.ToString() : "<missing>"));
+        }
+
+        IList allGuids = GetInstanceList(database, "allGuids");
+        parts.Add("allGuids=" + (allGuids != null ? allGuids.Count.ToString() : "<missing>"));
+
+        string[] typeLists = { "_allHeroes", "_allSkills", "_allHeroSkills", "_allStarTypes" };
+        for (int i = 0; i < typeLists.Length; i++)
+        {
+            IList list = GetStaticTypeList(typeLists[i]);
+            parts.Add(typeLists[i] + "=" + (list != null ? list.Count.ToString() : "<null>"));
+        }
+
+        IDictionary names = GetInstanceMap(database, "nameToGuid");
+        if (names != null)
+        {
+            string[] keys =
+            {
+                DariusTravelerRegistry.HeroName,
+                DariusTravelerRegistry.DefaultSkinName,
+                DariusTravelerRegistry.AttackName,
+                "St_Darius_Decimate",
+                "St_Darius_NoxianGuillotine",
+                "St_D_Darius_Hemorrhage"
+            };
+            for (int i = 0; i < keys.Length; i++)
+            {
+                string key = keys[i];
+                parts.Add("name[" + key + "]=" + (names.Contains(key) ? Convert.ToString(names[key]) : "<missing>"));
+            }
+        }
+
+        IDictionary net = GetInstanceMap(database, "netObjectAssetIdToGuid");
+        if (net != null)
+        {
+            uint[] ids =
+            {
+                DariusTravelerRegistry.HeroAssetId,
+                DariusTravelerRegistry.AttackAssetId,
+                DariusTravelerRegistry.AttackInstanceAssetId,
+                DariusTravelerRegistry.AttackCritInstanceAssetId
+            };
+            for (int i = 0; i < ids.Length; i++)
+            {
+                uint id = ids[i];
+                parts.Add("net[" + id + "]=" + (net.Contains(id) ? Convert.ToString(net[id]) : "<missing>"));
+            }
+        }
+
+        return string.Join(" ", parts.ToArray());
+    }
+
     internal static void ConfigureTemplateIdentity(NetworkIdentity identity, uint assetId, string label)
     {
         if (identity == null) return;
