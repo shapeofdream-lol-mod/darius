@@ -3,6 +3,25 @@ using System.Collections.Generic;
 
 public static partial class DariusTravelerRegistry
 {
+    private static void EnsureHeroUnlockContainer(DewProfile profile)
+    {
+        if (profile == null) throw new ArgumentNullException(nameof(profile));
+        if (profile.heroes == null)
+            profile.heroes = new Dictionary<string, DewProfile.UnlockData>();
+
+        DewProfile.UnlockData unlock;
+        if (!profile.heroes.TryGetValue(HeroName, out unlock) || unlock == null)
+        {
+            // DewProfile.heroes is documented as containing all heroes. Runtime custom heroes are
+            // registered after the persisted profile was initialized, so seed only the missing
+            // container and let the public UnlockHero API apply the actual unlock transition.
+            profile.heroes[HeroName] = new DewProfile.UnlockData();
+            DariusLog.Info("TRAVELER-PROFILE",
+                "Seeded missing DewProfile.heroes container for runtime custom hero=" + HeroName +
+                " before public UnlockHero.");
+        }
+    }
+
     private static void EnsureHeroProfileEntries(DewProfile profile)
     {
         if (profile.newStars == null)
