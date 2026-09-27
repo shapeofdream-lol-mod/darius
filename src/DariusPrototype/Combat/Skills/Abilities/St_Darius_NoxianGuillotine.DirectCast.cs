@@ -1,14 +1,10 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Reflection;
-using Mirror;
-using UnityEngine;
 
 public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
 {
     // Awoo is a direct R mechanic rewrite, so it owns the R recharge configuration rather
-    // than multiplying a generic cooldown stat. The value is reapplied on Prepare and star equip/unequip so native charge recovery and the tooltip stay on one source value.
+    // than multiplying a generic cooldown stat. The value is reapplied on Prepare and
+    // star equip/unequip so native charge recovery and the tooltip stay on one source value.
     public void ApplyAwooCooldownOverride(bool active)
     {
         float cooldown = active ? 12.0f : 24.0f;
