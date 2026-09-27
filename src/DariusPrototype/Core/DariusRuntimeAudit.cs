@@ -854,7 +854,11 @@ public static partial class DariusTravelerRegistry
         StringBuilder sb = new StringBuilder();
         sb.Append("registered=").Append(_registered)
           .Append(" registering=").Append(_registering)
+          .Append(" ownerGeneration=").Append(_modOwnerGenerationId)
           .Append(" ownerId=").Append(_modOwnerInstanceId)
+          .Append(" activeGeneration=").Append(DariusPrototypeMod.ActiveGenerationId)
+          .Append(" activeOwner=").Append(DariusPrototypeMod.ActiveModInstanceId)
+          .Append(" barrier=").Append(DariusPrototypeMod.IsBootstrapBlockedThisFrame)
           .Append(" owner=").Append(DariusRuntimeAudit.DescribeUnityObject(_modOwner))
           .Append(" root=").Append(DariusRuntimeAudit.DescribeUnityObject(_resourceRoot))
           .Append(" lifecycle=").Append(DariusRuntimeAudit.DescribeUnityObject(_lifecycleBridgeObject))
@@ -869,7 +873,11 @@ public static partial class DariusTravelerRegistry
           .Append(" networkPrefabs=").Append(NetworkPrefabs.Count)
           .Append(" spawnHandlers=").Append(RegisteredSpawnHandlerIds.Count)
           .Append(" ownedObjects=").Append(OwnedObjects.Count)
-          .Append(" contentOwner=").Append(_contentOwner != null ? RuntimeHelpers.GetHashCode(_contentOwner) : 0);
+          .Append(" contentOwner=").Append(_contentOwner != null ? RuntimeHelpers.GetHashCode(_contentOwner) : 0)
+          .Append(" registeredDb=").Append(_registeredDatabase != null ? RuntimeHelpers.GetHashCode(_registeredDatabase) : 0)
+          .Append(" currentDb=").Append(DewResources.database != null ? RuntimeHelpers.GetHashCode(DewResources.database) : 0)
+          .Append(" registeredModRoot=").Append(_registeredModRoot ?? "<null>")
+          .Append(" currentModRoot=").Append(DariusModEnvironment.Root ?? "<null>");
 
         object database = DewResources.database;
         if (database != null)
@@ -923,6 +931,7 @@ public static partial class DariusFormalRegistry
         StringBuilder sb = new StringBuilder();
         sb.Append("registered=").Append(_registered)
           .Append(" healthy=").Append(healthy)
+          .Append(" ownerGeneration=").Append(_modOwnerGenerationId)
           .Append(" ownerId=").Append(_modOwnerInstanceId)
           .Append(" owner=").Append(DariusRuntimeAudit.DescribeUnityObject(_modOwner))
           .Append(" root=").Append(DariusRuntimeAudit.DescribeUnityObject(_runtimeActorRoot))
@@ -964,6 +973,7 @@ internal static partial class DariusNativeModelAssets
     internal static string DiagnosticState()
     {
         return "nativeModel(bundle=" + (_bundle != null) +
+               ",bundlePath=" + (_bundlePath ?? "<null>") +
                ",loadAttempted=" + _loadAttempted +
                ",prefabs=" + Prefabs.Count +
                ",overlayMeshes=" + OverlayMeshes.Count + ")";
@@ -975,6 +985,7 @@ public static partial class DariusMedia
     internal static string DiagnosticState()
     {
         return "media(generation=" + _lifecycleGeneration +
+               ",root=" + (_root ?? "<null>") +
                ",rootCached=" + (!string.IsNullOrEmpty(_root)) +
                ",textures=" + Textures.Count +
                ",clips=" + Clips.Count +
