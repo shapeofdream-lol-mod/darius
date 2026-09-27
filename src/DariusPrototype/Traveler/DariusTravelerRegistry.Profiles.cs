@@ -27,8 +27,10 @@ public static partial class DariusTravelerRegistry
 
         DariusDejaVuRegistry.RegisterProfileStats(stats);
 
-        // Resource compatibility is installed before this late phase. If a public Unlock* call
-        // fails now, keep the failure visible instead of fabricating an unlocked profile entry.
+        // DewProfile.heroes is initialized before runtime custom Hero types are registered.
+        // Seed only the missing custom-Hero container, then keep the public UnlockHero API
+        // authoritative for the actual unlock transition.
+        EnsureHeroUnlockContainer(profile);
         profile.UnlockHero(HeroName);
 
         string[] requiredSkills =
