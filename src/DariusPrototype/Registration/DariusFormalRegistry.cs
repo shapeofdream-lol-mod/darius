@@ -161,8 +161,10 @@ public static partial class DariusFormalRegistry
     private static IEnumerator InitializeAndDropWhenReadyOwned(int generationId, int ownerId)
     {
         DariusLog.Info("REG", "InitializeAndDropWhenReady started generation=" + generationId +
-            " owner=" + ownerId + "; waiting for DewResources.database.");
-        while (DewResources.database == null)
+            " owner=" + ownerId + "; waiting for DewResources.database + Mod root.");
+        while (DewResources.database == null ||
+               string.IsNullOrEmpty(DariusModEnvironment.Root) ||
+               DariusPrototypeMod.IsBootstrapBlockedThisFrame)
         {
             if (!DariusPrototypeMod.IsActiveGeneration(generationId, ownerId) ||
                 _modOwnerGenerationId != generationId || _modOwnerInstanceId != ownerId)
