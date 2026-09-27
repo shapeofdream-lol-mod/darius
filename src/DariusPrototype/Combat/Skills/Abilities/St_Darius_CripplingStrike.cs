@@ -89,14 +89,17 @@ public sealed class St_Darius_CripplingStrike : SkillTrigger
             if (result != null)
             {
                 DariusLog.Info("W-TRIGGER", "Native AbilityInstance spawned=" + result.name +
-                    " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(info.caster));
+                    " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(info.caster) +
+                    " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
                 return result;
             }
-            DariusLog.Warn("W-TRIGGER", "Native completion returned no AbilityInstance; using compatibility fallback execution.");
+            DariusLog.Warn("W-TRIGGER", "Native completion returned no AbilityInstance; using compatibility fallback execution. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         }
         catch (Exception e)
         {
-            DariusLog.Exception("W-TRIGGER", e, "Native AbilityInstance pipeline failed; using one-shot compatibility fallback");
+            DariusLog.Exception("W-TRIGGER", e, "Native AbilityInstance pipeline failed; using one-shot compatibility fallback. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         }
 
         // Compatibility safety net only. Normal gameplay must use the stock Trigger -> Instance ->
