@@ -11,15 +11,22 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusTravelerRegistry
 {
+    private const int CoreRegistrationRetryLimit = 6;
+    private const int ProfileRegistrationRetryLimit = 8;
+
     private static GameObject _lifecycleBridgeObject;
     private static Transform _modOwner;
     private static int _modOwnerInstanceId;
+    private static int _modOwnerGenerationId;
+    private static object _registeredDatabase;
 
-    public static void BindOwner(Transform owner)
+    public static void BindOwner(Transform owner, int generationId)
     {
         if (owner == null) throw new ArgumentNullException(nameof(owner));
+        if (generationId <= 0) throw new ArgumentOutOfRangeException(nameof(generationId));
+
         int ownerId = owner.gameObject.GetInstanceID();
-        if (_modOwnerInstanceId == ownerId)
+        if (_modOwnerInstanceId == ownerId && _modOwnerGenerationId == generationId)
         {
             _modOwner = owner;
             return;
@@ -30,85 +37,227 @@ public static partial class DariusTravelerRegistry
 
         _modOwner = owner;
         _modOwnerInstanceId = ownerId;
-        DariusLog.Info("TRAVELER-LIFECYCLE", "Bound runtime resource ownership to ModBehaviour owner=" + ownerId + ".");
+        _modOwnerGenerationId = generationId;
+        DariusLog.Info("TRAVELER-LIFECYCLE", "Bound runtime resource ownership generation=" + generationId +
+            " owner=" + ownerId + ".");
     }
 
-    public static IEnumerator InitializeWhenReady()
+    private static bool IsExpectedGenerationActive(int generationId, int ownerId)
     {
-        // Workshop mods can be instantiated before DewBuildProfile/profile services are ready, while
-        // the lobby/reward UI may already contain persisted Hero_Darius references from the prior
-        // session. Waiting for *all* profile services here creates a lookup race. Only the resource
-        // database is required to create the runtime Hero/Skin/type bridges, so register that core
-        // as soon as possible and finish profile/content integration later.
-        DariusLog.Info("TRAVELER", "Waiting for DewResources.database before core Hero_Darius registration.");
-        while (DewResources.database == null)
-            yield return null;
-
-        EnsureCoreRegisteredForBootstrap("InitializeWhenReady core phase");
-
-        // Profile/content may come online a few frames later on Workshop boot. Once ready, perform
-        // one targeted native unlock/loadout registration pass; scene transitions do not re-inject it.
-        while (DewBuildProfile.current == null || DewBuildProfile.current.content == null ||
-               DewSave.profileMain == null || DewSave.profileStats == null)
-            yield return null;
-
-        CompleteProfileRegistration("InitializeWhenReady profile/content phase");
+        return generationId > 0 &&
+               ownerId != 0 &&
+               _modOwnerGenerationId == generationId &&
+               _modOwnerInstanceId == ownerId &&
+               _modOwner != null &&
+               DariusPrototypeMod.IsActiveGeneration(generationId, ownerId);
     }
 
-    public static bool EnsureCoreRegisteredForBootstrap(string reason)
+    private static bool IsCoreRegistrationHealthy()
     {
-        bool complete = _registered &&
-                        HeroPrefab != null &&
-                        AreSkinResourcesReady() &&
-                        AttackPrefab != null &&
-                        AttackInstancePrefab != null &&
-                        AttackCritInstancePrefab != null;
-        if (complete) return true;
+        object database = DewResources.database;
+        if (!_registered ||
+            !IsExpectedGenerationActive(_modOwnerGenerationId, _modOwnerInstanceId) ||
+            database == null ||
+            !ReferenceEquals(database, _registeredDatabase) ||
+            HeroPrefab == null ||
+            !AreSkinResourcesReady() ||
+            AttackPrefab == null ||
+            AttackInstancePrefab == null ||
+            AttackCritInstancePrefab == null ||
+            !DariusFormalRegistry.IsRegistrationHealthyForBootstrap())
+            return false;
 
-        // Registration itself can invoke Dew/profile callbacks. Never recursively enter Register().
-        if (_registering) return HeroPrefab != null && DefaultSkin != null;
-        if (DewResources.database == null) return false;
+        if (!DariusUnsupportedResourceBridge.IsTypedResourceIdentityMapped(
+                database, typeof(Hero_Darius), HeroName, HeroGuid) ||
+            !DariusUnsupportedResourceBridge.IsTypedResourceIdentityMapped(
+                database, typeof(At_DariusAxe), AttackName, AttackGuid) ||
+            !DariusUnsupportedResourceBridge.IsTypedResourceIdentityMapped(
+                database, typeof(Ai_DariusAxe), AttackInstanceName, AttackInstanceGuid) ||
+            !DariusUnsupportedResourceBridge.IsTypedResourceIdentityMapped(
+                database, typeof(Ai_DariusAxe_Crit), AttackCritInstanceName, AttackCritInstanceGuid))
+            return false;
+
+        if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, HeroAssetId, HeroGuid) ||
+            !DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackAssetId, AttackGuid) ||
+            !DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackInstanceAssetId, AttackInstanceGuid) ||
+            !DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackCritInstanceAssetId, AttackCritInstanceGuid))
+            return false;
+
+        for (int i = 0; i < SkinSpecs.Length; i++)
+            if (!DariusUnsupportedResourceBridge.IsNamedResourceIdentityMapped(
+                    database, SkinSpecs[i].name, SkinSpecs[i].guid))
+                return false;
 
         try
         {
-            // Only ModBehaviour/bootstrap is allowed to create a Traveler resource generation.
-            // If an earlier generation was destroyed during a network/scene teardown, discard its
-            // stale registration state as a unit and create one clean generation here, after the
-            // replacement ModBehaviour has entered the new scene.
-            if (_registered)
+            if (!Dew.allHeroes.Contains(typeof(Hero_Darius))) return false;
+            for (int i = 0; i < DariusRegisteredSkillTypes.Length; i++)
+                if (!Dew.allSkills.Contains(DariusRegisteredSkillTypes[i])) return false;
+            for (int i = 0; i < DariusRegisteredHeroSkillTypes.Length; i++)
+                if (!Dew.allHeroSkills.Contains(DariusRegisteredHeroSkillTypes[i])) return false;
+        }
+        catch
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static IEnumerator InitializeWhenReady(int generationId, int ownerId)
+    {
+        DariusLog.Info("TRAVELER", "Bootstrap coroutine entered generation=" + generationId +
+            " owner=" + ownerId + "; waiting for resource database + Mod root.");
+
+        while (IsExpectedGenerationActive(generationId, ownerId) &&
+               (DewResources.database == null ||
+                string.IsNullOrEmpty(DariusModEnvironment.Root) ||
+                DariusPrototypeMod.IsBootstrapBlockedThisFrame))
+        {
+            yield return null;
+        }
+        if (!IsExpectedGenerationActive(generationId, ownerId))
+        {
+            DariusLog.Info("TRAVELER-LIFECYCLE", "Stale bootstrap coroutine exited before core registration generation=" +
+                generationId + " owner=" + ownerId + ".");
+            yield break;
+        }
+
+        bool coreReady = false;
+        for (int attempt = 1; attempt <= CoreRegistrationRetryLimit; attempt++)
+        {
+            if (!IsExpectedGenerationActive(generationId, ownerId)) yield break;
+
+            while (DariusPrototypeMod.IsBootstrapBlockedThisFrame)
             {
-                DariusLog.Info("TRAVELER-BOOTSTRAP",
-                    "Discarding incomplete Traveler resource generation before bootstrap recreation reason=" +
-                    (reason ?? "<unknown>") + " state=" + DiagnosticState());
-                DariusRuntimeAudit.LogSnapshot("before incomplete Traveler generation discard: " + (reason ?? "<unknown>"), true);
-                UnregisterRuntimeOnly();
-                DariusRuntimeAudit.LogSnapshot("after incomplete Traveler generation discard: " + (reason ?? "<unknown>"), true);
+                if (!IsExpectedGenerationActive(generationId, ownerId)) yield break;
+                yield return null;
             }
 
-            // Skills must exist before the HeroSkill AssetRef arrays are built.
-            DariusFormalRegistry.Register();
-            Register();
+            if (DewResources.database == null || string.IsNullOrEmpty(DariusModEnvironment.Root))
+            {
+                attempt--;
+                yield return null;
+                continue;
+            }
 
-            bool ok = HeroPrefab != null && AreSkinResourcesReady() &&
-                      AttackPrefab != null && AttackInstancePrefab != null && AttackCritInstancePrefab != null;
+            coreReady = EnsureCoreRegisteredForBootstrap(
+                "InitializeWhenReady core phase attempt=" + attempt,
+                generationId,
+                ownerId);
+            if (coreReady) break;
+
+            if (attempt < CoreRegistrationRetryLimit) yield return null;
+        }
+
+        if (!coreReady)
+        {
+            DariusLog.Error("TRAVELER", "Core Hero_Darius bootstrap exhausted " + CoreRegistrationRetryLimit +
+                " attempts generation=" + generationId + " owner=" + ownerId + ".");
+            yield break;
+        }
+
+        while (IsExpectedGenerationActive(generationId, ownerId) &&
+               (DewBuildProfile.current == null || DewBuildProfile.current.content == null ||
+                DewSave.profileMain == null || DewSave.profileStats == null))
+        {
+            yield return null;
+        }
+        if (!IsExpectedGenerationActive(generationId, ownerId)) yield break;
+
+        for (int attempt = 1; attempt <= ProfileRegistrationRetryLimit; attempt++)
+        {
+            if (!IsExpectedGenerationActive(generationId, ownerId)) yield break;
+
+            if (CompleteProfileRegistration(
+                    "InitializeWhenReady profile/content phase attempt=" + attempt,
+                    generationId,
+                    ownerId))
+                yield break;
+
+            if (attempt < ProfileRegistrationRetryLimit)
+                yield return new WaitForSecondsRealtime(0.15f);
+        }
+
+        DariusLog.Error("TRAVELER", "Late profile/content registration exhausted " +
+            ProfileRegistrationRetryLimit + " attempts generation=" + generationId +
+            " owner=" + ownerId + "; core resources remain registered for diagnostics.");
+    }
+
+    public static bool EnsureCoreRegisteredForBootstrap(string reason, int generationId, int ownerId)
+    {
+        if (!IsExpectedGenerationActive(generationId, ownerId))
+        {
+            DariusLog.DebugInfo("TRAVELER-LIFECYCLE", "Rejected stale core bootstrap request generation=" +
+                generationId + " owner=" + ownerId + " reason=" + (reason ?? "<unknown>"));
+            return false;
+        }
+
+        if (DariusPrototypeMod.IsBootstrapBlockedThisFrame ||
+            DewResources.database == null ||
+            string.IsNullOrEmpty(DariusModEnvironment.Root))
+            return false;
+
+        if (IsCoreRegistrationHealthy())
+        {
+            RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
+            return true;
+        }
+
+        if (_registering) return false;
+
+        bool hasTravelerState = _registered || _resourceRoot != null || HeroPrefab != null ||
+                                AttackPrefab != null || OwnedObjects.Count > 0 ||
+                                ResourcesByGuid.Count > 0 || NetworkPrefabs.Count > 0;
+        if (hasTravelerState)
+        {
+            DariusLog.Warn("TRAVELER-BOOTSTRAP",
+                "Discarding unhealthy/partial Traveler generation before next-frame recreation reason=" +
+                (reason ?? "<unknown>") + " state=" + DiagnosticState());
+            DariusRuntimeAudit.LogSnapshot(
+                "before unhealthy Traveler generation discard: " + (reason ?? "<unknown>"), true);
+            UnregisterRuntimeOnly();
+            DariusRuntimeAudit.LogSnapshot(
+                "after unhealthy Traveler generation discard: " + (reason ?? "<unknown>"), true);
+            return false;
+        }
+
+        try
+        {
+            DariusFormalRegistry.Register();
+            if (!DariusFormalRegistry.IsRegistrationHealthyForBootstrap())
+                return false;
+
+            Register();
+            bool ok = IsCoreRegistrationHealthy();
             if (ok)
+            {
+                RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
                 DariusLog.DebugInfoThrottled("TRAVELER-EARLY", reason ?? "bootstrap",
-                    "Core Hero_Darius/Skin_Darius_Default resources available from authoritative bootstrap.", 2.0);
+                    "Core Hero_Darius generation is healthy and mapped in Dew/Mirror runtime indexes.", 2.0);
+            }
             return ok;
         }
         catch (Exception e)
         {
-            DariusLog.Exception("TRAVELER-EARLY", e, "Core registration failed reason=" + (reason ?? "<unknown>"));
+            DariusLog.Exception("TRAVELER-EARLY", e,
+                "Core registration failed reason=" + (reason ?? "<unknown>"));
             return false;
         }
     }
 
-    private static void CompleteProfileRegistration(string reason)
+    private static bool CompleteProfileRegistration(string reason, int generationId, int ownerId)
     {
-        if (!_registered || HeroPrefab == null || !AreSkinResourcesReady())
+        if (!IsExpectedGenerationActive(generationId, ownerId)) return false;
+
+        if (!IsCoreRegistrationHealthy())
         {
-            if (!EnsureCoreRegisteredForBootstrap(reason + " core prerequisite")) return;
+            if (!EnsureCoreRegisteredForBootstrap(
+                    reason + " core prerequisite", generationId, ownerId))
+                return false;
         }
+
+        if (!IsExpectedGenerationActive(generationId, ownerId)) return false;
 
         try
         {
@@ -117,20 +266,32 @@ public static partial class DariusTravelerRegistry
             EnsureProfiles();
             ValidateProfileRegistration();
             RepairHeroCosmeticContract(HeroPrefab);
-            DariusLog.Info("TRAVELER", "Late profile/content registration completed reason=" + reason +
+            DariusLog.Info("TRAVELER", "Late profile/content registration completed generation=" +
+                generationId + " owner=" + ownerId + " reason=" + reason +
                 " state=" + DiagnosticState());
-            DariusRuntimeAudit.LogSnapshot("Traveler profile/content registration completed: " + reason, false);
+            DariusRuntimeAudit.LogSnapshot(
+                "Traveler profile/content registration completed: " + reason, false);
+            return true;
         }
         catch (Exception e)
         {
-            DariusLog.Exception("TRAVELER", e, "Late profile/content registration failed reason=" + reason);
+            DariusLog.Exception("TRAVELER", e,
+                "Late profile/content registration failed generation=" + generationId +
+                " owner=" + ownerId + " reason=" + reason + "; retry remains bounded to this generation");
+            return false;
         }
     }
 
     public static void Register()
     {
         if (_registered || _registering) return;
+        if (!IsExpectedGenerationActive(_modOwnerGenerationId, _modOwnerInstanceId))
+            throw new InvalidOperationException("Traveler registration attempted from a stale ModBehaviour generation.");
+        if (DariusPrototypeMod.IsBootstrapBlockedThisFrame)
+            throw new InvalidOperationException("Traveler registration attempted during the teardown frame barrier.");
         if (DewResources.database == null) throw new InvalidOperationException("DewResources.database is null.");
+        if (string.IsNullOrEmpty(DariusModEnvironment.Root))
+            throw new InvalidOperationException("Darius Mod root is not ready.");
         if (DariusFormalRegistry.Decimate == null || DariusFormalRegistry.NoxianGuillotine == null || DariusFormalRegistry.Hemorrhage == null)
             throw new InvalidOperationException("Darius skill resources must be registered before Hero_Darius.");
 
@@ -145,6 +306,7 @@ public static partial class DariusTravelerRegistry
             RegisterTypes();
             RegisterContent(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
             ValidateRegistration();
+            _registeredDatabase = DewResources.database;
             _registered = true;
             CreateLifecycleBridge();
 
