@@ -115,7 +115,6 @@ public static partial class DariusTravelerRegistry
     public static void ShutdownRuntimeResources()
     {
         UnregisterRuntimeOnly();
-        DestroyLifecycleBridge();
 
         // Native model bundle assets are process/mod-lifetime resources. Runtime skins are clones
         // owned by this Traveler generation, but unloading/reloading the bundle with Unload(false)
