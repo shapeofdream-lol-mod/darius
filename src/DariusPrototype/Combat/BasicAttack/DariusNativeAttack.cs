@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using UnityEngine;
 
 // v0.21.0 directional basic-attack pipeline.
@@ -84,46 +83,55 @@ public sealed class At_DariusAxe : AttackTrigger
 
     public override AbilityInstance OnCastComplete(int configIndex, CastInfo info)
     {
-        Hero hero = null; try { hero = info.caster as Hero; } catch { }
-        int resolvedConfig = configIndex;
-        try { DariusDirectionalBasicAttackState state = hero != null ? hero.GetComponent<DariusDirectionalBasicAttackState>() : null; if (state != null && Time.time - state.CapturedAt <= 1.5f) resolvedConfig = state.ConfigIndex; } catch { }
-        AbilityInstance configured = null;
-        try { if (configs != null && resolvedConfig >= 0 && resolvedConfig < configs.Length && configs[resolvedConfig] != null) configured = configs[resolvedConfig].spawnedInstance; } catch { }
-        if (configured != null)
-        {
-            try { AbilityInstance native = base.OnCastComplete(resolvedConfig, info); if (native != null) return native; }
-            catch (Exception e) { DariusLog.Exception("ATK-COMPLETE", e, "Native basic-attack instance path failed; using registered runtime prefab. state={" +
-                DariusRuntimeAudit.DescribeAbilityState(this, resolvedConfig) + "}"); }
-        }
-        DariusLog.Warn("ATK-COMPLETE", "Native basic-attack completion returned no instance; entering direct runtime fallback. state={" +
-            DariusRuntimeAudit.DescribeAbilityState(this, resolvedConfig) + "}");
-        return SpawnDirectRuntimeAttack(hero, resolvedConfig, info);
-    }
+        Hero hero = null;
+        try { hero = info.caster as Hero; } catch { }
 
-    private static AbilityInstance SpawnDirectRuntimeAttack(Hero hero, int configIndex, CastInfo info)
-    {
-        if (hero == null) return null;
-        MeleeAttackInstance prefab = configIndex == 1 ? (MeleeAttackInstance)DariusTravelerRegistry.AttackCritInstancePrefab : DariusTravelerRegistry.AttackInstancePrefab;
-        if (prefab == null) { DariusLog.Error("ATK-FALLBACK", "Registered runtime attack prefab is null configIndex=" + configIndex); return null; }
+        int resolvedConfig = configIndex;
         try
         {
-            Vector3 direction = DariusDirectionalBasicAttackGeometry.ResolveAimDirection(hero, info);
-            DariusDirectionalBasicAttackState state = hero.GetComponent<DariusDirectionalBasicAttackState>(); if (state != null) direction = state.GetDirection(direction);
-            direction.y = 0f; if (direction.sqrMagnitude < 0.0001f) direction = hero.transform.forward; if (direction.sqrMagnitude < 0.0001f) direction = Vector3.forward; direction.Normalize();
-            MethodInfo generic = FindPrefabCreateMethod(); if (generic == null) { DariusLog.Error("ATK-FALLBACK", "Actor.CreateAbilityInstance<T> prefab overload was not found"); return null; }
-            AbilityInstance spawned = generic.MakeGenericMethod(prefab.GetType()).Invoke(hero, new object[] { prefab, hero.transform.position, (Quaternion?)Quaternion.LookRotation(direction, Vector3.up), info, null }) as AbilityInstance;
-            DariusLog.Info("ATK-FALLBACK", "Direct runtime basic attack configIndex=" + configIndex + " prefab=" + prefab.name + " result=" + (spawned != null ? spawned.name : "<null>")); return spawned;
+            DariusDirectionalBasicAttackState state = hero != null ? hero.GetComponent<DariusDirectionalBasicAttackState>() : null;
+            if (state != null && Time.time - state.CapturedAt <= 1.5f) resolvedConfig = state.ConfigIndex;
         }
-        catch (TargetInvocationException e) { DariusLog.Exception("ATK-FALLBACK", e.InnerException ?? e, "Direct runtime basic attack threw"); }
-        catch (Exception e) { DariusLog.Exception("ATK-FALLBACK", e, "Direct runtime basic attack failed"); }
-        return null;
-    }
+        catch { }
 
-    private static MethodInfo FindPrefabCreateMethod()
-    {
-        MethodInfo[] methods = typeof(Actor).GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        for (int i = 0; i < methods.Length; i++) { MethodInfo m = methods[i]; if (m == null || m.Name != "CreateAbilityInstance" || !m.IsGenericMethodDefinition) continue; ParameterInfo[] ps = m.GetParameters(); if (ps.Length == 5 && ps[0].ParameterType.IsGenericParameter && ps[1].ParameterType == typeof(Vector3) && Nullable.GetUnderlyingType(ps[2].ParameterType) == typeof(Quaternion) && ps[3].ParameterType == typeof(CastInfo)) return m; }
-        return null;
+        AbilityInstance configured = null;
+        try
+        {
+            if (configs != null && resolvedConfig >= 0 && resolvedConfig < configs.Length && configs[resolvedConfig] != null)
+                configured = configs[resolvedConfig].spawnedInstance;
+        }
+        catch { }
+
+        DariusLog.DebugInfo("PIPELINE", "skill=AA stage=trigger-input config=" + configIndex +
+            " resolvedConfig=" + resolvedConfig +
+            " caster=" + DariusLog.EntityLabel(info.caster) +
+            " configured=" + (configured != null ? configured.name : "<null>") +
+            " state={" + DariusRuntimeAudit.DescribeAbilityState(this, resolvedConfig) + "}");
+
+        if (configured == null)
+        {
+            DariusLog.Error("ATK-COMPLETE", "Native basic-attack config has no spawnedInstance; direct runtime fallback is disabled. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, resolvedConfig) + "}");
+            return null;
+        }
+
+        try
+        {
+            AbilityInstance native = base.OnCastComplete(resolvedConfig, info);
+            DariusLog.DebugInfo("PIPELINE", "skill=AA stage=native-complete-output config=" + resolvedConfig +
+                " result=" + (native != null ? native.name : "<null>") +
+                " state={" + DariusRuntimeAudit.DescribeAbilityState(this, resolvedConfig) + "}");
+            if (native == null)
+                DariusLog.Error("ATK-COMPLETE", "Native basic-attack completion returned no instance; direct runtime fallback is disabled. state={" +
+                    DariusRuntimeAudit.DescribeAbilityState(this, resolvedConfig) + "}");
+            return native;
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("ATK-COMPLETE", e, "Native basic-attack instance path failed; no direct runtime fallback will run. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, resolvedConfig) + "}");
+            throw;
+        }
     }
 }
 
@@ -132,6 +140,8 @@ public sealed class Ai_DariusAxe : MeleeAttackInstance
     protected override void OnCreate()
     {
         base.OnCreate();
+        DariusLog.DebugInfo("PIPELINE", "skill=AA stage=instance-create crit=false instance=" + name +
+            " caster=" + DariusLog.EntityLabel(info.caster));
         DariusDirectionalBasicAttackGeometry.AnchorNativeMeleeInstance(this, info, false);
     }
 }
@@ -141,6 +151,8 @@ public sealed class Ai_DariusAxe_Crit : MeleeAttackInstance
     protected override void OnCreate()
     {
         base.OnCreate();
+        DariusLog.DebugInfo("PIPELINE", "skill=AA stage=instance-create crit=true instance=" + name +
+            " caster=" + DariusLog.EntityLabel(info.caster));
         DariusDirectionalBasicAttackGeometry.AnchorNativeMeleeInstance(this, info, true);
     }
 }
