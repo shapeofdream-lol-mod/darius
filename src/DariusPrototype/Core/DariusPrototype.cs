@@ -16,6 +16,8 @@ public sealed class DariusPrototypeMod : ModBehaviour
 
     public override void OnConfigChanged()
     {
+        if (_instanceId != 0 && !IsActiveGeneration(_generationId, _instanceId))
+            return;
         DariusAudioSettingsRuntime.Bind(skillAudioVolume);
         Debug.Log("[DariusAudio] config applied q=" + skillAudioVolume.qVolume.ToString("0.##") + " w=" + skillAudioVolume.wVolume.ToString("0.##") + " e=" + skillAudioVolume.eVolume.ToString("0.##") + " r=" + skillAudioVolume.rVolume.ToString("0.##") + " basic=" + skillAudioVolume.basicAttackVolume.ToString("0.##") + " dodge=" + skillAudioVolume.dodgeVolume.ToString("0.##") + " voice=" + skillAudioVolume.voiceVolume.ToString("0.##"));
     }
@@ -138,6 +140,14 @@ public sealed class DariusPrototypeMod : ModBehaviour
 
     private void Start()
     {
+        if (!IsActiveGeneration(_generationId, _instanceId))
+        {
+            DariusLog.Info("BOOT-LIFECYCLE", "Ignoring stale ModBehaviour.Start generation=" + _generationId +
+                " owner=" + _instanceId + " activeGeneration=" + _activeGenerationId +
+                " activeOwner=" + _activeModInstanceId + ".");
+            return;
+        }
+
         // Re-read ModItem.path now that the loader has completed the ModBehaviour contract.
         DariusModEnvironment.Configure(this);
         DariusAudioSettingsRuntime.Bind(skillAudioVolume);
@@ -282,6 +292,12 @@ public sealed class DariusPrototypeMod : ModBehaviour
     private void OnApplicationQuit()
     {
         _applicationQuitting = true;
+        if (!IsActiveGeneration(_generationId, _instanceId))
+        {
+            DariusLog.Info("BOOT-LIFECYCLE", "Ignoring application-quit cleanup from superseded generation=" +
+                _generationId + " owner=" + _instanceId + ".");
+            return;
+        }
         ShutdownRuntimeResources("application quit");
     }
 
