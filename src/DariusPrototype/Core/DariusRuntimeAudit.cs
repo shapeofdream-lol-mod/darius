@@ -545,7 +545,16 @@ internal static class DariusRuntimeAudit
                     Component component = obj as Component;
                     if (component == null) continue;
 
-                    string members = DescribeInterestingMembers(component);
+                    bool loadedSceneObject = false;
+                    try
+                    {
+                        Scene scene = component.gameObject.scene;
+                        loadedSceneObject = scene.IsValid() && scene.isLoaded;
+                    }
+                    catch { }
+                    if (!loadedSceneObject) continue;
+
+                    string members = DescribeInterestingFields(component);
                     if (string.IsNullOrEmpty(members) &&
                         type.Name.IndexOf("Hero", StringComparison.OrdinalIgnoreCase) < 0 &&
                         type.Name.IndexOf("Character", StringComparison.OrdinalIgnoreCase) < 0)
@@ -598,7 +607,7 @@ internal static class DariusRuntimeAudit
                 bool relevant =
                     fullName.IndexOf("Hero", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     fullName.IndexOf("Character", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    HasInterestingHeroMember(type);
+                    HasInterestingHeroField(type);
                 if (relevant) result.Add(type);
             }
         }
@@ -610,7 +619,7 @@ internal static class DariusRuntimeAudit
         return _lobbyConsumerTypes;
     }
 
-    private static bool HasInterestingHeroMember(Type type)
+    private static bool HasInterestingHeroField(Type type)
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         try
@@ -618,13 +627,30 @@ internal static class DariusRuntimeAudit
             FieldInfo[] fields = type.GetFields(flags);
             for (int i = 0; i < fields.Length; i++)
                 if (InterestingName(fields[i].Name)) return true;
-
-            PropertyInfo[] properties = type.GetProperties(flags);
-            for (int i = 0; i < properties.Length; i++)
-                if (InterestingName(properties[i].Name)) return true;
         }
         catch { }
         return false;
+    }
+
+    private static string DescribeInterestingFields(object target)
+    {
+        if (target == null) return "<null>";
+        List<string> values = new List<string>();
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        for (Type type = target.GetType(); type != null && values.Count < 24; type = type.BaseType)
+        {
+            FieldInfo[] fields = null;
+            try { fields = type.GetFields(flags); } catch { }
+            if (fields == null) continue;
+
+            for (int i = 0; i < fields.Length && values.Count < 24; i++)
+            {
+                FieldInfo field = fields[i];
+                if (field == null || !InterestingName(field.Name)) continue;
+                try { values.Add(type.Name + "." + field.Name + "=" + SummarizeValue(field.GetValue(target))); } catch { }
+            }
+        }
+        return string.Join(",", values.ToArray());
     }
 
     private static void LogCensus<T>(string label, Predicate<T> predicate, int limit, string reason)
