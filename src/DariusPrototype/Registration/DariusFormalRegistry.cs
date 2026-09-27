@@ -149,18 +149,31 @@ public static partial class DariusFormalRegistry
 
     public static IEnumerator InitializeAndDropWhenReady()
     {
-        // Legacy diagnostic entry point. Runtime bootstrap authority belongs to
-        // DariusTravelerRegistry.InitializeWhenReady(generation, owner); never let this routine
-        // create resources for a stale or unbound ModBehaviour generation.
-        DariusLog.Info("REG", "InitializeAndDropWhenReady started; waiting for active Formal owner and DewResources.database.");
+        // Capture authority at call time. Iterator bodies do not execute until MoveNext(), so the
+        // actual yielding routine must receive immutable owner/generation values explicitly.
+        int generationId = _modOwnerGenerationId;
+        int ownerId = _modOwnerInstanceId;
+        return InitializeAndDropWhenReadyOwned(generationId, ownerId);
+    }
+
+    private static IEnumerator InitializeAndDropWhenReadyOwned(int generationId, int ownerId)
+    {
+        DariusLog.Info("REG", "InitializeAndDropWhenReady started generation=" + generationId +
+            " owner=" + ownerId + "; waiting for DewResources.database.");
         while (DewResources.database == null)
         {
-            if (!IsOwnedByActiveGeneration) yield break;
+            if (!DariusPrototypeMod.IsActiveGeneration(generationId, ownerId) ||
+                _modOwnerGenerationId != generationId || _modOwnerInstanceId != ownerId)
+                yield break;
             yield return null;
         }
-        if (!IsOwnedByActiveGeneration) yield break;
 
-        DariusLog.Info("REG", "DewResources.database ready; registering formal resources for active owner.");
+        if (!DariusPrototypeMod.IsActiveGeneration(generationId, ownerId) ||
+            _modOwnerGenerationId != generationId || _modOwnerInstanceId != ownerId)
+            yield break;
+
+        DariusLog.Info("REG", "DewResources.database ready; registering formal resources for captured generation=" +
+            generationId + " owner=" + ownerId + ".");
         Register();
         if (!IsRegistrationHealthyForBootstrap()) yield break;
 
