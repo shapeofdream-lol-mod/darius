@@ -18,6 +18,7 @@ internal static class DariusRuntimeAudit
     private static readonly HashSet<int> DariusDisplayIds = new HashSet<int>();
     private static readonly HashSet<string> RuntimeConsumerStackKeys = new HashSet<string>(StringComparer.Ordinal);
     private static Type[] _lobbyConsumerTypes;
+    private static bool _suppressConsumerLookupTrace;
 
     internal static void ResetHooks()
     {
@@ -25,6 +26,7 @@ internal static class DariusRuntimeAudit
         DariusDisplayIds.Clear();
         RuntimeConsumerStackKeys.Clear();
         _lobbyConsumerTypes = null;
+        _suppressConsumerLookupTrace = false;
     }
 
     internal static void InstallHooks(Harmony harmony)
@@ -143,6 +145,7 @@ internal static class DariusRuntimeAudit
 
     internal static void LogRuntimeConsumerLookup(string key, UnityEngine.Object result)
     {
+        if (_suppressConsumerLookupTrace) return;
         if (string.IsNullOrEmpty(key) || !DariusTravelerRegistry.IsRuntimeKey(key)) return;
 
         string sceneName = string.Empty;
@@ -393,32 +396,61 @@ internal static class DariusRuntimeAudit
 
     private static string BuildLookupState()
     {
-        if (DewResources.database == null) return "resourceDB=<null>";
+        object database = DewResources.database;
+        if (database == null) return "resourceDB=<null>";
         if (!DariusRuntimeResourceCompatibility.IsInstalled)
             return "bridgeInstalled=false; active lookup probes skipped to avoid Addressables side effects";
 
+        bool heroMap = DariusUnsupportedResourceBridge.IsTypedResourceIdentityMapped(
+            database, typeof(Hero_Darius), DariusTravelerRegistry.HeroName, DariusTravelerRegistry.HeroGuid);
+        bool skinMap = DariusUnsupportedResourceBridge.IsNamedResourceIdentityMapped(
+            database, DariusTravelerRegistry.DefaultSkinName, DariusTravelerRegistry.SkinGuid);
+        bool attackMap = DariusUnsupportedResourceBridge.IsTypedResourceIdentityMapped(
+            database, typeof(At_DariusAxe), DariusTravelerRegistry.AttackName, DariusTravelerRegistry.AttackGuid);
+
+        if (!heroMap || !skinMap || !attackMap ||
+            DariusTravelerRegistry.HeroPrefab == null ||
+            DariusTravelerRegistry.DefaultSkin == null ||
+            DariusTravelerRegistry.AttackPrefab == null)
+        {
+            return "directMaps(hero/skin/attack)=" + heroMap + "/" + skinMap + "/" + attackMap +
+                   " templates(hero/skin/attack)=" +
+                   (DariusTravelerRegistry.HeroPrefab != null) + "/" +
+                   (DariusTravelerRegistry.DefaultSkin != null) + "/" +
+                   (DariusTravelerRegistry.AttackPrefab != null) +
+                   "; active public lookup probes skipped because prerequisite shape is incomplete";
+        }
+
         StringBuilder sb = new StringBuilder();
+        _suppressConsumerLookupTrace = true;
         try
         {
-            Hero hero = DewResources.GetByShortTypeName<Hero>(DariusTravelerRegistry.HeroName);
-            sb.Append("HeroByShort=").Append(DescribeUnityObject(hero))
-              .Append(" matchRegistry=").Append(ReferenceEquals(hero, DariusTravelerRegistry.HeroPrefab));
-        }
-        catch (Exception e) { sb.Append(" HeroByShortError=").Append(e.GetType().Name).Append(":").Append(e.Message); }
+            try
+            {
+                Hero hero = DewResources.GetByShortTypeName<Hero>(DariusTravelerRegistry.HeroName);
+                sb.Append("HeroByShort=").Append(DescribeUnityObject(hero))
+                  .Append(" matchRegistry=").Append(ReferenceEquals(hero, DariusTravelerRegistry.HeroPrefab));
+            }
+            catch (Exception e) { sb.Append(" HeroByShortError=").Append(e.GetType().Name).Append(":").Append(e.Message); }
 
-        try
+            try
+            {
+                Skin skin = DewResources.GetByName<Skin>(DariusTravelerRegistry.DefaultSkinName);
+                sb.Append(" SkinByName=").Append(DescribeUnityObject(skin))
+                  .Append(" matchRegistry=").Append(ReferenceEquals(skin, DariusTravelerRegistry.DefaultSkin));
+            }
+            catch (Exception e) { sb.Append(" SkinByNameError=").Append(e.GetType().Name).Append(":").Append(e.Message); }
+
+            AppendSkillLookup<AttackTrigger>(sb, DariusTravelerRegistry.AttackName, DariusTravelerRegistry.AttackPrefab, "Attack");
+            AppendSkillLookup<SkillTrigger>(sb, "St_Darius_Decimate", DariusFormalRegistry.Decimate, "Q");
+            AppendSkillLookup<SkillTrigger>(sb, "St_Darius_NoxianGuillotine", DariusFormalRegistry.NoxianGuillotine, "R");
+            AppendSkillLookup<SkillTrigger>(sb, "St_D_Darius_Hemorrhage", DariusFormalRegistry.Hemorrhage, "Identity");
+            return sb.ToString();
+        }
+        finally
         {
-            Skin skin = DewResources.GetByName<Skin>(DariusTravelerRegistry.DefaultSkinName);
-            sb.Append(" SkinByName=").Append(DescribeUnityObject(skin))
-              .Append(" matchRegistry=").Append(ReferenceEquals(skin, DariusTravelerRegistry.DefaultSkin));
+            _suppressConsumerLookupTrace = false;
         }
-        catch (Exception e) { sb.Append(" SkinByNameError=").Append(e.GetType().Name).Append(":").Append(e.Message); }
-
-        AppendSkillLookup<AttackTrigger>(sb, DariusTravelerRegistry.AttackName, DariusTravelerRegistry.AttackPrefab, "Attack");
-        AppendSkillLookup<SkillTrigger>(sb, "St_Darius_Decimate", DariusFormalRegistry.Decimate, "Q");
-        AppendSkillLookup<SkillTrigger>(sb, "St_Darius_NoxianGuillotine", DariusFormalRegistry.NoxianGuillotine, "R");
-        AppendSkillLookup<SkillTrigger>(sb, "St_D_Darius_Hemorrhage", DariusFormalRegistry.Hemorrhage, "Identity");
-        return sb.ToString();
     }
 
     private static void AppendSkillLookup<T>(StringBuilder sb, string name, UnityEngine.Object expected, string label)
