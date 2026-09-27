@@ -27,12 +27,6 @@ public static partial class DariusTravelerRegistry
 
         DariusDejaVuRegistry.RegisterProfileStats(stats);
 
-        // DewProfile.heroes is initialized before runtime custom Hero types are registered.
-        // Seed only the missing custom-Hero container, then keep the public UnlockHero API
-        // authoritative for the actual unlock transition.
-        EnsureHeroUnlockContainer(profile);
-        profile.UnlockHero(HeroName);
-
         string[] requiredSkills =
         {
             DariusFormalRegistry.Decimate.name,
@@ -43,8 +37,24 @@ public static partial class DariusTravelerRegistry
             DariusFormalRegistry.Flash.name,
             DariusFormalRegistry.Ghost.name
         };
+
+        // UnlockHero immediately resolves the Hero's configured skills. Make those public profile
+        // entries authoritative first so Hero_Darius registration succeeds as one transaction
+        // instead of relying on a failed first attempt plus retry.
+        DariusLog.DebugInfo("PROFILE-PIPELINE", "stage=skill-unlock-input hero=" + HeroName +
+            " skillCount=" + requiredSkills.Length);
         foreach (string skillName in requiredSkills)
             profile.UnlockSkill(skillName);
+        DariusLog.DebugInfo("PROFILE-PIPELINE", "stage=skill-unlock-output hero=" + HeroName +
+            " skillCount=" + requiredSkills.Length);
+
+        // DewProfile.heroes is initialized before runtime custom Hero types are registered.
+        // Seed only the missing custom-Hero container, then keep the public UnlockHero API
+        // authoritative for the actual unlock transition.
+        EnsureHeroUnlockContainer(profile);
+        DariusLog.DebugInfo("PROFILE-PIPELINE", "stage=hero-unlock-input hero=" + HeroName);
+        profile.UnlockHero(HeroName);
+        DariusLog.DebugInfo("PROFILE-PIPELINE", "stage=hero-unlock-output hero=" + HeroName);
 
         for (int si = 0; si < SkinSpecs.Length; si++)
             profile.UnlockSkin(SkinSpecs[si].name, "local.darius.independent");
