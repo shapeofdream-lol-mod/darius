@@ -59,10 +59,19 @@ public static partial class DariusLolVfxRuntime
     private static void EnsureLoaded()
     {
         if (_loadAttempted) return;
+
+        string root = DariusMedia.Root;
+        if (string.IsNullOrEmpty(root))
+        {
+            DariusLog.DebugInfoThrottled("LOL-VFX", "root-not-ready",
+                "Riot VFX manifest load deferred because the Mod root is not ready.", 1.0);
+            return;
+        }
+
         _loadAttempted = true;
         try
         {
-            string path = Path.Combine(DariusMedia.Root, "assets", "lol_vfx", "darius_lol_vfx.json");
+            string path = Path.Combine(root, "assets", "lol_vfx", "darius_lol_vfx.json");
             if (!File.Exists(path))
             {
                 DariusLog.Error("LOL-VFX", "Converted League VFX manifest missing path=" + path);
@@ -94,6 +103,7 @@ public static partial class DariusLolVfxRuntime
         catch (Exception e)
         {
             _systems = null;
+            _loadAttempted = false;
             DariusLog.Exception("LOL-VFX", e, "Failed loading converted Riot VFX manifest");
         }
     }
