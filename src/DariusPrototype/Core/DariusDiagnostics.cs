@@ -16,6 +16,11 @@ public sealed class DariusDiagnostics : MonoBehaviour
     private bool _unityHooked;
     private bool _sceneHooked;
     private int _sceneSnapshotToken;
+    private bool _templateStateInitialized;
+    private bool _lastHeroTemplateAlive;
+    private bool _lastAttackTemplateAlive;
+    private bool _lastAttackAiTemplateAlive;
+    private bool _lastAttackCritTemplateAlive;
 
     public void Initialize()
     {
@@ -35,6 +40,7 @@ public sealed class DariusDiagnostics : MonoBehaviour
         _lastServer = SafeServerActive();
         _lastClient = SafeClientActive();
         _lastHeroId = GetHeroId();
+        CaptureTemplateAliveState();
         _nextHeartbeat = Time.unscaledTime + 3f;
         DariusLog.Info("DIAG", "Diagnostics initialized. " + Snapshot());
         ScheduleSceneSnapshots("diagnostics initialize");
@@ -45,6 +51,8 @@ public sealed class DariusDiagnostics : MonoBehaviour
         bool server = SafeServerActive();
         bool client = SafeClientActive();
         int heroId = GetHeroId();
+
+        LogTemplateLifetimeTransitions();
 
         if (server != _lastServer || client != _lastClient)
         {
@@ -199,6 +207,56 @@ public sealed class DariusDiagnostics : MonoBehaviour
             return (scene.IsValid() ? scene.name : "<invalid>") + "#" + scene.handle + "(loaded=" + scene.isLoaded + ")";
         }
         catch { return "<scene-error>"; }
+    }
+
+    private void CaptureTemplateAliveState()
+    {
+        _lastHeroTemplateAlive = IsAlive(DariusTravelerRegistry.HeroPrefab);
+        _lastAttackTemplateAlive = IsAlive(DariusTravelerRegistry.AttackPrefab);
+        _lastAttackAiTemplateAlive = IsAlive(DariusTravelerRegistry.AttackInstancePrefab);
+        _lastAttackCritTemplateAlive = IsAlive(DariusTravelerRegistry.AttackCritInstancePrefab);
+        _templateStateInitialized = true;
+    }
+
+    private void LogTemplateLifetimeTransitions()
+    {
+        bool hero = IsAlive(DariusTravelerRegistry.HeroPrefab);
+        bool attack = IsAlive(DariusTravelerRegistry.AttackPrefab);
+        bool attackAi = IsAlive(DariusTravelerRegistry.AttackInstancePrefab);
+        bool crit = IsAlive(DariusTravelerRegistry.AttackCritInstancePrefab);
+
+        if (!_templateStateInitialized)
+        {
+            CaptureTemplateAliveState();
+            return;
+        }
+
+        if (hero == _lastHeroTemplateAlive &&
+            attack == _lastAttackTemplateAlive &&
+            attackAi == _lastAttackAiTemplateAlive &&
+            crit == _lastAttackCritTemplateAlive)
+            return;
+
+        DariusLog.Warn("TEMPLATE-LIFETIME",
+            "Traveler template alive transition frame=" + Time.frameCount +
+            " scene=" + DescribeScene(SceneManager.GetActiveScene()) +
+            " server=" + SafeServerActive() +
+            " client=" + SafeClientActive() +
+            " hero=" + _lastHeroTemplateAlive + "->" + hero +
+            " attack=" + _lastAttackTemplateAlive + "->" + attack +
+            " attackAi=" + _lastAttackAiTemplateAlive + "->" + attackAi +
+            " critAi=" + _lastAttackCritTemplateAlive + "->" + crit +
+            " core={" + DariusTravelerRegistry.PipelineCoreState() + "}");
+
+        _lastHeroTemplateAlive = hero;
+        _lastAttackTemplateAlive = attack;
+        _lastAttackAiTemplateAlive = attackAi;
+        _lastAttackCritTemplateAlive = crit;
+    }
+
+    private static bool IsAlive(UnityEngine.Object obj)
+    {
+        return !ReferenceEquals(obj, null) && obj != null;
     }
 
     private static int GetHeroId()
