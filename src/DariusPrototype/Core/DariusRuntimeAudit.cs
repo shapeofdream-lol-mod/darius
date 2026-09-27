@@ -522,6 +522,117 @@ internal static class DariusRuntimeAudit
             " stack=" + Environment.StackTrace);
     }
 
+    internal static string DescribeAbilityState(object trigger, int requestedConfigIndex)
+    {
+        if (trigger == null) return "<trigger-null>";
+        StringBuilder sb = new StringBuilder();
+        UnityEngine.Object unity = trigger as UnityEngine.Object;
+        if (!ReferenceEquals(unity, null)) sb.Append("trigger=").Append(DescribeUnityObject(unity));
+        else sb.Append("triggerType=").Append(trigger.GetType().FullName);
+
+        string[] triggerMembers =
+        {
+            "owner",
+            "abilityIndex",
+            "currentConfigIndex",
+            "currentConfigCurrentCharge",
+            "currentConfigCooldownTime",
+            "currentConfigUnscaledCooldownTime",
+            "currentConfigCurrentMinimumDelay",
+            "currentConfigMaxCooldownTime",
+            "level"
+        };
+        for (int i = 0; i < triggerMembers.Length; i++)
+            AppendReflectedMember(sb, trigger, triggerMembers[i]);
+
+        object configs;
+        if (TryReadMemberRecursive(trigger, "configs", out configs))
+        {
+            Array array = configs as Array;
+            sb.Append(" configs=").Append(array != null ? array.Length.ToString() : SummarizeValue(configs));
+            if (array != null && requestedConfigIndex >= 0 && requestedConfigIndex < array.Length)
+            {
+                object cfg = array.GetValue(requestedConfigIndex);
+                sb.Append(" requestedConfig=").Append(requestedConfigIndex);
+                if (cfg == null) sb.Append("(<null>)");
+                else
+                {
+                    string[] configMembers =
+                    {
+                        "spawnedInstance",
+                        "isActive",
+                        "alwaysCastImmediately",
+                        "faceForward",
+                        "canReceiveCooldownReduction",
+                        "castMethod"
+                    };
+                    for (int i = 0; i < configMembers.Length; i++)
+                        AppendReflectedMember(sb, cfg, configMembers[i]);
+
+                    object castMethod;
+                    if (TryReadMemberRecursive(cfg, "castMethod", out castMethod) && castMethod != null)
+                    {
+                        string[] castMembers = { "type", "_range", "_radius", "_angle", "_isClamping" };
+                        for (int i = 0; i < castMembers.Length; i++)
+                            AppendReflectedMember(sb, castMethod, castMembers[i]);
+                    }
+                }
+            }
+        }
+
+        try
+        {
+            MethodInfo canCast = trigger.GetType().GetMethod(
+                "CanBeCast",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null,
+                Type.EmptyTypes,
+                null);
+            if (canCast != null) sb.Append(" canCast=").Append(canCast.Invoke(trigger, null));
+        }
+        catch (Exception e)
+        {
+            sb.Append(" canCastError=").Append(e.GetType().Name);
+        }
+        return sb.ToString();
+    }
+
+    private static void AppendReflectedMember(StringBuilder sb, object target, string name)
+    {
+        object value;
+        if (!TryReadMemberRecursive(target, name, out value)) return;
+        sb.Append(" ").Append(name).Append("=").Append(SummarizeValue(value));
+    }
+
+    private static bool TryReadMemberRecursive(object target, string name, out object value)
+    {
+        value = null;
+        if (target == null || string.IsNullOrEmpty(name)) return false;
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        for (Type type = target.GetType(); type != null; type = type.BaseType)
+        {
+            try
+            {
+                FieldInfo field = type.GetField(name, flags) ??
+                                  type.GetField("<" + name + ">k__BackingField", flags);
+                if (field != null)
+                {
+                    value = field.GetValue(target);
+                    return true;
+                }
+
+                PropertyInfo property = type.GetProperty(name, flags);
+                if (property != null && property.CanRead && property.GetIndexParameters().Length == 0)
+                {
+                    value = property.GetValue(target, null);
+                    return true;
+                }
+            }
+            catch { }
+        }
+        return false;
+    }
+
     private static string DescribeInterestingMembers(object target)
     {
         if (target == null) return "<null>";
