@@ -73,6 +73,10 @@ internal static partial class DariusNativeModelAssets
 
     public static void Unload()
     {
+        DariusLog.Info("NATIVE-MODEL", "Unload requested bundle=" + (_bundle != null) +
+            " loadAttempted=" + _loadAttempted +
+            " prefabs=" + Prefabs.Count +
+            " overlayMeshes=" + OverlayMeshes.Count + " unloadAllLoadedObjects=false.");
         Prefabs.Clear();
         ClearOverlayMeshes();
         _loadAttempted = false;
