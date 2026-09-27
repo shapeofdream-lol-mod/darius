@@ -13,7 +13,10 @@ public static partial class DariusFormalRegistry
     internal static bool IsRegistrationHealthyForBootstrap()
     {
         if (!_registered || !IsOwnedByActiveGeneration ||
-            DewResources.database == null || RegistrationsByGuid.Count == 0) return false;
+            DewResources.database == null || RegistrationsByGuid.Count == 0 ||
+            string.IsNullOrEmpty(_registeredModRoot) ||
+            !string.Equals(_registeredModRoot, DariusModEnvironment.Root, StringComparison.OrdinalIgnoreCase))
+            return false;
 
         foreach (RuntimeRegistration record in RegistrationsByGuid.Values)
         {
@@ -51,8 +54,16 @@ public static partial class DariusFormalRegistry
         if (_registered)
         {
             if (IsRegistrationHealthyForBootstrap()) return;
-            DariusLog.Warn("REG", "Formal registry reported registered but its runtime generation is incomplete; discarding it before a next-frame rebuild. state=" + DiagnosticState());
+            bool rootChanged = !string.IsNullOrEmpty(_registeredModRoot) &&
+                               !string.Equals(_registeredModRoot, DariusModEnvironment.Root, StringComparison.OrdinalIgnoreCase);
+            DariusLog.Warn("REG", "Formal registry reported registered but its runtime generation is incomplete; discarding it before a next-frame rebuild. rootChanged=" +
+                rootChanged + " state=" + DiagnosticState());
             Unregister();
+            if (rootChanged)
+            {
+                DariusPrototypeIcons.Unload();
+                DariusLog.Info("REG-LIFECYCLE", "Cleared root-dependent icon cache after Formal root authority changed.");
+            }
             return;
         }
         if (RegistrationsByGuid.Count > 0 || ResourcesByGuid.Count > 0 || NetworkPrefabs.Count > 0 || OwnedPrefabs.Count > 0)
@@ -201,6 +212,7 @@ public static partial class DariusFormalRegistry
 
         // Runtime maps are updated precisely by RegisterObject; do not rebuild the global database here.
 
+        _registeredModRoot = DariusModEnvironment.Root;
         _registered = true;
         DariusLog.Info("REG", "Formal Darius resources registered: Q/W/E/R + Flash/Ghost + Hemorrhage identity/status + Noxian Might status + 38 native constellation/equipment stars + legacy Essence + 4 AbilityInstances. state=" + DiagnosticState());
         }
