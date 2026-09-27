@@ -42,12 +42,12 @@ public static partial class DariusFormalRegistry
         if (_registered)
         {
             if (IsRegistrationHealthy()) return;
-            DariusLog.Warn("REG", "Formal registry reported registered but its runtime generation is incomplete; rebuilding one clean generation.");
+            DariusLog.Warn("REG", "Formal registry reported registered but its runtime generation is incomplete; rebuilding one clean generation. state=" + DiagnosticState());
             Unregister();
         }
         else if (RegistrationsByGuid.Count > 0 || ResourcesByGuid.Count > 0 || NetworkPrefabs.Count > 0 || OwnedPrefabs.Count > 0)
         {
-            DariusLog.Warn("REG", "Discarding partial Formal registry state before a clean registration attempt.");
+            DariusLog.Warn("REG", "Discarding partial Formal registry state before a clean registration attempt. state=" + DiagnosticState());
             Unregister();
         }
 
@@ -184,7 +184,7 @@ public static partial class DariusFormalRegistry
         // Runtime maps are updated precisely by RegisterObject; do not rebuild the global database here.
 
         _registered = true;
-        DariusLog.Info("REG", "Formal Darius resources registered: Q/W/E/R + Flash/Ghost + Hemorrhage identity/status + Noxian Might status + 38 native constellation/equipment stars + legacy Essence + 4 AbilityInstances.");
+        DariusLog.Info("REG", "Formal Darius resources registered: Q/W/E/R + Flash/Ghost + Hemorrhage identity/status + Noxian Might status + 38 native constellation/equipment stars + legacy Essence + 4 AbilityInstances. state=" + DiagnosticState());
         }
         catch (Exception e)
         {
