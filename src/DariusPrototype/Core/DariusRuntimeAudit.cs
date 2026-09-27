@@ -39,20 +39,6 @@ internal static class DariusRuntimeAudit
             patched += PatchOptional(harmony, displaySetup, null, nameof(CharacterModelDisplaySetupPostfix),
                 "CharacterModelDisplay.Setup");
 
-            if (displayType != null)
-            {
-                string[] lifecycleNames = { "OnEnable", "OnDisable", "OnDestroy" };
-                for (int i = 0; i < lifecycleNames.Length; i++)
-                {
-                    string lifecycleName = lifecycleNames[i];
-                    MethodInfo lifecycle = Array.Find(
-                        displayType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic),
-                        m => m.Name == lifecycleName && m.GetParameters().Length == 0);
-                    patched += PatchOptional(harmony, lifecycle, nameof(CharacterModelDisplayLifecyclePrefix), null,
-                        "CharacterModelDisplay." + lifecycleName);
-                }
-            }
-
             MethodInfo[] spawnMethods = typeof(NetworkServer).GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             for (int i = 0; i < spawnMethods.Length; i++)
             {
