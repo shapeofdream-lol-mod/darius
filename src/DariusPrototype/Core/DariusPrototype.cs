@@ -75,6 +75,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         // Configure() is intentionally safe when instance/mod is not populated yet; Start() retries it.
         DariusModEnvironment.Configure(this);
         DariusMedia.RefreshRootFromEnvironment();
+        DariusPrototypeIcons.RefreshRootOwnership();
         DariusAudioSettingsRuntime.Bind(skillAudioVolume);
         DariusLog.Initialize();
 
@@ -152,6 +153,7 @@ public sealed class DariusPrototypeMod : ModBehaviour
         // Re-read ModItem.path now that the loader has completed the ModBehaviour contract.
         DariusModEnvironment.Configure(this);
         DariusMedia.RefreshRootFromEnvironment();
+        DariusPrototypeIcons.RefreshRootOwnership();
         DariusAudioSettingsRuntime.Bind(skillAudioVolume);
         DariusLog.Initialize();
         DariusLog.Info("BOOT", "DariusPrototype version=" + DariusModEnvironment.Version + "; Start() entered. bootstrapped=" + _bootstrapped +
