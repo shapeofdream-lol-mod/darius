@@ -223,15 +223,6 @@ public sealed class DariusPrototypeMod : ModBehaviour
 
             try
             {
-                DariusRInputGuard.Install(harmony);
-            }
-            catch (Exception e)
-            {
-                DariusLog.Exception("PATCH", e, "R input guard install failed; continuing boot");
-            }
-
-            try
-            {
                 DariusRuntimeAudit.InstallHooks(harmony);
             }
             catch (Exception e)
@@ -352,7 +343,6 @@ public sealed class DariusPrototypeMod : ModBehaviour
     private void ResetSharedRuntimeForReplacement()
     {
         TravelerBasicAttackVfxReplication.Shutdown();
-        DariusRInputGuard.Uninstall();
         try { harmony.UnpatchAll(harmony.Id); } catch { }
         DariusRuntimeAudit.ResetHooks();
         DariusRuntimeResourceCompatibility.ResetInstallState();
@@ -375,7 +365,6 @@ public sealed class DariusPrototypeMod : ModBehaviour
             " owner=" + _instanceId + " reason=" + reason);
         DariusRuntimeAudit.LogSnapshot("before shutdown generation=" + _generationId + " reason=" + reason, true);
         TravelerBasicAttackVfxReplication.Shutdown();
-        DariusRInputGuard.Uninstall();
         try { harmony.UnpatchAll(harmony.Id); } catch { }
         DariusRuntimeAudit.ResetHooks();
         DariusRuntimeResourceCompatibility.ResetInstallState();
