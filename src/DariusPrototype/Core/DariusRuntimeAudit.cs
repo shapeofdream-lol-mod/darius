@@ -394,6 +394,14 @@ internal static class DariusRuntimeAudit
         return sb.ToString();
     }
 
+    internal static void LogPublicLookupCheckpoint(string correlation, string stage)
+    {
+        LogPipelineCheckpoint(
+            correlation,
+            stage,
+            "lookup={" + BuildLookupState() + "}");
+    }
+
     private static string BuildLookupState()
     {
         object database = DewResources.database;
