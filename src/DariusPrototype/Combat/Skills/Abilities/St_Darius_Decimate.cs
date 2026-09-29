@@ -41,6 +41,11 @@ public sealed class St_Darius_Decimate : SkillTrigger
             cfg.castMethod = cfg.castMethod ?? new CastMethodData();
             cfg.castMethod.type = CastMethodType.None;
             cfg.castMethod._radius = 4.25f;
+            if (Mirror.NetworkServer.active)
+            {
+                SyncCastMethodChanges(0);
+                DariusLog.DebugInfo("CAST-METHOD-SYNC", "skill=Q config=0 type=None radius=4.25");
+            }
             DariusLog.Info("Q-CONFIG", "OnPrepare configured cooldown=6 radius=4.25 icon=" + (cfg.triggerIcon != null));
         }
         catch (Exception e)
