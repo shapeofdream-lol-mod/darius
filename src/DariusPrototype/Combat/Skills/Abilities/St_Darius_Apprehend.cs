@@ -81,6 +81,12 @@ public sealed class St_Darius_Apprehend : SkillTrigger
             cfg.castMethod.type = CastMethodType.Cone;
             cfg.castMethod._radius = range;
             cfg.castMethod._angle = 60.0f;
+            if (Mirror.NetworkServer.active)
+            {
+                SyncCastMethodChanges(i);
+                DariusLog.DebugInfo("CAST-METHOD-SYNC", "skill=E config=" + i +
+                    " type=Cone radius=" + range.ToString("0.##") + " angle=60");
+            }
         }
         DariusLog.DebugInfo("E-RANGE", "Memory level=" + DariusMemoryScaling.NormalizeLevel(level) +
             " cast/physics range synchronized to " + range.ToString("0.##") + "m");
