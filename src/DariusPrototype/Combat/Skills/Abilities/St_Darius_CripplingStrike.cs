@@ -40,6 +40,11 @@ public sealed class St_Darius_CripplingStrike : SkillTrigger
             cfg.castMethod = cfg.castMethod ?? new CastMethodData();
             cfg.castMethod.type = CastMethodType.None;
             cfg.castMethod._radius = 0f;
+            if (Mirror.NetworkServer.active)
+            {
+                SyncCastMethodChanges(0);
+                DariusLog.DebugInfo("CAST-METHOD-SYNC", "skill=W config=0 type=None radius=0");
+            }
             DariusLog.Info("W-CONFIG", "OnPrepare configured cooldown=5 armDuration=4 icon=" + (cfg.triggerIcon != null));
         }
         catch (Exception e)
