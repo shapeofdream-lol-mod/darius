@@ -113,6 +113,12 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
                 cfg.castMethod._range = CastRange;
                 cfg.castMethod._radius = AimPointAssistRadius;
                 cfg.castMethod._isClamping = true;
+                if (NetworkServer.active)
+                {
+                    SyncCastMethodChanges(i);
+                    DariusLog.DebugInfo("CAST-METHOD-SYNC", "skill=R config=" + i +
+                        " type=Point range=" + CastRange + " radius=" + AimPointAssistRadius);
+                }
                 // Point input is only an aiming gesture. Native target validation can reject an
                 // empty cursor point before Darius' own target resolver runs, which made R appear
                 // to do nothing. The execute validates and resolves a living enemy itself.
