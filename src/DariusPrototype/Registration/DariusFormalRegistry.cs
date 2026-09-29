@@ -19,9 +19,33 @@ public static partial class DariusFormalRegistry
 
     private static readonly Dictionary<uint, GameObject> NetworkPrefabs = new Dictionary<uint, GameObject>();
 
+    private sealed class RuntimeRegistration
+    {
+        public readonly Type type;
+        public readonly string name;
+        public readonly string guid;
+        public readonly uint assetId;
+        public bool networkHandlerRegistered;
+
+        public RuntimeRegistration(Type type, string name, string guid, uint assetId)
+        {
+            this.type = type;
+            this.name = name;
+            this.guid = guid;
+            this.assetId = assetId;
+        }
+    }
+
+    private static readonly Dictionary<string, RuntimeRegistration> RegistrationsByGuid =
+        new Dictionary<string, RuntimeRegistration>(StringComparer.Ordinal);
+
     private static readonly List<GameObject> OwnedPrefabs = new List<GameObject>();
 
     private static GameObject _runtimeActorRoot;
+    private static Transform _modOwner;
+    private static int _modOwnerInstanceId;
+    private static int _modOwnerGenerationId;
+    private static string _registeredModRoot;
 
     private static bool _registered;
 
@@ -83,28 +107,81 @@ public static partial class DariusFormalRegistry
 
     private const string GuidAiR = DariusResourceIds.AbilityR;
 
-    // Only W/E are ordinary run Memories. Q/R are Hero_Darius character skills and
-    // Hemorrhage is the Identity slot; those three must not enter the random Memory pool.
-    public static readonly KeyValuePair<string, Rarity>[] SkillPoolEntries =
+    public static void BindOwner(Transform owner, int generationId, int ownerId)
     {
-        new KeyValuePair<string, Rarity>("St_Darius_CripplingStrike", Rarity.Common),
-        new KeyValuePair<string, Rarity>("St_Darius_Apprehend", Rarity.Common)
-    };
+        if (owner == null) throw new ArgumentNullException(nameof(owner));
+        if (generationId <= 0) throw new ArgumentOutOfRangeException(nameof(generationId));
+        if (ownerId == 0) throw new ArgumentOutOfRangeException(nameof(ownerId));
+        if (_modOwnerInstanceId == ownerId && _modOwnerGenerationId == generationId)
+        {
+            _modOwner = owner;
+            return;
+        }
 
-    public static readonly KeyValuePair<string, Rarity>[] GemPoolEntries = new KeyValuePair<string, Rarity>[0];
+        if (_runtimeActorRoot != null || _registered || OwnedPrefabs.Count > 0)
+            throw new InvalidOperationException("Formal runtime generation must be cleaned before binding a new ModBehaviour owner.");
+
+        _modOwner = owner;
+        _modOwnerInstanceId = ownerId;
+        _modOwnerGenerationId = generationId;
+        DariusLog.Info("REG-LIFECYCLE", "Bound Formal runtime resource ownership generation=" + generationId +
+            " modBehaviourOwner=" + ownerId +
+            " gameObjectOwner=" + owner.gameObject.GetInstanceID() + ".");
+    }
+
+    internal static bool IsOwnedByActiveGeneration
+    {
+        get
+        {
+            return _modOwner != null &&
+                   _modOwnerGenerationId > 0 &&
+                   _modOwnerInstanceId != 0 &&
+                   DariusPrototypeMod.IsActiveGeneration(_modOwnerGenerationId, _modOwnerInstanceId);
+        }
+    }
+
+    public static void ShutdownRuntimeResources()
+    {
+        Unregister();
+        _modOwner = null;
+        _modOwnerInstanceId = 0;
+        _modOwnerGenerationId = 0;
+        _registeredModRoot = null;
+    }
 
     public static IEnumerator InitializeAndDropWhenReady()
     {
-        DariusLog.Info("REG", "InitializeAndDropWhenReady started; waiting for DewResources.database.");
-        while (DewResources.database == null)
+        // Capture authority at call time. Iterator bodies do not execute until MoveNext(), so the
+        // actual yielding routine must receive immutable owner/generation values explicitly.
+        int generationId = _modOwnerGenerationId;
+        int ownerId = _modOwnerInstanceId;
+        return InitializeAndDropWhenReadyOwned(generationId, ownerId);
+    }
+
+    private static IEnumerator InitializeAndDropWhenReadyOwned(int generationId, int ownerId)
+    {
+        DariusLog.Info("REG", "InitializeAndDropWhenReady started generation=" + generationId +
+            " owner=" + ownerId + "; waiting for DewResources.database + Mod root.");
+        while (DewResources.database == null ||
+               string.IsNullOrEmpty(DariusModEnvironment.Root) ||
+               DariusPrototypeMod.IsBootstrapBlockedThisFrame)
+        {
+            if (!DariusPrototypeMod.IsActiveGeneration(generationId, ownerId) ||
+                _modOwnerGenerationId != generationId || _modOwnerInstanceId != ownerId)
+                yield break;
             yield return null;
+        }
 
-        DariusLog.Info("REG", "DewResources.database ready; registering formal resources.");
+        if (!DariusPrototypeMod.IsActiveGeneration(generationId, ownerId) ||
+            _modOwnerGenerationId != generationId || _modOwnerInstanceId != ownerId)
+            yield break;
+
+        DariusLog.Info("REG", "DewResources.database ready; registering formal resources for captured generation=" +
+            generationId + " owner=" + ownerId + ".");
         Register();
+        if (!IsRegistrationHealthyForBootstrap()) yield break;
 
-        // Primary test path from v0.9.6 onward: native Deja Vu start selection.
         DariusDejaVuRegistry.RegisterAll();
         DariusLog.Info("DEJAVU", "Darius memory resources registered in the native Deja Vu/content pipeline.");
-        yield break;
     }
 }

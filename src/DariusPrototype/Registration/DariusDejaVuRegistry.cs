@@ -8,9 +8,9 @@ using Mirror;
 using UnityEngine;
 using DewInternal;
 
-// Injects the Darius test Memories/Essence into the game's native Deja Vu start-loadout system.
-// The implementation intentionally mirrors the profile/content registration path used by
-// current (2026) Shape of Dreams mods, with reflection fallbacks for gem-side collections.
+// Connects Darius Memories to the native Deja Vu start-loadout system.
+// Public content/profile APIs are used directly; only the missing custom-resource type discovery
+// remains behind the narrow Dew type-cache compatibility boundary.
 public static partial class DariusDejaVuRegistry
 {
     private static readonly string[] SkillNames =
@@ -22,36 +22,7 @@ public static partial class DariusDejaVuRegistry
         "St_D_Darius_Hemorrhage"
     };
 
-    private static readonly Type[] SkillTypes =
-    {
-        typeof(St_Darius_Decimate),
-        typeof(St_Darius_CripplingStrike),
-        typeof(St_Darius_Apprehend),
-        typeof(St_Darius_NoxianGuillotine),
-        typeof(St_D_Darius_Hemorrhage)
-    };
-
-    private const string LegacyGemName = "Gem_Darius_Hemorrhage";
-
-    private static readonly HashSet<string> CandidateKeys = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "St_Darius_Decimate",
-        "St_Darius_CripplingStrike",
-        "St_Darius_Apprehend",
-        "St_Darius_NoxianGuillotine",
-        "St_D_Darius_Hemorrhage",
-        DariusResourceIds.Q,
-        DariusResourceIds.W,
-        DariusResourceIds.E,
-        DariusResourceIds.R,
-        DariusResourceIds.Identity
-    };
-
     private static bool _localizationPatched;
-
-    private static bool _selectionCompatibilityPatched;
-
-    private static bool _loggedDiscovery;
 
     // The Ctrl skill-drag UI calls ConvertDescriptionNodesToText several times per second, and
     // sometimes multiple times in one frame. Cache both equipped trigger lookup and the final
@@ -68,15 +39,21 @@ public static partial class DariusDejaVuRegistry
         {
             RegisterContentSettings(DewBuildProfile.current != null ? DewBuildProfile.current.content : null);
             RegisterCollectables();
-            RegisterProfile(DewSave.profileMain);
             RegisterProfileStats(DewSave.profileStats);
-            LogDejaVuDiscoveryOnce();
-            DariusLog.Info("DEJAVU", "Native Deja Vu injection pass complete for Q/W/E/R + Hero_Darius Hemorrhage Identity.");
+            DariusLog.Info("DEJAVU", "Native Deja Vu content/type/stats registration complete; profile unlock ownership remains in Traveler late registration.");
         }
         catch (Exception e)
         {
             DariusLog.Exception("DEJAVU", e, "RegisterAll failed");
         }
+    }
+
+    public static void ResetPatchInstallState()
+    {
+        _localizationPatched = false;
+        TooltipSkillCache.Clear();
+        TooltipTextCache.Clear();
+        _tooltipCacheHeroId = 0;
     }
 
     public static void InstallLocalizationPatches(Harmony harmony)

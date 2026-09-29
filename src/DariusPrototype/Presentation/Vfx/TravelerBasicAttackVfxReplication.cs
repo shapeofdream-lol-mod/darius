@@ -16,8 +16,11 @@ public struct TravelerBasicAttackVfxMessage : NetworkMessage
 
 public static class TravelerBasicAttackVfxReplication
 {
+    private static bool _initialized;
+
     public static void Initialize()
     {
+        if (_initialized) return;
         try
         {
             // This assembly is built with dotnet rather than Unity's Mirror Weaver, so register the
@@ -29,12 +32,28 @@ public static class TravelerBasicAttackVfxReplication
             // accumulating registrations, and also restores it after Mirror resets its handler table.
             NetworkClient.ReplaceHandler<TravelerBasicAttackVfxMessage>(OnClientMessage);
             NetworkServer.ReplaceHandler<TravelerBasicAttackVfxMessage>(OnServerMessage);
+            _initialized = true;
         }
         catch (Exception e)
         {
+            _initialized = false;
+            try { NetworkClient.UnregisterHandler<TravelerBasicAttackVfxMessage>(); } catch { }
+            try { NetworkServer.UnregisterHandler<TravelerBasicAttackVfxMessage>(); } catch { }
+            Writer<TravelerBasicAttackVfxMessage>.write = null;
+            Reader<TravelerBasicAttackVfxMessage>.read = null;
             // Optional presentation networking must never abort Hero_Darius registration.
             DariusLog.Exception("ATK-NET", e, "Basic-attack VFX replication initialization failed");
         }
+    }
+
+    public static void Shutdown()
+    {
+        if (!_initialized) return;
+        try { NetworkClient.UnregisterHandler<TravelerBasicAttackVfxMessage>(); } catch { }
+        try { NetworkServer.UnregisterHandler<TravelerBasicAttackVfxMessage>(); } catch { }
+        Writer<TravelerBasicAttackVfxMessage>.write = null;
+        Reader<TravelerBasicAttackVfxMessage>.read = null;
+        _initialized = false;
     }
 
     public static void Broadcast(NetworkIdentity identity, byte phase, byte variant, bool critical, Vector3 position, Vector3 direction)

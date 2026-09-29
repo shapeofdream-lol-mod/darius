@@ -90,7 +90,6 @@ public sealed partial class DariusConstellationRuntime : MonoBehaviour
     private void Start()
     {
         if (!NetworkServer.active) return;
-        StartCoroutine(ApplySelectedLoadoutFallbackRoutine());
         StartCoroutine(StarterDejaVuFallbackReadyRoutine());
     }
 

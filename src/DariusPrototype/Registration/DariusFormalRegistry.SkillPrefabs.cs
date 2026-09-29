@@ -133,43 +133,18 @@ public static partial class DariusFormalRegistry
             DariusLog.Warn(logTag, "Native skill type not found: " + typeName);
             return null;
         }
-        MethodInfo[] methods = typeof(DewResources).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-        for (int i = 0; i < methods.Length; i++)
+
+        try
         {
-            MethodInfo m = methods[i];
-            if (m.Name != "GetByType" || m.IsGenericMethod) continue;
-            ParameterInfo[] ps = m.GetParameters();
-            if (ps.Length < 1 || ps[0].ParameterType != typeof(Type)) continue;
-            try
-            {
-                object[] args = new object[ps.Length];
-                args[0] = nativeType;
-                for (int j = 1; j < ps.Length; j++)
-                {
-                    if (ps[j].HasDefaultValue) args[j] = ps[j].DefaultValue;
-                    else args[j] = ps[j].ParameterType.IsValueType ? Activator.CreateInstance(ps[j].ParameterType) : null;
-                }
-                object result = m.Invoke(null, args);
-                SkillTrigger skill = result as SkillTrigger;
-                if (skill != null) return skill;
-                GameObject go = result as GameObject;
-                if (go != null)
-                {
-                    skill = go.GetComponent<SkillTrigger>();
-                    if (skill != null) return skill;
-                }
-                Component component = result as Component;
-                if (component != null)
-                {
-                    skill = component.GetComponent<SkillTrigger>();
-                    if (skill != null) return skill;
-                }
-            }
-            catch (Exception e)
-            {
-                DariusLog.DebugInfo(logTag, "GetByType probe failed for " + typeName + " via " + m + ": " + e.GetType().Name);
-            }
+            SkillTrigger skill = DewResources.GetByType<SkillTrigger>(nativeType);
+            if (skill != null) return skill;
         }
+        catch (Exception e)
+        {
+            DariusLog.DebugInfo(logTag, "DewResources.GetByType<SkillTrigger> failed for " +
+                typeName + ": " + e.GetType().Name);
+        }
+
         DariusLog.Warn(logTag, "Could not resolve native skill resource for " + typeName);
         return null;
     }

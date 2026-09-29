@@ -11,8 +11,6 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusConstellationRegistry
 {
-    private static readonly List<Type> InjectedTypes = new List<Type>();
-
     private static readonly Dictionary<Type, string> IconKeyByType = new Dictionary<Type, string>();
 
     private static bool _registered;
@@ -79,7 +77,6 @@ public static partial class DariusConstellationRegistry
             s.type = type;
             DariusConstellationReflection.ConfigureProgression(s, maxLevel, requiredLevel, iconKey);
         });
-        InjectStarType(typeof(T));
         DariusLog.Info("CONSTELLATION-STAR", name + " type=" + type + " maxLevel=" + maxLevel + " requiredLevel=" + requiredLevel + " prefab=" + (star != null));
     }
 
@@ -95,67 +92,4 @@ public static partial class DariusConstellationRegistry
         return starType != null && IconKeyByType.TryGetValue(starType, out iconKey) && !string.IsNullOrEmpty(iconKey);
     }
 
-    private static bool IsOwnedStarType(Type type)
-    {
-        return type != null && !string.IsNullOrEmpty(type.Name) && type.Name.StartsWith("Se_Star_Darius_", StringComparison.Ordinal);
-    }
-
-    private static bool IsSameSemanticStarType(Type left, Type right)
-    {
-        if (left == null || right == null) return false;
-        if (!IsOwnedStarType(left) || !IsOwnedStarType(right)) return false;
-        return string.Equals(left.FullName, right.FullName, StringComparison.Ordinal) ||
-               string.Equals(left.Name, right.Name, StringComparison.Ordinal);
-    }
-
-    private static void InjectStarType(Type starType)
-    {
-        if (starType == null) return;
-        try
-        {
-            // Force Dew's lazy cache to initialize, but never manufacture an empty replacement list.
-            PropertyInfo lazyProperty = typeof(Dew).GetProperty("allStarTypes", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            if (lazyProperty != null && lazyProperty.CanRead)
-            {
-                try { lazyProperty.GetValue(null, null); } catch { }
-            }
-
-            FieldInfo field = typeof(Dew).GetField("_allStarTypes", BindingFlags.Static | BindingFlags.NonPublic);
-            if (field == null)
-            {
-                DariusLog.Warn("CONSTELLATION", "Dew._allStarTypes was not found; star type cache injection skipped for " + starType.Name);
-                return;
-            }
-            List<Type> list = field.GetValue(null) as List<Type>;
-            if (list == null)
-            {
-                DariusLog.Warn("CONSTELLATION", "Dew._allStarTypes is not initialized yet; deferred " + starType.Name);
-                return;
-            }
-
-            // Dew hot reload loads a timestamped copy of the DLL. The old CLR Type and the new CLR
-            // Type are therefore different objects even though they represent the same star resource.
-            // Type-identity dedupe (`List.Contains`) is insufficient and caused one visible duplicate
-            // constellation after every unrelated Mod add/remove. Collapse stale semantic duplicates
-            // before the current type is added.
-            int staleRemoved = 0;
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                Type existing = list[i];
-                if (existing == starType) continue;
-                if (!IsSameSemanticStarType(existing, starType)) continue;
-                list.RemoveAt(i);
-                staleRemoved++;
-            }
-            if (staleRemoved > 0)
-                DariusLog.Warn("CONSTELLATION-RELOAD", "Removed " + staleRemoved + " stale hot-reload Type instance(s) for " + starType.Name + " before re-registration.");
-
-            if (!list.Contains(starType)) list.Add(starType);
-            if (!InjectedTypes.Contains(starType)) InjectedTypes.Add(starType);
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("CONSTELLATION", e, "InjectStarType failed type=" + starType.Name);
-        }
-    }
 }

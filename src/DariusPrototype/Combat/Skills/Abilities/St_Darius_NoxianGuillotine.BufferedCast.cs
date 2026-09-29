@@ -89,41 +89,4 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
         // charge/cooldown/minimum-delay tuple is legitimate here. Failed input intents never call this.
         ForceChargeReady(caster, reason, true);
     }
-
-    // Server-side direct input path. Darius R was still intermittently eaten inside the stock
-    // ControlManager targeting wrappers, so the ready charge now resolves its own legal target and
-    // enters SkillTrigger.base.OnCastComplete directly. Native cooldown/Gem/AbilityInstance behavior
-    // remains authoritative after this input hop.
-    public bool TryCastDirectFromControl(string source)
-    {
-        if (!NetworkServer.active) return false;
-        Hero caster = owner as Hero;
-        if (caster == null || caster.IsNullOrInactive()) return false;
-        Entity target = FindRecoveryTarget(caster);
-        if (target == null)
-        {
-            DariusLog.DebugInfoThrottled("R-DIRECT", "no-target:" + source,
-                "Direct R input found no legal enemy in Guillotine range; input left unconsumed. source=" + source, 0.20);
-            return false;
-        }
-        CastInfo info = new CastInfo(caster, target);
-        return TryCastDirectResolved(source, info, caster, target);
-    }
-
-    public bool TryCastDirectFromControl(string source, CastInfo inputInfo)
-    {
-        if (!NetworkServer.active) return false;
-        Hero caster = inputInfo.caster as Hero;
-        if (caster == null) caster = owner as Hero;
-        if (caster == null || caster.IsNullOrInactive()) return false;
-        Entity target = ResolveCastTarget(caster, inputInfo, false);
-        if (target == null) target = FindRecoveryTarget(caster);
-        if (target == null)
-        {
-            DariusLog.DebugInfoThrottled("R-DIRECT", "no-target:" + source,
-                "Direct R core input found no legal enemy in Guillotine range; input left unconsumed. source=" + source, 0.20);
-            return false;
-        }
-        return TryCastDirectResolved(source, inputInfo, caster, target);
-    }
 }

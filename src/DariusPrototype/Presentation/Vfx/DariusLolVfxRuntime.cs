@@ -28,15 +28,50 @@ public static partial class DariusLolVfxRuntime
 
     private static Mesh _quad;
 
+    public static void Unload()
+    {
+        DariusLog.Info("LOL-VFX", "Unload requested loadAttempted=" + _loadAttempted +
+            " systems=" + (_systems != null ? _systems.Count : 0) +
+            " textures=" + Textures.Count + " meshes=" + Meshes.Count +
+            " materials=" + Materials.Count + " quad=" + (_quad != null) + ".");
+        foreach (Material material in Materials.Values)
+            if (material != null) UnityEngine.Object.Destroy(material);
+        Materials.Clear();
+
+        foreach (Mesh mesh in Meshes.Values)
+            if (mesh != null) UnityEngine.Object.Destroy(mesh);
+        Meshes.Clear();
+        if (_quad != null) UnityEngine.Object.Destroy(_quad);
+        _quad = null;
+
+        foreach (Texture2D texture in Textures.Values)
+            if (texture != null) UnityEngine.Object.Destroy(texture);
+        Textures.Clear();
+
+        _manifest = null;
+        _systems = null;
+        _coordinateScale = DefaultCoordinateScale;
+        _loadAttempted = false;
+    }
+
     public static bool Ready { get { EnsureLoaded(); return _systems != null; } }
 
     private static void EnsureLoaded()
     {
         if (_loadAttempted) return;
+
+        string root = DariusMedia.Root;
+        if (string.IsNullOrEmpty(root))
+        {
+            DariusLog.DebugInfoThrottled("LOL-VFX", "root-not-ready",
+                "Riot VFX manifest load deferred because the Mod root is not ready.", 1.0);
+            return;
+        }
+
         _loadAttempted = true;
         try
         {
-            string path = Path.Combine(DariusMedia.Root, "assets", "lol_vfx", "darius_lol_vfx.json");
+            string path = Path.Combine(root, "assets", "lol_vfx", "darius_lol_vfx.json");
             if (!File.Exists(path))
             {
                 DariusLog.Error("LOL-VFX", "Converted League VFX manifest missing path=" + path);
@@ -68,6 +103,7 @@ public static partial class DariusLolVfxRuntime
         catch (Exception e)
         {
             _systems = null;
+            _loadAttempted = false;
             DariusLog.Exception("LOL-VFX", e, "Failed loading converted Riot VFX manifest");
         }
     }

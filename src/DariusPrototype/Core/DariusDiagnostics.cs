@@ -1,7 +1,9 @@
 using System;
+using System.Collections;
 using System.Text;
 using Mirror;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 // High-level flight recorder for first-pass in-game testing.
 // Keeps the log useful even if a failure happens outside one of the skill try/catch blocks.
@@ -12,6 +14,8 @@ public sealed class DariusDiagnostics : MonoBehaviour
     private bool _lastClient;
     private int _lastHeroId;
     private bool _unityHooked;
+    private bool _sceneHooked;
+    private int _sceneSnapshotToken;
 
     public void Initialize()
     {
@@ -20,12 +24,20 @@ public sealed class DariusDiagnostics : MonoBehaviour
             Application.logMessageReceivedThreaded += OnUnityLog;
             _unityHooked = true;
         }
+        if (!_sceneHooked)
+        {
+            SceneManager.sceneLoaded += OnSceneLoaded;
+            SceneManager.sceneUnloaded += OnSceneUnloaded;
+            SceneManager.activeSceneChanged += OnActiveSceneChanged;
+            _sceneHooked = true;
+        }
 
         _lastServer = SafeServerActive();
         _lastClient = SafeClientActive();
         _lastHeroId = GetHeroId();
         _nextHeartbeat = Time.unscaledTime + 3f;
         DariusLog.Info("DIAG", "Diagnostics initialized. " + Snapshot());
+        ScheduleSceneSnapshots("diagnostics initialize");
     }
 
     private void Update()
@@ -40,6 +52,7 @@ public sealed class DariusDiagnostics : MonoBehaviour
                 " client=" + _lastClient + "->" + client);
             _lastServer = server;
             _lastClient = client;
+            DariusRuntimeAudit.LogSnapshot("network state changed", false);
         }
 
         if (heroId != _lastHeroId)
@@ -47,12 +60,59 @@ public sealed class DariusDiagnostics : MonoBehaviour
             DariusLog.Info("DIAG-HERO", "Local hero changed instanceId=" + _lastHeroId + "->" + heroId +
                 " hero=" + DariusLog.EntityLabel(DewPlayer.local != null ? DewPlayer.local.hero : null));
             _lastHeroId = heroId;
+            DariusRuntimeAudit.LogSnapshot("local hero changed", true);
         }
 
         if (Time.unscaledTime >= _nextHeartbeat)
         {
             _nextHeartbeat = Time.unscaledTime + 30f;
             DariusLog.DebugInfo("HEARTBEAT", Snapshot());
+            DariusRuntimeAudit.LogSnapshot("30s heartbeat", false);
+        }
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        DariusLog.Info("DIAG-SCENE", "sceneLoaded scene=" + DescribeScene(scene) + " mode=" + mode +
+            " active=" + DescribeScene(SceneManager.GetActiveScene()));
+        ScheduleSceneSnapshots("sceneLoaded " + scene.name + "#" + scene.handle);
+    }
+
+    private void OnSceneUnloaded(Scene scene)
+    {
+        DariusLog.Info("DIAG-SCENE", "sceneUnloaded scene=" + DescribeScene(scene) +
+            " active=" + DescribeScene(SceneManager.GetActiveScene()));
+        ScheduleSceneSnapshots("sceneUnloaded " + scene.name + "#" + scene.handle);
+    }
+
+    private void OnActiveSceneChanged(Scene oldScene, Scene newScene)
+    {
+        DariusLog.Info("DIAG-SCENE", "activeSceneChanged old=" + DescribeScene(oldScene) +
+            " new=" + DescribeScene(newScene));
+        ScheduleSceneSnapshots("activeSceneChanged " + oldScene.name + "->" + newScene.name);
+    }
+
+    private void ScheduleSceneSnapshots(string reason)
+    {
+        int token = ++_sceneSnapshotToken;
+        StartCoroutine(SceneSnapshotRoutine(token, reason));
+    }
+
+    private IEnumerator SceneSnapshotRoutine(int token, string reason)
+    {
+        int[] beats = { 1, 10, 60 };
+        int frame = 0;
+        int beatIndex = 0;
+        while (beatIndex < beats.Length)
+        {
+            if (token != _sceneSnapshotToken) yield break;
+            if (frame >= beats[beatIndex])
+            {
+                DariusRuntimeAudit.LogSnapshot(reason + " +" + beats[beatIndex] + "f", true);
+                beatIndex++;
+            }
+            frame++;
+            yield return null;
         }
     }
 
@@ -63,15 +123,22 @@ public sealed class DariusDiagnostics : MonoBehaviour
             Application.logMessageReceivedThreaded -= OnUnityLog;
             _unityHooked = false;
         }
-        DariusLog.Info("DIAG", "Diagnostics destroyed.");
+        if (_sceneHooked)
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneUnloaded -= OnSceneUnloaded;
+            SceneManager.activeSceneChanged -= OnActiveSceneChanged;
+            _sceneHooked = false;
+        }
+        _sceneSnapshotToken++;
+        DariusLog.Info("DIAG", "Diagnostics destroyed generation=" + DariusPrototypeMod.ActiveGenerationId +
+            " owner=" + DariusPrototypeMod.ActiveModInstanceId + ".");
     }
 
     private static void OnUnityLog(string condition, string stackTrace, LogType type)
     {
-        // DariusLog itself writes through Unity's logger. Ignore those messages to prevent recursion/duplication.
-        if (!string.IsNullOrEmpty(condition) && condition.StartsWith("[DariusPrototype]", StringComparison.Ordinal))
-            return;
-
+        // DariusLog writes directly to its own file and does not mirror ordinary diagnostics into
+        // UnityEngine.Debug. Capture only genuine Unity errors/asserts/exceptions here.
         if (type != LogType.Error && type != LogType.Exception && type != LogType.Assert)
             return;
 
@@ -89,7 +156,10 @@ public sealed class DariusDiagnostics : MonoBehaviour
         StringBuilder sb = new StringBuilder();
         try
         {
-            sb.Append("server=").Append(NetworkServer.active)
+            sb.Append("generation=").Append(DariusPrototypeMod.ActiveGenerationId)
+              .Append(" modOwner=").Append(DariusPrototypeMod.ActiveModInstanceId)
+              .Append(" scene=").Append(DescribeScene(SceneManager.GetActiveScene()))
+              .Append(" server=").Append(NetworkServer.active)
               .Append(" client=").Append(NetworkClient.active)
               .Append(" frame=").Append(Time.frameCount)
               .Append(" t=").Append(Time.time.ToString("0.00"))
@@ -97,7 +167,7 @@ public sealed class DariusDiagnostics : MonoBehaviour
         }
         catch (Exception e)
         {
-            sb.Append("network/time snapshot failed: ").Append(e.Message);
+            sb.Append(" network/time snapshot failed: ").Append(e.Message);
         }
 
         try
@@ -120,6 +190,15 @@ public sealed class DariusDiagnostics : MonoBehaviour
         }
 
         return sb.ToString();
+    }
+
+    private static string DescribeScene(Scene scene)
+    {
+        try
+        {
+            return (scene.IsValid() ? scene.name : "<invalid>") + "#" + scene.handle + "(loaded=" + scene.isLoaded + ")";
+        }
+        catch { return "<scene-error>"; }
     }
 
     private static int GetHeroId()

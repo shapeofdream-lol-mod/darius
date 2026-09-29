@@ -9,6 +9,7 @@ using UnityEngine;
 public static partial class DariusPrototypeIcons
 {
     private static readonly Dictionary<string, Sprite> Cache = new Dictionary<string, Sprite>();
+    private static string _cacheRoot;
 
     private static readonly Dictionary<string, string> FileNames = new Dictionary<string, string>
     {
@@ -52,8 +53,41 @@ public static partial class DariusPrototypeIcons
         { "STAR_AWOO", "star_awoo.png" }
     };
 
+    public static void Unload()
+    {
+        DariusLog.Info("ICON", "Unload requested sprites=" + Cache.Count + ".");
+        HashSet<Texture> textures = new HashSet<Texture>();
+        foreach (Sprite sprite in Cache.Values)
+        {
+            if (sprite == null) continue;
+            if (sprite.texture != null) textures.Add(sprite.texture);
+            UnityEngine.Object.Destroy(sprite);
+        }
+        foreach (Texture texture in textures)
+            if (texture != null) UnityEngine.Object.Destroy(texture);
+        Cache.Clear();
+        _cacheRoot = null;
+    }
+
+    internal static void RefreshRootOwnership()
+    {
+        string currentRoot = DariusModEnvironment.Root;
+
+        if (Cache.Count > 0 &&
+            !string.Equals(_cacheRoot, currentRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            DariusLog.Info("ICON", "Icon cache root changed old=" + (_cacheRoot ?? "<null>") +
+                " new=" + (currentRoot ?? "<null>") + "; discarding cached sprites.");
+            Unload();
+        }
+
+        _cacheRoot = currentRoot;
+    }
+
     public static Sprite Get(string key)
     {
+        if (string.IsNullOrEmpty(_cacheRoot))
+            RefreshRootOwnership();
         Sprite sprite;
         if (Cache.TryGetValue(key, out sprite) && sprite != null) return sprite;
 
@@ -79,6 +113,7 @@ public static partial class DariusPrototypeIcons
                         DariusLog.Info("ICON", "Loaded League icon key=" + key + " file=" + path + " size=" + tex.width + "x" + tex.height);
                         return sprite;
                     }
+                    UnityEngine.Object.Destroy(tex);
                     DariusLog.Warn("ICON", "ImageConversion.LoadImage returned false for key=" + key + " file=" + path);
                 }
                 catch (Exception e)
@@ -148,6 +183,7 @@ public static partial class DariusPrototypeIcons
             DariusLog.DebugInfoThrottled("ICON", key + ":ui-upscale",
                 "Upscaled packaged UI icon key=" + key + " from " + source.width + "x" + source.height +
                 " to " + width + "x" + height + ".", 5.0);
+            UnityEngine.Object.Destroy(source);
             return upscaled;
         }
         catch (Exception e)

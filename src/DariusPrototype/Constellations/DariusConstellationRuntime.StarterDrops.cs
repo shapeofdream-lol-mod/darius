@@ -117,7 +117,7 @@ public sealed partial class DariusConstellationRuntime : MonoBehaviour
             int id = trigger.GetInstanceID();
             Coroutine existing;
             if (_cosmicRoutines.TryGetValue(id, out existing) && existing != null) StopCoroutine(existing);
-            _cosmicRoutines[id] = StartCoroutine(CosmicRoutine(trigger, cosmic, spell));
+            _cosmicRoutines[id] = StartCoroutine(CosmicRoutine(trigger, id, cosmic, spell));
         }
     }
 
@@ -137,7 +137,7 @@ public sealed partial class DariusConstellationRuntime : MonoBehaviour
         _nimbusRoutine = null;
     }
 
-    private IEnumerator CosmicRoutine(AbilityTrigger trigger, int level, string spell)
+    private IEnumerator CosmicRoutine(AbilityTrigger trigger, int triggerId, int level, string spell)
     {
         float[] reductions = { 0.20f, 0.25f, 0.30f };
         float reduction = reductions[Mathf.Clamp(level, 1, reductions.Length) - 1];
@@ -152,7 +152,8 @@ public sealed partial class DariusConstellationRuntime : MonoBehaviour
             }
             catch (Exception e) { DariusLog.Exception("STAR-COSMIC", e, spell + " cooldown acceleration failed"); }
         }
-        if (trigger != null) _cosmicRoutines.Remove(trigger.GetInstanceID());
+        // Unity-destroyed objects compare null, so cleanup must use the id captured when the routine was scheduled.
+        _cosmicRoutines.Remove(triggerId);
     }
 
     private void RemoveBonus(ref StatBonus bonus)
@@ -175,5 +176,6 @@ public sealed partial class DariusConstellationRuntime : MonoBehaviour
         RemoveBonus(ref _bloodRushBonus);
         RemoveBonus(ref _dunkmasterBonus);
         RemoveBonus(ref _noxianArenaBonus);
+        _cosmicRoutines.Clear();
     }
 }

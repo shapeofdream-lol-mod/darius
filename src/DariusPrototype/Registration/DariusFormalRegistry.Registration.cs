@@ -10,15 +10,92 @@ using UnityEngine.SceneManagement;
 
 public static partial class DariusFormalRegistry
 {
+    internal static bool IsRegistrationHealthyForBootstrap()
+    {
+        if (!_registered || !IsOwnedByActiveGeneration ||
+            DewResources.database == null || RegistrationsByGuid.Count == 0 ||
+            string.IsNullOrEmpty(_registeredModRoot) ||
+            !string.Equals(_registeredModRoot, DariusModEnvironment.Root, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        foreach (RuntimeRegistration record in RegistrationsByGuid.Values)
+        {
+            UnityEngine.Object resource;
+            if (!ResourcesByGuid.TryGetValue(record.guid, out resource) || resource == null || resource.GetType() != record.type)
+                return false;
+
+            object database = DewResources.database;
+            if (!DariusUnsupportedResourceBridge.IsTypedResourceIdentityMapped(
+                    database, record.type, record.name, record.guid))
+                return false;
+
+            GameObject networkPrefab;
+            if (!record.networkHandlerRegistered ||
+                !NetworkPrefabs.TryGetValue(record.assetId, out networkPrefab) || networkPrefab == null)
+                return false;
+            if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(
+                    database, record.assetId, record.guid))
+                return false;
+            if (!DariusMirrorRuntimeHealth.IsHandlerPairHealthy(record.assetId))
+                return false;
+        }
+
+        return true;
+    }
+
     public static void Register()
     {
-        if (_registered) return;
+        if (!IsOwnedByActiveGeneration)
+        {
+            DariusLog.Warn("REG", "Formal registration skipped because its bound ModBehaviour generation is no longer active.");
+            return;
+        }
+
+        if (_registered)
+        {
+            if (IsRegistrationHealthyForBootstrap()) return;
+            bool rootChanged = !string.IsNullOrEmpty(_registeredModRoot) &&
+                               !string.Equals(_registeredModRoot, DariusModEnvironment.Root, StringComparison.OrdinalIgnoreCase);
+            DariusLog.Warn("REG", "Formal registry reported registered but its runtime generation is incomplete; discarding it before a next-frame rebuild. rootChanged=" +
+                rootChanged + " state=" + DiagnosticState());
+            Unregister();
+            if (rootChanged)
+            {
+                DariusPrototypeIcons.Unload();
+                DariusLog.Info("REG-LIFECYCLE", "Cleared root-dependent icon cache after Formal root authority changed.");
+            }
+            return;
+        }
+        if (RegistrationsByGuid.Count > 0 || ResourcesByGuid.Count > 0 || NetworkPrefabs.Count > 0 || OwnedPrefabs.Count > 0)
+        {
+            DariusLog.Warn("REG", "Discarding partial Formal registry state before a next-frame registration attempt. state=" + DiagnosticState());
+            Unregister();
+            return;
+        }
+
+        if (DariusPrototypeMod.IsBootstrapBlockedThisFrame)
+        {
+            DariusLog.DebugInfoThrottled("REG-LIFECYCLE", "frame-barrier",
+                "Formal registration deferred until the frame after runtime teardown.", 0.5);
+            return;
+        }
+
         if (DewResources.database == null)
         {
             DariusLog.Warn("REG", "DewResources database is not ready; formal resources were not registered yet.");
             return;
         }
+        if (string.IsNullOrEmpty(DariusModEnvironment.Root))
+        {
+            DariusLog.DebugInfoThrottled("REG-LIFECYCLE", "root-not-ready",
+                "Formal registration deferred because the Mod root is not ready.", 1.0);
+            return;
+        }
 
+        DariusPrototypeIcons.RefreshRootOwnership();
+
+        try
+        {
         HemorrhageStatus = RegisterPrefab<Se_Darius_Hemorrhage>("Se_Darius_Hemorrhage", GuidHemorrhageStatus, status =>
         {
             status.showIcon = true;
@@ -143,8 +220,17 @@ public static partial class DariusFormalRegistry
 
         // Runtime maps are updated precisely by RegisterObject; do not rebuild the global database here.
 
+        _registeredModRoot = DariusModEnvironment.Root;
         _registered = true;
-        DariusLog.Info("REG", "Formal Darius resources registered: Q/W/E/R + Flash/Ghost + Hemorrhage identity/status + Noxian Might status + 38 native constellation/equipment stars + legacy Essence + 4 AbilityInstances.");
+        DariusLog.Info("REG", "Formal Darius resources registered: Q/W/E/R + Flash/Ghost + Hemorrhage identity/status + Noxian Might status + 38 native constellation/equipment stars + legacy Essence + 4 AbilityInstances. state=" + DiagnosticState());
+        }
+        catch (Exception e)
+        {
+            DariusLog.Exception("REG", e, "Formal registration failed; rolling back partial runtime state");
+            try { Unregister(); }
+            catch (Exception cleanupError) { DariusLog.Exception("REG", cleanupError, "Formal registration rollback failed"); }
+            throw;
+        }
     }
 
     public static void DropTestPack(DewPlayer player, bool force)

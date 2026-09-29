@@ -17,7 +17,10 @@ internal static partial class DariusNativeModelAssets
 
         Mesh mesh = DariusUnityAssetBundleApi.LoadMesh(_bundle, assetName);
         if (mesh == null)
+        {
             DariusLog.Error("NATIVE-OVERLAY", "Filtered overlay mesh load returned null asset=" + assetName);
+            return null;
+        }
         OverlayMeshes[assetName] = mesh;
         return mesh;
     }

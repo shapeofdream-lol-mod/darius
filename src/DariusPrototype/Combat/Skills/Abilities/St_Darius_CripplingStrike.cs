@@ -40,6 +40,11 @@ public sealed class St_Darius_CripplingStrike : SkillTrigger
             cfg.castMethod = cfg.castMethod ?? new CastMethodData();
             cfg.castMethod.type = CastMethodType.None;
             cfg.castMethod._radius = 0f;
+            if (Mirror.NetworkServer.active)
+            {
+                SyncCastMethodChanges(0);
+                DariusLog.DebugInfo("CAST-METHOD-SYNC", "skill=W config=0 type=None radius=0");
+            }
             DariusLog.Info("W-CONFIG", "OnPrepare configured cooldown=5 armDuration=4 icon=" + (cfg.triggerIcon != null));
         }
         catch (Exception e)
@@ -82,34 +87,32 @@ public sealed class St_Darius_CripplingStrike : SkillTrigger
 
     public override AbilityInstance OnCastComplete(int configIndex, CastInfo info)
     {
-        AbilityInstance result = null;
+        DariusLog.DebugInfo("PIPELINE", "skill=W stage=trigger-input config=" + configIndex +
+            " caster=" + DariusLog.EntityLabel(info.caster) +
+            " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         try
         {
-            result = base.OnCastComplete(configIndex, info);
-            if (result != null)
+            AbilityInstance result = base.OnCastComplete(configIndex, info);
+            DariusLog.DebugInfo("PIPELINE", "skill=W stage=native-complete-output config=" + configIndex +
+                " result=" + (result != null ? result.name : "<null>") +
+                " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+            if (result == null)
             {
-                DariusLog.Info("W-TRIGGER", "Native AbilityInstance spawned=" + result.name +
-                    " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(info.caster));
-                return result;
+                DariusLog.Error("W-TRIGGER", "Native OnCastComplete returned no AbilityInstance; direct fallback is disabled. state={" +
+                    DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+                return null;
             }
-            DariusLog.Warn("W-TRIGGER", "Native completion returned no AbilityInstance; using compatibility fallback execution.");
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("W-TRIGGER", e, "Native AbilityInstance pipeline failed; using one-shot compatibility fallback");
-        }
 
-        // Compatibility safety net only. Normal gameplay must use the stock Trigger -> Instance ->
-        // PrepareAndSpawn path so Gems receive a real EventInfoCast.instance and Actor damage/heal events.
-        try
-        {
-            StartCoroutine(Ai_Darius_CripplingStrike.Execute(info, this, null));
-            DariusLog.Warn("W-FALLBACK", "Direct execution started because native AbilityInstance creation failed.");
+            DariusLog.Info("W-TRIGGER", "Native AbilityInstance spawned=" + result.name +
+                " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(info.caster) +
+                " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+            return result;
         }
         catch (Exception e)
         {
-            DariusLog.Exception("W-FALLBACK", e, "Compatibility fallback failed to start");
+            DariusLog.Exception("W-TRIGGER", e, "Native AbilityInstance pipeline failed; no direct fallback will run. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+            throw;
         }
-        return result;
     }
 }

@@ -10,12 +10,12 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
     public override AbilityInstance OnCastComplete(int configIndex, CastInfo info)
     {
         Hero caster = info.caster as Hero;
+        DariusLog.DebugInfo("PIPELINE", "skill=R stage=trigger-input config=" + configIndex +
+            " caster=" + DariusLog.EntityLabel(info.caster) +
+            " target=" + DariusLog.EntityLabel(info.target) +
+            " point=" + DariusLog.Vec(info.point) +
+            " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         if (caster == null) return null;
-
-        // Reaching this method proves the ControlManager/native input path did not eat the press.
-        // Cancel any input-layer watchdog that was waiting to diagnose a pre-OnCastComplete stall.
-        _lastOnCastCompleteAt = Time.unscaledTime;
-        _controlAttemptToken++;
 
         // A second press during the 0.42 s execute animation is an intent for the next reset cast,
         // not a second parallel cast. Preserve the latest intent and consume it after the execute.
@@ -31,6 +31,8 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
         }
 
         Entity target = ResolveCastTarget(caster, info, true);
+        DariusLog.DebugInfo("PIPELINE", "skill=R stage=target-resolution-output config=" + configIndex +
+            " target=" + DariusLog.EntityLabel(target) + " buffered=" + (target == null));
         if (target == null)
         {
             QueueBufferedCast(configIndex, info, caster);
@@ -46,55 +48,42 @@ public sealed partial class St_Darius_NoxianGuillotine : SkillTrigger
         if (caster == null || target == null || _executionActive) return null;
 
         CastInfo resolvedInfo = new CastInfo(caster, target);
-        DariusLog.Info("R-TRIGGER", "Resolved R target through point-intent layer; entering native AbilityInstance pipeline source=" + source +
-            " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(caster) +
-            " target=" + DariusLog.EntityLabel(target) + " inputPoint=" + DariusLog.Vec(inputInfo.point));
+        DariusLog.DebugInfo("PIPELINE", "skill=R stage=native-complete-input source=" + source +
+            " config=" + configIndex + " caster=" + DariusLog.EntityLabel(caster) +
+            " target=" + DariusLog.EntityLabel(target) +
+            " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
 
         try
         {
             int chargeBefore = GetCurrentChargeSafe();
             AbilityInstance instance = base.OnCastComplete(configIndex, resolvedInfo);
-            if (instance != null)
+            DariusLog.DebugInfo("PIPELINE", "skill=R stage=native-complete-output source=" + source +
+                " config=" + configIndex + " result=" + (instance != null ? instance.name : "<null>") +
+                " charge=" + chargeBefore + "->" + GetCurrentChargeSafe() +
+                " recharge=" + CurrentRechargeTimeSafe().ToString("0.###") +
+                " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+            if (instance == null)
             {
-                _executionActive = true;
-                int executionToken = ++_executionToken;
-                StartCoroutine(ExecutionWatchdog(executionToken, caster));
-                DariusLog.Info("R-TRIGGER", "Native R AbilityInstance spawned=" + instance.name +
-                    " charge=" + chargeBefore + "->" + GetCurrentChargeSafe() +
-                    " recharge=" + CurrentRechargeTimeSafe().ToString("0.###"));
-                return instance;
+                DariusLog.Error("R-TRIGGER", "Native R OnCastComplete returned no AbilityInstance; direct fallback is disabled. state={" +
+                    DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+                return null;
             }
-            DariusLog.Warn("R-TRIGGER", "Native R completion returned no AbilityInstance; using compatibility fallback execution.");
+
+            _executionActive = true;
+            int executionToken = ++_executionToken;
+            StartCoroutine(ExecutionWatchdog(executionToken, caster));
+            DariusLog.Info("R-TRIGGER", "Native R AbilityInstance spawned=" + instance.name +
+                " charge=" + chargeBefore + "->" + GetCurrentChargeSafe() +
+                " recharge=" + CurrentRechargeTimeSafe().ToString("0.###") +
+                " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+            return instance;
         }
         catch (Exception e)
         {
-            DariusLog.Exception("R-TRIGGER", e, "Native R AbilityInstance pipeline failed; using compatibility fallback");
+            DariusLog.Exception("R-TRIGGER", e, "Native R AbilityInstance pipeline failed; no direct fallback will run. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+            throw;
         }
-
-        // Safety net for a future game build that rejects runtime AbilityInstance prefabs. The normal
-        // route above is required for full Gem compatibility and should be the only path seen in logs.
-        _executionActive = true;
-        int fallbackToken = ++_executionToken;
-        try
-        {
-            StartCoroutine(RunResolvedExecution(resolvedInfo, fallbackToken));
-            StartCoroutine(ExecutionWatchdog(fallbackToken, caster));
-            DariusLog.Warn("R-FALLBACK", "Direct R execution started because native AbilityInstance creation failed.");
-        }
-        catch (Exception e)
-        {
-            _executionActive = false;
-            DariusLog.Exception("R-FALLBACK", e, "Direct R fallback failed to start");
-            RecoverNativeReadyState(caster, "R fallback failed to start", true);
-        }
-        return null;
-    }
-
-    private IEnumerator RunResolvedExecution(CastInfo resolvedInfo, int executionToken)
-    {
-        yield return Ai_Darius_NoxianGuillotine.Execute(resolvedInfo, this, null);
-        if (executionToken != _executionToken) yield break;
-        NotifyNativeExecutionFinished("compatibility fallback completed");
     }
 
     public void NotifyNativeExecutionFinished(string reason)

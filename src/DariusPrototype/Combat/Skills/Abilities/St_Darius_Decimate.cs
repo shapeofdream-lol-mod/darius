@@ -41,6 +41,11 @@ public sealed class St_Darius_Decimate : SkillTrigger
             cfg.castMethod = cfg.castMethod ?? new CastMethodData();
             cfg.castMethod.type = CastMethodType.None;
             cfg.castMethod._radius = 4.25f;
+            if (Mirror.NetworkServer.active)
+            {
+                SyncCastMethodChanges(0);
+                DariusLog.DebugInfo("CAST-METHOD-SYNC", "skill=Q config=0 type=None radius=4.25");
+            }
             DariusLog.Info("Q-CONFIG", "OnPrepare configured cooldown=6 radius=4.25 icon=" + (cfg.triggerIcon != null));
         }
         catch (Exception e)
@@ -68,36 +73,34 @@ public sealed class St_Darius_Decimate : SkillTrigger
 
     public override AbilityInstance OnCastComplete(int configIndex, CastInfo info)
     {
-        AbilityInstance result = null;
+        DariusLog.DebugInfo("PIPELINE", "skill=Q stage=trigger-input config=" + configIndex +
+            " caster=" + DariusLog.EntityLabel(info.caster) +
+            " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
         try
         {
-            result = base.OnCastComplete(configIndex, info);
-            if (result != null)
+            AbilityInstance result = base.OnCastComplete(configIndex, info);
+            DariusLog.DebugInfo("PIPELINE", "skill=Q stage=native-complete-output config=" + configIndex +
+                " result=" + (result != null ? result.name : "<null>") +
+                " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+            if (result == null)
             {
-                DariusLog.Info("Q-TRIGGER", "Native AbilityInstance spawned=" + result.name +
-                    " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(info.caster));
-                StartCoroutine(LogRecoveryState());
-                return result;
+                DariusLog.Error("Q-TRIGGER", "Native OnCastComplete returned no AbilityInstance; direct fallback is disabled. state={" +
+                    DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+                return null;
             }
-            DariusLog.Warn("Q-TRIGGER", "Native completion returned no AbilityInstance; using compatibility fallback execution.");
-        }
-        catch (Exception e)
-        {
-            DariusLog.Exception("Q-TRIGGER", e, "Native AbilityInstance pipeline failed; using one-shot compatibility fallback");
-        }
 
-        // Compatibility safety net only. Normal gameplay must use the stock Trigger -> Instance ->
-        // PrepareAndSpawn path so Gems receive a real EventInfoCast.instance and Actor damage/heal events.
-        try
-        {
-            StartCoroutine(Ai_Darius_Decimate.Execute(info, this, null));
-            DariusLog.Warn("Q-FALLBACK", "Direct execution started because native AbilityInstance creation failed.");
+            DariusLog.Info("Q-TRIGGER", "Native AbilityInstance spawned=" + result.name +
+                " configIndex=" + configIndex + " caster=" + DariusLog.EntityLabel(info.caster) +
+                " state={" + DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+            StartCoroutine(LogRecoveryState());
+            return result;
         }
         catch (Exception e)
         {
-            DariusLog.Exception("Q-FALLBACK", e, "Compatibility fallback failed to start");
+            DariusLog.Exception("Q-TRIGGER", e, "Native AbilityInstance pipeline failed; no direct fallback will run. state={" +
+                DariusRuntimeAudit.DescribeAbilityState(this, configIndex) + "}");
+            throw;
         }
-        return result;
     }
 
     private IEnumerator LogRecoveryState()

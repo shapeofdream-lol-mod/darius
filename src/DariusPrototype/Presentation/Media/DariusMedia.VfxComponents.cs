@@ -7,6 +7,22 @@ using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.Networking;
 
+// Owns procedural Mesh/Material instances created by the lightweight fallback VFX path.
+// Destroying the GameObject alone does not reliably release runtime-created native assets.
+public sealed class DariusOwnedRenderResources : MonoBehaviour
+{
+    public Mesh mesh;
+    public Material material;
+
+    private void OnDestroy()
+    {
+        if (material != null) { try { UnityEngine.Object.Destroy(material); } catch { } }
+        if (mesh != null) { try { UnityEngine.Object.Destroy(mesh); } catch { } }
+        material = null;
+        mesh = null;
+    }
+}
+
 // Drives short-lived textured quads without requiring an AssetBundle prefab.
 public sealed class DariusVfxQuadMotion : MonoBehaviour
 {
@@ -17,15 +33,19 @@ public sealed class DariusVfxQuadMotion : MonoBehaviour
     public Transform follow;
     public Vector3 followOffset;
     public bool billboard;
+    public Material material;
     private float _born;
-    private Renderer _renderer;
     private Color _initialColor = Color.white;
 
     private void Awake()
     {
         _born = Time.time;
-        _renderer = GetComponent<Renderer>();
-        if (_renderer != null && _renderer.material != null) _initialColor = _renderer.material.color;
+    }
+
+    public void BindMaterial(Material value)
+    {
+        material = value;
+        if (material != null) _initialColor = material.color;
     }
 
     private void Update()
@@ -42,11 +62,11 @@ public sealed class DariusVfxQuadMotion : MonoBehaviour
             transform.Rotate(0f, rotateDegreesPerSecond * Time.deltaTime, 0f, Space.World);
         }
         transform.localScale = Vector3.Lerp(startScale, endScale, t);
-        if (_renderer != null && _renderer.material != null)
+        if (material != null)
         {
             Color c = _initialColor;
             c.a *= 1f - t;
-            _renderer.material.color = c;
+            material.color = c;
         }
         if (t >= 1f) Destroy(gameObject);
     }
@@ -63,13 +83,13 @@ public sealed class DariusPersistentVfxPulse : MonoBehaviour
     public float pulseSpeed = 6.0f;
     public float rotateDegreesPerSecond;
     public bool billboard;
-    private Renderer _renderer;
+    public Material material;
     private Color _baseColor = Color.white;
 
-    private void Awake()
+    public void BindMaterial(Material value)
     {
-        _renderer = GetComponent<Renderer>();
-        if (_renderer != null && _renderer.material != null) _baseColor = _renderer.material.color;
+        material = value;
+        if (material != null) _baseColor = material.color;
     }
 
     private void Update()
@@ -91,11 +111,11 @@ public sealed class DariusPersistentVfxPulse : MonoBehaviour
         }
         float pulse = 1f + Mathf.Sin(Time.time * pulseSpeed) * pulseAmount;
         transform.localScale = baseScale * pulse;
-        if (_renderer != null && _renderer.material != null)
+        if (material != null)
         {
             Color c = _baseColor;
             c.a *= 0.88f + 0.12f * Mathf.Sin(Time.time * pulseSpeed * 0.67f);
-            _renderer.material.color = c;
+            material.color = c;
         }
     }
 }

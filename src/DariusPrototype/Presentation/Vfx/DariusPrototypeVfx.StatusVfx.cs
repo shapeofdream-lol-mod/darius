@@ -164,7 +164,10 @@ public static partial class DariusPrototypeVfx
         line.endWidth = 0.06f;
         line.startColor = pale;
         line.endColor = new Color(1f,0.78f,0.20f,0.06f);
-        line.material = NewMaterial(pale);
+        Material streakMaterial = NewMaterial(pale);
+        line.sharedMaterial = streakMaterial;
+        DariusOwnedRenderResources owned = streak.AddComponent<DariusOwnedRenderResources>();
+        owned.material = streakMaterial;
         line.SetPosition(0, from + Vector3.up * 0.45f);
         line.SetPosition(1, to + Vector3.up * 0.45f);
         UnityEngine.Object.Destroy(streak, 0.12f);

@@ -32,12 +32,27 @@ public static partial class DariusMedia
 
     private static bool _loggedRoot;
 
+    // Async OGG requests can outlive a ModBehaviour generation. Every unload advances this token;
+    // stale requests must discard their decoded clip instead of repopulating the shared cache.
+    private static int _lifecycleGeneration;
+
+    private static int CaptureLifecycleGeneration()
+    {
+        return _lifecycleGeneration;
+    }
+
+    private static bool IsLifecycleGenerationCurrent(int generation)
+    {
+        return generation == _lifecycleGeneration;
+    }
+
     public static string Root
     {
         get
         {
-            if (!string.IsNullOrEmpty(_root)) return _root;
-            _root = ResolveModRoot();
+            if (string.IsNullOrEmpty(_root))
+                RefreshRootFromEnvironment();
+
             if (!_loggedRoot)
             {
                 _loggedRoot = true;
@@ -45,6 +60,45 @@ public static partial class DariusMedia
             }
             return _root;
         }
+    }
+
+    internal static void RefreshRootFromEnvironment()
+    {
+        string resolved = ResolveModRoot();
+        if (string.IsNullOrEmpty(resolved) ||
+            string.Equals(_root, resolved, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        string previous = _root;
+        _root = resolved;
+        _loggedRoot = false;
+        if (!string.IsNullOrEmpty(previous))
+            DariusLog.Info("MEDIA", "Mod media root authority changed old=" + previous + " new=" + resolved + ".");
+    }
+
+    public static void Unload()
+    {
+        int previousGeneration = _lifecycleGeneration;
+        unchecked { _lifecycleGeneration++; }
+        DariusLog.Info("MEDIA", "Unload generation=" + previousGeneration + "->" + _lifecycleGeneration +
+            " textures=" + Textures.Count + " clips=" + Clips.Count +
+            " sfxSkins=" + Pass2SfxBySkin.Count + " voiceSkins=" + Pass2VoiceBySkin.Count + ".");
+
+        HashSet<UnityEngine.Object> destroyed = new HashSet<UnityEngine.Object>();
+        foreach (Texture2D texture in Textures.Values)
+            if (texture != null && destroyed.Add(texture)) UnityEngine.Object.Destroy(texture);
+        foreach (AudioClip clip in Clips.Values)
+            if (clip != null && destroyed.Add(clip)) UnityEngine.Object.Destroy(clip);
+
+        Textures.Clear();
+        Clips.Clear();
+        LastPoolIndex.Clear();
+        LastVoiceAt.Clear();
+        Pass2SfxBySkin.Clear();
+        Pass2VoiceBySkin.Clear();
+        _pass2PoolsLoaded = false;
+        _root = null;
+        _loggedRoot = false;
     }
 
     public static void PreloadAll()

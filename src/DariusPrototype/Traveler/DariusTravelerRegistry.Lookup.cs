@@ -40,12 +40,10 @@ public static partial class DariusTravelerRegistry
                 try
                 {
                     AttackTrigger preset = ea.attackAbilityPreset.asset;
-                    if (preset == null || preset.GetType() != typeof(At_DariusAxe))
-                    {
-                        DariusNativeAttackBinder binder = go.GetComponent<DariusNativeAttackBinder>();
-                        if (binder != null) binder.EnsureBound("ValidateRegistration deferred AssetRef resolution");
-                        DariusLog.Warn("TRAVELER-ASSERT", "attackAbilityPreset AssetRef is not resolvable yet; deferring until runtime resource hooks are installed.");
-                    }
+                    if (preset == null)
+                        errors.Add("attackAbilityPreset unresolved");
+                    else if (preset.GetType() != typeof(At_DariusAxe))
+                        errors.Add("attackAbilityPreset resolved to " + preset.GetType().Name + " instead of At_DariusAxe");
                 }
                 catch (Exception e) { errors.Add("attackAbilityPreset resolve threw " + e.GetType().Name); }
             }
@@ -66,15 +64,23 @@ public static partial class DariusTravelerRegistry
         }
         try
         {
-            string mappedGuid;
-            if (!DewResources.database.netObjectAssetIdToGuid.TryGetValue(HeroAssetId, out mappedGuid) || mappedGuid != HeroGuid)
+            object database = DewResources.database;
+            if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, HeroAssetId, HeroGuid))
                 errors.Add("Hero Mirror assetId map missing/wrong");
-            if (!DewResources.database.netObjectAssetIdToGuid.TryGetValue(AttackAssetId, out mappedGuid) || mappedGuid != AttackGuid)
+            if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackAssetId, AttackGuid))
                 errors.Add("At_DariusAxe Mirror assetId map missing/wrong");
-            if (!DewResources.database.netObjectAssetIdToGuid.TryGetValue(AttackInstanceAssetId, out mappedGuid) || mappedGuid != AttackInstanceGuid)
+            if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackInstanceAssetId, AttackInstanceGuid))
                 errors.Add("Ai_DariusAxe Mirror assetId map missing/wrong");
-            if (!DewResources.database.netObjectAssetIdToGuid.TryGetValue(AttackCritInstanceAssetId, out mappedGuid) || mappedGuid != AttackCritInstanceGuid)
+            if (!DariusUnsupportedResourceBridge.IsNetworkGuidMapped(database, AttackCritInstanceAssetId, AttackCritInstanceGuid))
                 errors.Add("Ai_DariusAxe_Crit Mirror assetId map missing/wrong");
+            if (!RegisteredSpawnHandlerIds.Contains(HeroAssetId))
+                errors.Add("Hero spawn handler ownership missing");
+            if (!RegisteredSpawnHandlerIds.Contains(AttackAssetId))
+                errors.Add("At_DariusAxe spawn handler ownership missing");
+            if (!RegisteredSpawnHandlerIds.Contains(AttackInstanceAssetId))
+                errors.Add("Ai_DariusAxe spawn handler ownership missing");
+            if (!RegisteredSpawnHandlerIds.Contains(AttackCritInstanceAssetId))
+                errors.Add("Ai_DariusAxe_Crit spawn handler ownership missing");
         }
         catch { errors.Add("Hero/attack Mirror assetId maps unreadable"); }
         try
@@ -82,21 +88,71 @@ public static partial class DariusTravelerRegistry
             if (!Dew.allHeroes.Contains(typeof(Hero_Darius))) errors.Add("Dew.allHeroes missing Hero_Darius");
         }
         catch { errors.Add("Dew.allHeroes unavailable"); }
-        DewProfile p = DewSave.profileMain;
-        if (p != null)
-        {
-            if (p.heroes == null || !p.heroes.ContainsKey(HeroName)) errors.Add("profile.heroes missing Hero_Darius");
-            if (p.heroLoadouts == null || !p.heroLoadouts.ContainsKey(HeroName)) errors.Add("profile.heroLoadouts missing Hero_Darius");
-            if (p.heroSelectedSkins == null || !p.heroSelectedSkins.ContainsKey(HeroName)) errors.Add("profile.heroSelectedSkins missing Hero_Darius");
-        }
-
         if (errors.Count > 0)
         {
             string message = string.Join("; ", errors.ToArray());
             DariusLog.Error("TRAVELER-ASSERT", "Startup assertions FAILED: " + message);
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
+                "core-validator-failed",
+                "errors=[" + message + "] state={" + PipelineCoreState() + "}");
             throw new InvalidOperationException(message);
         }
-        DariusLog.Info("TRAVELER-ASSERT", "Startup assertions passed for Hero/Skin/native-attack/Loadout/resource contract.");
+        DariusLog.Info("TRAVELER-ASSERT", "Core startup assertions passed for Hero/Skin/native-attack/Loadout/resource contract.");
+        DariusRuntimeAudit.LogPipelineCheckpoint(
+            "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
+            "core-validator-output",
+            "state={" + PipelineCoreState() + "}");
+    }
+
+    private static void ValidateProfileRegistration()
+    {
+        List<string> errors = new List<string>();
+        DewProfile profile = DewSave.profileMain;
+        DewProfileStats stats = DewSave.profileStats;
+
+        if (profile == null) errors.Add("profileMain null");
+        if (stats == null) errors.Add("profileStats null");
+
+        if (profile != null)
+        {
+            DewProfile.UnlockData heroUnlock = null;
+            if (profile.heroes == null ||
+                !profile.heroes.TryGetValue(HeroName, out heroUnlock) ||
+                heroUnlock == null)
+            {
+                errors.Add("profile.heroes missing Hero_Darius");
+            }
+            else if (!heroUnlock.isAvailableInGame)
+            {
+                errors.Add("profile.heroes Hero_Darius unavailable status=" + heroUnlock.status);
+            }
+            if (profile.heroLoadouts == null || !profile.heroLoadouts.ContainsKey(HeroName))
+                errors.Add("profile.heroLoadouts missing Hero_Darius");
+            if (profile.heroSelectedSkins == null || !profile.heroSelectedSkins.ContainsKey(HeroName))
+                errors.Add("profile.heroSelectedSkins missing Hero_Darius");
+        }
+
+        if (stats != null && (stats.heroes == null || !stats.heroes.ContainsKey(HeroName)))
+            errors.Add("profileStats.heroes missing Hero_Darius");
+
+        if (errors.Count > 0)
+        {
+            string message = string.Join("; ", errors.ToArray());
+            DariusLog.Error("TRAVELER-PROFILE-ASSERT", "Late profile assertions FAILED: " + message);
+            DariusRuntimeAudit.LogPipelineCheckpoint(
+                "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
+                "profile-validator-failed",
+                "errors=[" + message + "] state={" + PipelineProfileState() + "}");
+            throw new InvalidOperationException(message);
+        }
+
+        DariusLog.Info("TRAVELER-PROFILE-ASSERT",
+            "Late profile assertions passed for Hero_Darius unlock/loadout/skin/stats state.");
+        DariusRuntimeAudit.LogPipelineCheckpoint(
+            "g" + DariusPrototypeMod.ActiveGenerationId + "-o" + DariusPrototypeMod.ActiveModInstanceId,
+            "profile-validator-output",
+            "state={" + PipelineProfileState() + "}");
     }
 
     public static bool TryLoad(string key, out UnityEngine.Object obj)
@@ -112,12 +168,6 @@ public static partial class DariusTravelerRegistry
         if (key == AttackInstanceName && AttackInstancePrefab != null) { obj = AttackInstancePrefab; return true; }
         if (key == AttackCritInstanceName && AttackCritInstancePrefab != null) { obj = AttackCritInstancePrefab; return true; }
         return false;
-    }
-
-    public static bool TryGetByType(Type type, out UnityEngine.Object obj)
-    {
-        obj = null;
-        return type != null && ResourcesByType.TryGetValue(type, out obj) && obj != null;
     }
 
     public static bool TryGetNetworkPrefab(uint assetId, out GameObject prefab)

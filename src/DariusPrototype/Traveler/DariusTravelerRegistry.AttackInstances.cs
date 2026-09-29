@@ -53,10 +53,10 @@ public static partial class DariusTravelerRegistry
 
         NetworkIdentity identity = go.GetComponent<NetworkIdentity>();
         if (identity == null) identity = go.AddComponent<NetworkIdentity>();
-        ConfigureNetworkIdentity(identity, assetId);
+        DariusUnsupportedResourceBridge.ConfigureTemplateIdentity(identity, assetId, name);
         // The bootstrap object is still inactiveInHierarchy because its parent resource root is
         // inactive. Its activeSelf=true is preserved specifically for the spawned clone lifecycle.
-        ReinitializeNetworkBehaviours(identity);
+        DariusUnsupportedResourceBridge.RebuildNetworkBehaviours(identity, name);
 
         go.hideFlags = HideFlags.None;
         OwnedObjects.Add(go);
